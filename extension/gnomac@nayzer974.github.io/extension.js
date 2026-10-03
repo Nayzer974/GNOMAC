@@ -11,6 +11,7 @@ import {Dock} from './modules/dock.js';
 import {DynamicIsland} from './modules/dynamicIsland.js';
 import {GlassMenus} from './modules/glassMenus.js';
 import {Launchpad} from './modules/launchpad.js';
+import {MenuBarIcons} from './modules/menuBarIcons.js';
 import {LockScreen} from './modules/lockScreen.js';
 import {Notifications} from './modules/notifications.js';
 import {Spotlight} from './modules/spotlight.js';
@@ -33,6 +34,7 @@ const MODULES = [
     {key: 'enable-dynamic-island', Module: DynamicIsland},
     {key: 'enable-notifications', Module: Notifications},
     {key: 'enable-vibrancy', Module: Vibrancy},
+    {key: 'enable-menubar-icons', Module: MenuBarIcons},
 ];
 
 export default class GnomacExtension extends Extension {

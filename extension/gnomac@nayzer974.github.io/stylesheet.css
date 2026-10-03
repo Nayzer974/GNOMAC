@@ -528,3 +528,54 @@
     width: 22em;
     spacing: 10px;
 }
+
+/* ---------- Menu bar status symbols ---------- */
+
+.gnomac-sf-box {
+    spacing: 12px;
+}
+
+.gnomac-sf-icon {
+    color: #ffffff;
+}
+
+/* St has no negative margins (they wrap to a huge width and break the
+   whole panel): the nub sits 1 px after the body via spacing instead. */
+.gnomac-sf-battery {
+    spacing: 1px;
+}
+
+.gnomac-sf-battery-label {
+    margin-right: 4px;
+    font-size: 9.5pt;
+    font-weight: 500;
+    font-feature-settings: "tnum";
+}
+
+.gnomac-sf-battery-body {
+    width: 19px;
+    height: 7px;
+    padding: 1.5px;
+    border: 1.2px solid rgba(255, 255, 255, 0.55);
+    border-radius: 3.5px;
+}
+
+.gnomac-sf-battery-fill {
+    border-radius: 1.5px;
+    background-color: #ffffff;
+}
+
+.gnomac-sf-battery-fill.charging {
+    background-color: #30d158;
+}
+
+.gnomac-sf-battery-fill.low {
+    background-color: #ff453a;
+}
+
+.gnomac-sf-battery-nub {
+    width: 2px;
+    height: 4px;
+    border-radius: 0 1px 1px 0;
+    background-color: rgba(255, 255, 255, 0.55);
+}

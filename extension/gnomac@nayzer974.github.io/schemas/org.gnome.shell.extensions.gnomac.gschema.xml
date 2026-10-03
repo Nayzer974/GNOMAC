@@ -49,6 +49,10 @@
       <default>true</default>
       <summary>Frosted glass behind app sidebars (Files)</summary>
     </key>
+    <key name="enable-menubar-icons" type="b">
+      <default>true</default>
+      <summary>macOS status symbols (Wi-Fi, battery, Control Center) in the menu bar</summary>
+    </key>
     <key name="enable-topbar" type="b">
       <default>true</default>
       <summary>Turn the GNOME panel into a macOS-style menu bar</summary>

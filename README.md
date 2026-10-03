@@ -18,6 +18,7 @@ GNOMAC est une extension GNOME Shell unique et cohérente, au lieu d'un empileme
 | **Notifications** | Bannières macOS en haut à droite sur une vraie surface de verre. Les actions et réponses de GNOME restent disponibles. |
 | **Écran de verrouillage** | Date et très grande heure en haut ; avatar, nom et pilule de verre « Saisir le mot de passe » en bas. Le fond d'écran est net au repos et se floute quand le champ apparaît. L'heure reste en place, au lieu de s'envoler comme dans GNOME. L'authentification reste celle de GNOME. Pendant le verrouillage, seul ce module tourne : tous les autres sont arrêtés, puis relancés au déverrouillage. |
 | **Barre latérale Finder** | Dans Fichiers, la barre latérale laisse voir un verre dépoli posé sous la fenêtre (la « vibrancy » de macOS), avec des icônes teintées accent, des lignes compactes et une sélection discrète. Le reste de la fenêtre reste opaque. Tout passe par un thème : aucun binaire injecté, contrairement au patch Nautilus de RevoShell. |
+| **Symboles de la barre de menus** | À droite, comme dans macOS 27 : Wi-Fi en éventail selon la force du signal (ou `<···>` en filaire), batterie horizontale avec pourcentage (verte en charge, rouge sous 20 %), icône du Centre de contrôle. Un clic ouvre le Centre de contrôle en verre. Les icônes GNOME correspondantes sont masquées ; les indicateurs de confidentialité (caméra, micro, localisation, partage d'écran) restent visibles. |
 | **Spotlight** | Super + Espace : barre de recherche en verre au-dessus des fenêtres. Apps (classées comme dans GNOME), calculatrice (« 12,5 × 4 »), actions système (verrouiller, suspendre, éteindre…), recherche web. Flèches, Entrée, Échap. Ouverture avec un ressort. |
 | **Dock** | Flotte au-dessus du bas de l'écran. Agrandissement en courbe gaussienne qui écarte les icônes voisines, rebond au lancement (le saut en cours se termine avant l'arrêt), points sous les apps ouvertes, infobulles, menu contextuel GNOME, séparateurs. **Glisser-déposer** pour réorganiser (un espace s'ouvre sous l'icône) ; tirer une icône hors du dock la retire. **Pile Téléchargements** qui s'ouvre en éventail, **Corbeille** vide/pleine avec « Vider la Corbeille… » (confirmation). |
 | **Moteur de ressorts** | Un seul minuteur partagé, une physique masse-ressort stable quelle que soit la fréquence d'images. Les animations gardent leur vitesse quand on les relance en cours de route. |
@@ -68,7 +69,6 @@ dbus-run-session gnome-shell --devkit --wayland
 ## Feuille de route
 
 - [ ] Titres de sections (« Favoris », « Emplacements ») dans la barre latérale de Fichiers
-- [ ] Symboles façon SF Symbols dans la barre de menus
 
 - [ ] Spotlight : recherche de fichiers et presse-papiers
 - [ ] Menu global intégré (DBusMenu et GMenu)
