@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.gnomac" path="/org/gnome/shell/extensions/gnomac/">
+    <key name="enable-dock" type="b">
+      <default>true</default>
+      <summary>Show the GNOMAC dock</summary>
+    </key>
+    <key name="enable-topbar" type="b">
+      <default>true</default>
+      <summary>Turn the GNOME panel into a macOS-style menu bar</summary>
+    </key>
+
+    <key name="dock-icon-size" type="i">
+      <range min="24" max="128"/>
+      <default>48</default>
+      <summary>Dock icon size in pixels</summary>
+    </key>
+    <key name="dock-magnification" type="b">
+      <default>true</default>
+      <summary>Magnify dock icons under the pointer</summary>
+    </key>
+    <key name="dock-max-scale" type="d">
+      <range min="1.0" max="3.0"/>
+      <default>1.75</default>
+      <summary>Maximum magnification factor</summary>
+    </key>
+    <key name="dock-reserve-space" type="b">
+      <default>true</default>
+      <summary>Keep maximized windows above the dock</summary>
+    </key>
+    <key name="dock-show-running" type="b">
+      <default>true</default>
+      <summary>Show a dot under running apps</summary>
+    </key>
+
+    <key name="panel-style" type="s">
+      <choices>
+        <choice value="transparent"/>
+        <choice value="glass"/>
+      </choices>
+      <default>'transparent'</default>
+      <summary>Menu bar background (Golden Gate default is transparent)</summary>
+    </key>
+
+    <key name="glass-blur" type="i">
+      <range min="0" max="100"/>
+      <default>30</default>
+      <summary>Backdrop blur radius</summary>
+    </key>
+    <key name="glass-refraction" type="d">
+      <range min="0" max="60"/>
+      <default>14</default>
+      <summary>Edge refraction strength in pixels</summary>
+    </key>
+    <key name="glass-chroma" type="d">
+      <range min="0" max="8"/>
+      <default>1.5</default>
+      <summary>Chromatic dispersion at the edges in pixels</summary>
+    </key>
+    <key name="glass-rim" type="d">
+      <range min="0" max="1"/>
+      <default>0.55</default>
+      <summary>Rim light intensity</summary>
+    </key>
+    <key name="glass-tint-opacity" type="d">
+      <range min="0" max="0.9"/>
+      <default>0.18</default>
+      <summary>Glass tint opacity</summary>
+    </key>
+    <key name="glass-dark" type="b">
+      <default>true</default>
+      <summary>Dark glass tint (light tint when false)</summary>
+    </key>
+
+    <key name="spring-stiffness" type="d">
+      <range min="40" max="1000"/>
+      <default>260</default>
+      <summary>Spring stiffness for animations</summary>
+    </key>
+    <key name="spring-damping" type="d">
+      <range min="5" max="80"/>
+      <default>26</default>
+      <summary>Spring damping for animations</summary>
+    </key>
+  </schema>
+</schemalist>

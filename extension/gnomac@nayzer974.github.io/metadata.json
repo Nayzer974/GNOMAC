@@ -1,0 +1,9 @@
+{
+  "uuid": "gnomac@nayzer974.github.io",
+  "name": "GNOMAC",
+  "description": "macOS 27 (Golden Gate) feel for GNOME: Liquid Glass surfaces, magnifying dock with spring physics, macOS-style menu bar.",
+  "shell-version": ["50", "51"],
+  "url": "https://github.com/Nayzer974/GNOMAC",
+  "settings-schema": "org.gnome.shell.extensions.gnomac",
+  "version-name": "0.1.0"
+}

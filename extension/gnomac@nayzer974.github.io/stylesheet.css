@@ -1,0 +1,61 @@
+/* ---------- Dock ---------- */
+
+.gnomac-dock-dot {
+    width: 4px;
+    height: 4px;
+    border-radius: 2px;
+    background-color: rgba(255, 255, 255, 0.85);
+}
+
+.gnomac-dock-separator {
+    background-color: rgba(255, 255, 255, 0.24);
+}
+
+.gnomac-dock-apps-icon {
+    color: rgba(255, 255, 255, 0.92);
+}
+
+.gnomac-dock-tooltip {
+    background-color: rgba(28, 28, 32, 0.88);
+    color: #f5f5f7;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    padding: 4px 10px;
+    font-size: 10.5pt;
+    font-weight: 500;
+}
+
+/* ---------- Menu bar ---------- */
+
+#panel.gnomac-panel {
+    background-color: transparent;
+    height: 26px;
+    font-weight: 500;
+}
+
+#panel.gnomac-panel .panel-button {
+    color: #ffffff;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+    border-radius: 8px;
+    -natural-hpadding: 10px;
+    -minimum-hpadding: 6px;
+}
+
+#panel.gnomac-panel .panel-button:hover,
+#panel.gnomac-panel .panel-button:active,
+#panel.gnomac-panel .panel-button:checked {
+    background-color: rgba(255, 255, 255, 0.16);
+    box-shadow: none;
+}
+
+#panel.gnomac-panel .gnomac-appname {
+    font-weight: 800;
+}
+
+#panel.gnomac-panel .gnomac-logo {
+    icon-size: 15px;
+}
+
+#panel.gnomac-panel .gnomac-clock {
+    font-feature-settings: "tnum";
+}

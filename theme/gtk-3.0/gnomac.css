@@ -1,0 +1,55 @@
+/* GNOMAC — macOS 27 Golden Gate window controls for GTK 3 apps.
+ * Imported from ~/.config/gtk-3.0/gtk.css by install.sh.
+ */
+
+headerbar button.titlebutton,
+.titlebar button.titlebutton {
+  min-width: 14px;
+  min-height: 14px;
+  margin: 0 4px;
+  padding: 0;
+  border: none;
+  border-radius: 9999px;
+  color: transparent;
+  background-repeat: no-repeat;
+  background-size: 64% 42%, 100% 100%;
+  background-position: 50% 1px, 50% 50%;
+  box-shadow:
+    inset 0 -2px 3px rgba(255, 255, 255, 0.35),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.22),
+    0 1px 1px rgba(0, 0, 0, 0.25);
+  -gtk-icon-shadow: none;
+}
+
+headerbar:hover button.titlebutton,
+.titlebar:hover button.titlebutton {
+  color: rgba(0, 0, 0, 0.55);
+}
+
+headerbar button.titlebutton.close,
+.titlebar button.titlebutton.close {
+  background-image:
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0)),
+    radial-gradient(circle, #ff8a80 0%, #ff5f57 48%, #d8352c 100%);
+}
+
+headerbar button.titlebutton.minimize,
+.titlebar button.titlebutton.minimize {
+  background-image:
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0)),
+    radial-gradient(circle, #ffd77a 0%, #febc2e 48%, #d99415 100%);
+}
+
+headerbar button.titlebutton.maximize,
+.titlebar button.titlebutton.maximize {
+  background-image:
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0)),
+    radial-gradient(circle, #6fe27f 0%, #28c840 48%, #179b2c 100%);
+}
+
+headerbar button.titlebutton:backdrop,
+.titlebar button.titlebutton:backdrop {
+  background-image:
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0)),
+    radial-gradient(circle, rgba(150, 150, 156, 0.75) 0%, rgba(110, 110, 116, 0.75) 100%);
+}
