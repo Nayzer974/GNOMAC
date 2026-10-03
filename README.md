@@ -16,6 +16,7 @@ GNOMAC est une extension GNOME Shell unique et cohérente, au lieu d'un empileme
 | **Dynamic Island** | Pastille noire en haut au centre. Pendant la lecture : pochette, titre et égaliseur animé. Au survol ou au clic : titre, artiste, précédent/lecture/suivant. Peut aussi afficher les notifications (option). Toutes les transitions passent par des ressorts. |
 | **Launchpad** | Bouton Applications du dock : grille plein écran sur verre flouté, recherche, pages avec points, défilement à ressort, zoom à l'ouverture et à la fermeture. |
 | **Notifications** | Bannières macOS en haut à droite sur une vraie surface de verre. Les actions et réponses de GNOME restent disponibles. |
+| **Écran de verrouillage** | Date et très grande heure en haut ; avatar, nom et pilule de verre « Saisir le mot de passe » en bas. Le fond d'écran est net au repos et se floute quand le champ apparaît. L'heure reste en place, au lieu de s'envoler comme dans GNOME. L'authentification reste celle de GNOME. Pendant le verrouillage, seul ce module tourne : tous les autres sont arrêtés, puis relancés au déverrouillage. |
 | **Spotlight** | Super + Espace : barre de recherche en verre au-dessus des fenêtres. Apps (classées comme dans GNOME), calculatrice (« 12,5 × 4 »), actions système (verrouiller, suspendre, éteindre…), recherche web. Flèches, Entrée, Échap. Ouverture avec un ressort. |
 | **Dock** | Flotte au-dessus du bas de l'écran. Agrandissement en courbe gaussienne qui écarte les icônes voisines, rebond au lancement (le saut en cours se termine avant l'arrêt), points sous les apps ouvertes, infobulles, menu contextuel GNOME, séparateurs. **Glisser-déposer** pour réorganiser (un espace s'ouvre sous l'icône) ; tirer une icône hors du dock la retire. **Pile Téléchargements** qui s'ouvre en éventail, **Corbeille** vide/pleine avec « Vider la Corbeille… » (confirmation). |
 | **Moteur de ressorts** | Un seul minuteur partagé, une physique masse-ressort stable quelle que soit la fréquence d'images. Les animations gardent leur vitesse quand on les relance en cours de route. |
@@ -64,7 +65,6 @@ dbus-run-session gnome-shell --devkit --wayland
 
 ## Feuille de route
 
-- [ ] Écran de verrouillage façon macOS
 - [ ] Barre latérale façon Finder pour Fichiers (thème, sans binaire)
 - [ ] Curseurs et symboles façon SF Symbols
 

@@ -444,3 +444,87 @@
 .gnomac-notifications .notification-banner .message-title {
     font-weight: 700;
 }
+
+/* ---------- Lock screen ---------- */
+
+.gnomac-lock .unlock-dialog-clock {
+    spacing: 0;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.gnomac-lock .unlock-dialog-clock-date {
+    font-size: 21pt;
+    font-weight: 600;
+    text-shadow: 0 1px 6px rgba(0, 0, 0, 0.35);
+}
+
+/* Huge rounded digits, slightly translucent like Golden Gate's glass clock. */
+.gnomac-lock .unlock-dialog-clock-time {
+    font-size: 104pt;
+    font-weight: 700;
+    letter-spacing: -2px;
+    color: rgba(255, 255, 255, 0.86);
+    text-shadow: 0 2px 18px rgba(0, 0, 0, 0.30);
+}
+
+.gnomac-lock-rest {
+    spacing: 8px;
+}
+
+.gnomac-lock-avatar,
+.gnomac-lock .user-widget.vertical .user-icon {
+    icon-size: 64px;
+    border-radius: 99px;
+    background-color: rgba(255, 255, 255, 0.18);
+    color: #ffffff;
+}
+
+.gnomac-lock-name,
+.gnomac-lock .user-widget.vertical .user-widget-label {
+    font-size: 13pt;
+    font-weight: 700;
+    color: #ffffff;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+    margin-bottom: 0;
+}
+
+.gnomac-lock .user-widget.vertical {
+    spacing: 8px;
+}
+
+/* GNOME pads the avatar's inner icon for its 96 px avatar; scale it down. */
+.gnomac-lock .user-widget.vertical .user-icon StIcon,
+.gnomac-lock-avatar StIcon {
+    padding: 14px;
+}
+
+/* Glass password pill. */
+.gnomac-lock-pill,
+.gnomac-lock .login-dialog-prompt-entry {
+    min-width: 200px;
+    padding: 5px 14px;
+    border-radius: 99px;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    background-color: rgba(255, 255, 255, 0.16);
+    color: #ffffff;
+    font-size: 10.5pt;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.gnomac-lock-pill {
+    color: rgba(255, 255, 255, 0.65);
+}
+
+.gnomac-lock .login-dialog-prompt-entry StLabel.hint-text {
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.gnomac-lock .login-dialog-prompt-entry:focus {
+    border-color: rgba(255, 255, 255, 0.5);
+    background-color: rgba(255, 255, 255, 0.22);
+}
+
+.gnomac-lock .login-dialog-prompt-layout {
+    width: 22em;
+    spacing: 10px;
+}

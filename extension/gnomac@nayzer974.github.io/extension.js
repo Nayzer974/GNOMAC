@@ -5,18 +5,24 @@ import GLib from 'gi://GLib';
 import St from 'gi://St';
 
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
+import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {Dock} from './modules/dock.js';
 import {DynamicIsland} from './modules/dynamicIsland.js';
 import {GlassMenus} from './modules/glassMenus.js';
 import {Launchpad} from './modules/launchpad.js';
+import {LockScreen} from './modules/lockScreen.js';
 import {Notifications} from './modules/notifications.js';
 import {Spotlight} from './modules/spotlight.js';
 import {TopBar} from './modules/topbar.js';
 import {WindowAnimations} from './modules/windowAnimations.js';
 import {destroyTicker} from './lib/spring.js';
 
+// Only modules flagged `locked` run while the screen is locked: the
+// extension stays loaded in the unlock-dialog session mode for the lock
+// screen, and everything else is stopped until the session is unlocked.
 const MODULES = [
+    {key: 'enable-lock-screen', Module: LockScreen, locked: true},
     {key: 'enable-launchpad', Module: Launchpad},
     {key: 'enable-topbar', Module: TopBar},
     {key: 'enable-dock', Module: Dock},
@@ -35,6 +41,7 @@ export default class GnomacExtension extends Extension {
         // Any change rebuilds the modules; debounce so dragging a slider in
         // the preferences does not rebuild on every step.
         this._settingsId = this._settings.connect('changed', () => this._scheduleReload());
+        this._sessionId = Main.sessionMode.connect('updated', () => this._reload());
     }
 
     disable() {
@@ -43,6 +50,7 @@ export default class GnomacExtension extends Extension {
             this._reloadId = 0;
         }
         this._settings.disconnect(this._settingsId);
+        Main.sessionMode.disconnect(this._sessionId);
         this._stop();
         destroyTicker();
         this._settings = null;
@@ -50,8 +58,9 @@ export default class GnomacExtension extends Extension {
 
     _start() {
         this._forceAnimations();
-        for (const {key, Module} of MODULES) {
-            if (!this._settings.get_boolean(key))
+        const locked = Main.sessionMode.isLocked;
+        for (const {key, Module, locked: allowedLocked} of MODULES) {
+            if (!this._settings.get_boolean(key) || (locked && !allowedLocked))
                 continue;
             const module = new Module(this);
             try {
@@ -96,6 +105,16 @@ export default class GnomacExtension extends Extension {
             St.Settings.get().inhibit_animations();
             this._uninhibited = false;
         }
+    }
+
+    // Locking and unlocking switch the set of running modules right away.
+    _reload() {
+        if (this._reloadId) {
+            GLib.source_remove(this._reloadId);
+            this._reloadId = 0;
+        }
+        this._stop();
+        this._start();
     }
 
     _scheduleReload() {
