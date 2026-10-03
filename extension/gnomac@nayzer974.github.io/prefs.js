@@ -73,6 +73,7 @@ export default class GnomacPreferences extends ExtensionPreferences {
         toggle(glass, 'glass-dark', 'Teinte sombre');
 
         const island = group('Dynamic Island');
+        toggle(island, 'island-always-visible', 'Toujours visible', 'Encoche noire au repos, mini tableau de bord au survol');
         toggle(island, 'island-notifications', 'Notifications dans l’île', 'En plus des bannières, façon RevoShell');
 
         const motion = group('Animations', 'Ressorts : plus de raideur = plus vif, plus d\'amortissement = moins de rebond');

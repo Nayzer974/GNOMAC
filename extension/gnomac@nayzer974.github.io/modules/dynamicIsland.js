@@ -1,6 +1,7 @@
 // Dynamic Island (as in RevoShell's DynamicIsland.qml): a black pill at the
 // top centre of the screen that lives with the session.
-//  - idle: hidden, the menu bar stays clean like macOS
+//  - idle: a small black notch, always there like RevoShell's island
+//  - hover on idle: a mini dashboard with the time and date
 //  - music playing: compact pill with artwork and an animated equalizer
 //  - hover / click: expands with title, artist and transport controls
 //  - notification: expands for a few seconds with its icon and text
@@ -23,6 +24,8 @@ const TOP = 4;
 const COMPACT = {width: 190, height: 30};
 const MEDIA = {width: 380, height: 116};
 const NOTICE = {width: 380, height: 74};
+const IDLE = {width: 126, height: 30};
+const DASHBOARD = {width: 340, height: 96};
 const NOTICE_MS = 4000;
 const BARS = 4;
 
@@ -96,6 +99,25 @@ class Island extends St.Widget {
         this.media.add_child(this.mediaArt);
         this.media.add_child(text);
         this.add_child(this.media);
+
+        // Idle dashboard: big time and date.
+        this.dash = new St.BoxLayout({style_class: 'gnomac-island-dash'});
+        const dashText = new St.BoxLayout({
+            orientation: Clutter.Orientation.VERTICAL,
+            x_expand: true,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this.dashTime = new St.Label({style_class: 'gnomac-island-dash-time'});
+        this.dashDate = new St.Label({style_class: 'gnomac-island-artist'});
+        dashText.add_child(this.dashTime);
+        dashText.add_child(this.dashDate);
+        this.dashHint = new St.Label({
+            style_class: 'gnomac-island-dash-hint',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this.dash.add_child(dashText);
+        this.dash.add_child(this.dashHint);
+        this.add_child(this.dash);
 
         // Notification card.
         this.notice = new St.BoxLayout({style_class: 'gnomac-island-notice'});
@@ -255,16 +277,25 @@ export class DynamicIsland {
         if (GLib.get_monotonic_time() < this._noticeUntil)
             return 'notice';
         const player = this._player;
-        if (!player || !player.canPlay)
+        const always = this._settings.get_boolean('island-always-visible');
+        const engaged = this.island.hover || this._pinned;
+        const active = player?.canPlay && (player.status === 'Playing' || player.status === 'Paused');
+        if (active)
+            return engaged ? 'media' : 'compact';
+        if (!always)
             return 'hidden';
-        if (this.island.hover || this._pinned)
-            return 'media';
-        return player.status === 'Playing' || player.status === 'Paused' ? 'compact' : 'hidden';
+        return engaged ? 'dashboard' : 'idle';
     }
 
     _syncContent() {
         const island = this.island;
         const player = this._player;
+        const now = GLib.DateTime.new_now_local();
+        island.dashTime.text = now.format('%H:%M');
+        island.dashDate.text = now.format('%A %-d %B');
+        island.dashHint.text = player?.canPlay
+            ? t('Paused', 'En pause')
+            : t('Nothing playing', 'Aucune lecture');
         if (player) {
             const title = player.trackTitle || t('Unknown title', 'Titre inconnu');
             const artists = (player.trackArtists ?? []).join(', ');
@@ -291,7 +322,8 @@ export class DynamicIsland {
             this._width.setTarget(COMPACT.height);
             this._height.setTarget(COMPACT.height);
         } else {
-            const size = {compact: COMPACT, media: MEDIA, notice: NOTICE}[mode];
+            const size = {compact: COMPACT, media: MEDIA, notice: NOTICE,
+                idle: IDLE, dashboard: DASHBOARD}[mode];
             // Appearing: start from a dot and grow out of it. snap() also
             // resets the target, so it must come before setTarget().
             if (!this.island.visible && !Main.overview.visible) {
@@ -343,11 +375,11 @@ export class DynamicIsland {
         island.compact.opacity = this._mode === 'compact' ? Math.round(255 * (1 - grow)) : 0;
         island.media.opacity = this._mode === 'media' ? Math.round(255 * grow) : 0;
         island.notice.opacity = this._mode === 'notice' ? Math.round(255 * grow) : 0;
-        island.compact.visible = island.compact.opacity > 0;
-        island.media.visible = island.media.opacity > 0;
-        island.notice.visible = island.notice.opacity > 0;
+        island.dash.opacity = this._mode === 'dashboard' ? Math.round(255 * grow) : 0;
+        for (const child of [island.compact, island.media, island.notice, island.dash])
+            child.visible = child.opacity > 0;
 
-        for (const child of [island.compact, island.media, island.notice]) {
+        for (const child of [island.compact, island.media, island.notice, island.dash]) {
             child.set_position(0, 0);
             child.set_size(Math.round(width), Math.round(height));
         }

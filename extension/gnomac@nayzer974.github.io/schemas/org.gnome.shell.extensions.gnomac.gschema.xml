@@ -29,6 +29,10 @@
       <default>true</default>
       <summary>Launchpad app grid (dock Applications button)</summary>
     </key>
+    <key name="island-always-visible" type="b">
+      <default>true</default>
+      <summary>Keep the Dynamic Island visible as a notch when nothing plays</summary>
+    </key>
     <key name="island-notifications" type="b">
       <default>false</default>
       <summary>Show notifications in the Dynamic Island too</summary>
@@ -38,7 +42,7 @@
       <summary>macOS-style glass notification banners in the top-right corner</summary>
     </key>
     <key name="force-animations" type="b">
-      <default>false</default>
+      <default>true</default>
       <summary>Keep animations on with software rendering (virtual machines)</summary>
     </key>
     <key name="enable-lock-screen" type="b">

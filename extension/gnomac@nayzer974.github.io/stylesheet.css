@@ -579,3 +579,21 @@
     border-radius: 0 1px 1px 0;
     background-color: rgba(255, 255, 255, 0.55);
 }
+
+.gnomac-island-dash {
+    padding: 14px 22px;
+    spacing: 14px;
+}
+
+.gnomac-island-dash-time {
+    font-size: 26pt;
+    font-weight: 700;
+    color: #ffffff;
+    font-feature-settings: "tnum";
+}
+
+.gnomac-island-dash-hint {
+    font-size: 10pt;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.5);
+}

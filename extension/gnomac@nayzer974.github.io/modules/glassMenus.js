@@ -13,7 +13,7 @@ import St from 'gi://St';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 
 import {GlassSurface, glassParamsFromSettings} from '../lib/glass.js';
-import {getTicker} from '../lib/spring.js';
+import {Spring, getTicker} from '../lib/spring.js';
 
 const FOLLOW_MS = 450; // a bit longer than BoxPointer's 150 ms animation
 
@@ -22,7 +22,7 @@ class MenuGlass {
         this._owner = owner;
         this._menu = menu;
         this._followUntil = 0;
-        this._tick = () => this._onTick();
+        this._tick = dt => this._onTick(dt);
 
         menu.box.add_style_class_name('gnomac-glass-menu');
         const radius = menu.box.get_theme_node?.()
@@ -58,7 +58,21 @@ class MenuGlass {
             parent.add_child(this._surface);
         }
         parent.set_child_below_sibling(this._surface, this._menu.actor);
+        this._pop();
         this._follow();
+    }
+
+    // RevoShell's layers "popin" with a spring: the menu grows from 92 %
+    // out of the side it is anchored to, with a hint of overshoot.
+    _pop() {
+        if (!St.Settings.get().enable_animations)
+            return;
+        const actor = this._menu.actor;
+        const fromBelow = this._menu._arrowSide === St.Side.BOTTOM;
+        actor.set_pivot_point(0.5, fromBelow ? 1 : 0);
+        this._spring = new Spring({stiffness: 420, damping: 20, value: 0.92});
+        this._spring.setTarget(1);
+        actor.set_scale(0.92, 0.92);
     }
 
     // Follow the BoxPointer for the length of its animation only: a ticker
@@ -69,9 +83,18 @@ class MenuGlass {
         this._sync();
     }
 
-    _onTick() {
+    _onTick(dt) {
+        const spring = this._spring;
+        if (spring) {
+            spring.step(dt);
+            this._menu.actor.set_scale(spring.value, spring.value);
+            if (spring.settled) {
+                this._menu.actor.set_scale(1, 1);
+                this._spring = null;
+            }
+        }
         this._sync();
-        return GLib.get_monotonic_time() < this._followUntil;
+        return !!this._spring || GLib.get_monotonic_time() < this._followUntil;
     }
 
     // notify::allocation fires in the middle of a layout pass, after our
