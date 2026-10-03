@@ -146,7 +146,8 @@ export class Dock {
         this.actor.add_child(this._glass);
 
         this._tooltip = new St.Label({style_class: 'gnomac-dock-tooltip', opacity: 0});
-        Main.layoutManager.addTopChrome(this._tooltip, {affectsInputRegion: false});
+        // Not chrome: it must never take part in struts or fullscreen tracking.
+        Main.layoutManager.uiGroup.add_child(this._tooltip);
 
         this._menuManager = new PopupMenu.PopupMenuManager(this.actor);
 
@@ -159,7 +160,6 @@ export class Dock {
             this._strut = new St.Widget({reactive: false});
             Main.layoutManager.addChrome(this._strut, {
                 affectsStruts: true,
-                affectsInputRegion: false,
                 trackFullscreen: true,
             });
         }
@@ -194,11 +194,13 @@ export class Dock {
             this._strut.destroy();
             this._strut = null;
         }
-        Main.layoutManager.removeChrome(this._tooltip);
-        this._tooltip.destroy();
-        Main.layoutManager.removeChrome(this.actor);
-        this.actor.destroy();
-        this.actor = null;
+        this._tooltip?.destroy();
+        this._tooltip = null;
+        if (this.actor) {
+            Main.layoutManager.removeChrome(this.actor);
+            this.actor.destroy();
+            this.actor = null;
+        }
         this._menuManager = null;
     }
 
@@ -424,8 +426,12 @@ export class Dock {
         for (const item of this._items)
             bouncing = this._updateBounce(item) || bouncing;
 
-        if (!this.actor.hover && this._hover.settled && this._hover.value === 0)
+        // Collapse the transparent headroom once the dock is at rest, or it
+        // would keep swallowing clicks meant for the windows above it.
+        if (!this.actor.hover && this._hover.target === 0 && this._hover.settled) {
+            this._hover.snap(0);
             this._expanded = false;
+        }
 
         this._relayout();
 
