@@ -14,11 +14,11 @@ import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
-import * as SystemActions from 'resource:///org/gnome/shell/misc/systemActions.js';
 import * as Util from 'resource:///org/gnome/shell/misc/util.js';
 import {AppMenu} from 'resource:///org/gnome/shell/ui/appMenu.js';
 
 import {GlassSurface, glassParamsFromSettings} from '../lib/glass.js';
+import * as Session from '../lib/session.js';
 import {t} from '../lib/i18n.js';
 
 function launch(argv) {
@@ -51,7 +51,6 @@ class SystemMenuButton extends PanelMenu.Button {
             style_class: 'system-status-icon gnomac-logo',
         }));
 
-        const actions = SystemActions.getDefault();
         const add = (label, callback) => {
             const item = new PopupMenu.PopupMenuItem(label);
             item.connect('activate', callback);
@@ -70,12 +69,12 @@ class SystemMenuButton extends PanelMenu.Button {
         add(t('Force Quit…', 'Forcer à quitter…'),
             () => launchFirst(['org.gnome.SystemMonitor.desktop', 'io.missioncenter.MissionCenter.desktop'], ['gnome-system-monitor']));
         separator();
-        add(t('Sleep', 'Suspendre l\'activité'), () => actions.activateSuspend());
-        add(t('Restart…', 'Redémarrer…'), () => actions.activateRestart());
-        add(t('Shut Down…', 'Éteindre…'), () => actions.activatePowerOff());
+        add(t('Sleep', 'Suspendre l\'activité'), () => Session.suspend());
+        add(t('Restart…', 'Redémarrer…'), () => Session.restart());
+        add(t('Shut Down…', 'Éteindre…'), () => Session.powerOff());
         separator();
-        add(t('Lock Screen', 'Verrouiller l\'écran'), () => actions.activateLockScreen());
-        add(t('Log Out…', 'Fermer la session…'), () => actions.activateLogout());
+        add(t('Lock Screen', 'Verrouiller l\'écran'), () => Session.lockScreen());
+        add(t('Log Out…', 'Fermer la session…'), () => Session.logOut());
     }
 });
 

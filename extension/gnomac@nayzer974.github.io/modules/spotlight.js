@@ -13,11 +13,11 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import * as SystemActions from 'resource:///org/gnome/shell/misc/systemActions.js';
 
 import {GlassSurface, glassParamsFromSettings} from '../lib/glass.js';
 import {Spring, getTicker} from '../lib/spring.js';
 import {evaluate, format, looksLikeMath} from '../lib/calculator.js';
+import * as Session from '../lib/session.js';
 import {t} from '../lib/i18n.js';
 
 const WIDTH = 680;
@@ -30,19 +30,18 @@ const WM_KEYBINDINGS = 'org.gnome.desktop.wm.keybindings';
 const decimalComma = (GLib.get_language_names()[0] ?? '').startsWith('fr');
 
 function systemActionEntries() {
-    const actions = SystemActions.getDefault();
     const entry = (name, keywords, icon, run) => ({name, keywords, icon, run});
     return [
         entry(t('Lock Screen', 'Verrouiller l\'écran'), ['lock', 'verrouiller', 'verrou'],
-            'system-lock-screen-symbolic', () => actions.activateLockScreen()),
+            'system-lock-screen-symbolic', () => Session.lockScreen()),
         entry(t('Sleep', 'Suspendre l\'activité'), ['sleep', 'suspend', 'veille', 'suspendre'],
-            'weather-clear-night-symbolic', () => actions.activateSuspend()),
+            'weather-clear-night-symbolic', () => Session.suspend()),
         entry(t('Restart…', 'Redémarrer…'), ['restart', 'reboot', 'redemarrer', 'redémarrer'],
-            'system-reboot-symbolic', () => actions.activateRestart()),
+            'system-reboot-symbolic', () => Session.restart()),
         entry(t('Shut Down…', 'Éteindre…'), ['shutdown', 'power off', 'eteindre', 'éteindre'],
-            'system-shutdown-symbolic', () => actions.activatePowerOff()),
+            'system-shutdown-symbolic', () => Session.powerOff()),
         entry(t('Log Out…', 'Fermer la session…'), ['logout', 'log out', 'deconnexion', 'déconnexion', 'session'],
-            'system-log-out-symbolic', () => actions.activateLogout()),
+            'system-log-out-symbolic', () => Session.logOut()),
     ];
 }
 
