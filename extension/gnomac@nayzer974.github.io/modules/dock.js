@@ -235,6 +235,15 @@ export class Dock {
         this._connect(appSystem, 'app-state-changed', (_sys, app) => this._onAppState(app));
         this._connect(Main.layoutManager, 'monitors-changed', () => this._relayout());
         this._connect(global.display, 'window-created', () => this._queuePublish());
+        // GNOME's dash would be a second dock in the overview.
+        this._dash = Main.overview.dash;
+        if (this._dash) {
+            this._dash.hide();
+            this._connect(this._dash, 'notify::visible', () => {
+                if (this._dash.visible)
+                    this._dash.hide();
+            });
+        }
         this._connect(Main.overview, 'showing', () => this.actor.hide());
         this._connect(Main.overview, 'hidden', () => this.actor.show());
 
@@ -258,6 +267,8 @@ export class Dock {
         for (const [object, id] of this._signals)
             object.disconnect(id);
         this._signals = [];
+        this._dash?.show();
+        this._dash = null;
         this._items = [];
         this._separators = [];
         if (this._strut) {

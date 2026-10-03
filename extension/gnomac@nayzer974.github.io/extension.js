@@ -41,6 +41,18 @@ export default class GnomacExtension extends Extension {
     enable() {
         this._settings = this.getSettings();
         this._modules = [];
+        // GNOME opens the overview while it starts the session; macOS lands
+        // on the desktop. Animations are only forced after that startup
+        // animation: lifting the inhibition in the middle of it left the
+        // overview frozen half-way in VMs.
+        if (Main.layoutManager._startingUp) {
+            this._startupId = Main.layoutManager.connect('startup-complete', () => {
+                Main.layoutManager.disconnect(this._startupId);
+                this._startupId = 0;
+                Main.overview.hide();
+                this._forceAnimations();
+            });
+        }
         this._start();
         // Any change rebuilds the modules; debounce so dragging a slider in
         // the preferences does not rebuild on every step.
@@ -49,6 +61,10 @@ export default class GnomacExtension extends Extension {
     }
 
     disable() {
+        if (this._startupId) {
+            Main.layoutManager.disconnect(this._startupId);
+            this._startupId = 0;
+        }
         if (this._reloadId) {
             GLib.source_remove(this._reloadId);
             this._reloadId = 0;
@@ -95,6 +111,8 @@ export default class GnomacExtension extends Extension {
     // When asked, lift that inhibition — but only if the user's own
     // "enable-animations" preference is on, and only once.
     _forceAnimations() {
+        if (this._startupId || this._uninhibited)
+            return;
         const st = St.Settings.get();
         const wanted = new Gio.Settings({schema_id: 'org.gnome.desktop.interface'})
             .get_boolean('enable-animations');
