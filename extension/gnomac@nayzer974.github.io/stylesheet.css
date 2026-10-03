@@ -597,3 +597,96 @@
     font-weight: 600;
     color: rgba(255, 255, 255, 0.5);
 }
+
+/* ---------- Dynamic Island notch (RevoShell style) ---------- */
+
+.gnomac-notch-side {
+    spacing: 6px;
+    padding: 0 6px;
+}
+
+.gnomac-notch-clock {
+    font-size: 9.5pt;
+    font-weight: 700;
+    color: #ffffff;
+    font-feature-settings: "tnum";
+}
+
+.gnomac-notch-dots {
+    spacing: 4px;
+}
+
+.gnomac-notch-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 3px;
+    background-color: rgba(255, 255, 255, 0.35);
+}
+
+.gnomac-notch-dot.active {
+    width: 16px;
+    background-color: #ffffff;
+}
+
+.gnomac-notch-badge-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 3px;
+    background-color: #ff453a;
+}
+
+.gnomac-notch-badge {
+    font-size: 8.5pt;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.gnomac-notch-media {
+    padding: 34px 16px 10px;
+    spacing: 8px;
+}
+
+.gnomac-notch-media-top {
+    spacing: 12px;
+}
+
+.gnomac-notch-title {
+    font-size: 10.5pt;
+    font-weight: 800;
+    color: #ffffff;
+}
+
+.gnomac-notch-subtitle {
+    font-size: 9pt;
+    color: rgba(255, 255, 255, 0.55);
+}
+
+.gnomac-notch-progress {
+    spacing: 8px;
+}
+
+.gnomac-notch-time {
+    font-size: 8pt;
+    color: rgba(255, 255, 255, 0.55);
+    font-feature-settings: "tnum";
+}
+
+.gnomac-notch-track {
+    height: 4px;
+    border-radius: 2px;
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+.gnomac-notch-fill {
+    border-radius: 2px;
+    background-color: #ffffff;
+}
+
+.gnomac-notch-controls {
+    spacing: 28px;
+}
+
+.gnomac-notch-notice {
+    padding: 30px 18px 10px;
+    spacing: 12px;
+}
