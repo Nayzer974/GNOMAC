@@ -7,6 +7,7 @@ import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
+import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
@@ -209,9 +210,19 @@ export class TopBar {
             this._glass.setStageOrigin(panelBox.x, panelBox.y);
             this._glass.visible = panelBox.visible;
         };
+        // Allocation notifications arrive mid-layout: resize on the next frame.
+        const syncLater = () => {
+            if (this._glassLater)
+                return;
+            this._glassLater = global.compositor.get_laters().add(Meta.LaterType.BEFORE_REDRAW, () => {
+                this._glassLater = 0;
+                sync();
+                return GLib.SOURCE_REMOVE;
+            });
+        };
         this._glassSignals = [
-            panelBox.connect('notify::allocation', sync),
-            panelBox.connect('notify::visible', sync),
+            panelBox.connect('notify::allocation', syncLater),
+            panelBox.connect('notify::visible', syncLater),
         ];
         sync();
     }
@@ -219,6 +230,10 @@ export class TopBar {
     _removeGlass() {
         if (!this._glass)
             return;
+        if (this._glassLater) {
+            global.compositor.get_laters().remove(this._glassLater);
+            this._glassLater = 0;
+        }
         for (const id of this._glassSignals)
             Main.layoutManager.panelBox.disconnect(id);
         this._glassSignals = [];

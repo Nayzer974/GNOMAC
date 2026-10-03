@@ -206,7 +206,7 @@ class GlassSurface extends St.Widget {
     _sync() {
         // Sizing children before the surface is on stage only yields St
         // warnings; notify::mapped brings us back here once it is.
-        if (!this.get_stage())
+        if (!this.get_stage() || !Number.isFinite(this.width) || !Number.isFinite(this.height))
             return;
         const m = this._margin;
         const [x, y] = this._origin;

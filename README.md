@@ -11,6 +11,7 @@ GNOMAC est une extension GNOME Shell unique et cohérente, au lieu d'un empileme
 | Élément | Détail |
 |---|---|
 | **Liquid Glass** | Vraie réfraction : un shader GLSL courbe une copie floutée de ce qui est derrière (fenêtres comprises) près des bords arrondis, avec dispersion chromatique, éclairage du bord et reflet en haut. Dans RevoShell, le shader Quickshell réfracte un simple rectangle de couleur. |
+| **Menus en verre et Centre de contrôle** | Tous les menus du shell (menu système, menus d'apps, menus du dock, calendrier, Réglages rapides) reçoivent un fond Liquid Glass qui suit leur animation d'ouverture. Survol en bleu accent comme sur macOS. Les Réglages rapides prennent l'allure du Centre de contrôle : tuiles en rectangles arrondis, curseurs épais. Toutes les fonctions de GNOME restent disponibles (Wi-Fi, Bluetooth, son, luminosité…). |
 | **Spotlight** | Super + Espace : barre de recherche en verre au-dessus des fenêtres. Apps (classées comme dans GNOME), calculatrice (« 12,5 × 4 »), actions système (verrouiller, suspendre, éteindre…), recherche web. Flèches, Entrée, Échap. Ouverture avec un ressort. |
 | **Dock** | Flotte au-dessus du bas de l'écran. Agrandissement en courbe gaussienne qui écarte les icônes voisines, rebond au lancement (le saut en cours se termine avant l'arrêt), points sous les apps ouvertes, infobulles, menu contextuel GNOME, séparateurs, bouton Applications. |
 | **Moteur de ressorts** | Un seul minuteur partagé, une physique masse-ressort stable quelle que soit la fréquence d'images. Les animations gardent leur vitesse quand on les relance en cours de route. |
@@ -59,7 +60,6 @@ dbus-run-session gnome-shell --devkit --wayland
 
 - [ ] Glisser-déposer pour réorganiser le dock, et une corbeille
 - [ ] Spotlight : recherche de fichiers et presse-papiers
-- [ ] Centre de contrôle en Liquid Glass (remplace les Réglages rapides)
 - [ ] Dynamic Island : musique (MPRIS) et notifications
 - [ ] Effet Génie intégré, piloté par le moteur de ressorts
 - [ ] Menu global intégré (DBusMenu et GMenu)

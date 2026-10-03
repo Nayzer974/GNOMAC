@@ -13,6 +13,10 @@
       <default><![CDATA[['<Super>space']]]></default>
       <summary>Keyboard shortcut that toggles Spotlight</summary>
     </key>
+    <key name="enable-glass-menus" type="b">
+      <default>true</default>
+      <summary>Liquid Glass menus and macOS-style Control Center</summary>
+    </key>
     <key name="enable-topbar" type="b">
       <default>true</default>
       <summary>Turn the GNOME panel into a macOS-style menu bar</summary>

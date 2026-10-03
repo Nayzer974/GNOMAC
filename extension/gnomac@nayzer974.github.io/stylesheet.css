@@ -148,3 +148,87 @@
 .gnomac-spotlight-row:selected .gnomac-spotlight-row-subtitle {
     color: rgba(255, 255, 255, 0.8);
 }
+
+/* ---------- Glass menus & Control Center ---------- */
+
+/* The GlassSurface underneath provides the material; keep only a faint
+   tint, a hairline edge and a soft drop shadow. */
+.popup-menu-content.gnomac-glass-menu {
+    background-color: rgba(22, 22, 26, 0.30);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.32);
+}
+
+/* macOS menus: compact rows, accent highlight under the pointer. */
+.gnomac-glass-menu .popup-menu-item {
+    border-radius: 8px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+}
+
+.gnomac-glass-menu .popup-menu-item:hover,
+.gnomac-glass-menu .popup-menu-item:selected,
+.gnomac-glass-menu .popup-menu-item:focus {
+    background-color: rgba(49, 91, 220, 0.92);
+    color: #ffffff;
+}
+
+.gnomac-glass-menu .popup-separator-menu-item-separator {
+    background-color: rgba(255, 255, 255, 0.14);
+}
+
+/* Control Center: rounded-rectangle tiles instead of GNOME pills. */
+.quick-settings.gnomac-glass-menu {
+    border-radius: 28px;
+    padding: 14px;
+}
+
+.gnomac-glass-menu .quick-toggle,
+.gnomac-glass-menu .quick-toggle-has-menu .quick-toggle,
+.gnomac-glass-menu .quick-toggle-has-menu .quick-toggle-menu-button {
+    background-color: rgba(255, 255, 255, 0.11);
+    color: #ffffff;
+}
+
+.gnomac-glass-menu .quick-toggle:hover,
+.gnomac-glass-menu .quick-toggle-has-menu .quick-toggle-menu-button:hover {
+    background-color: rgba(255, 255, 255, 0.18);
+}
+
+.gnomac-glass-menu .quick-toggle:checked,
+.gnomac-glass-menu .quick-toggle-has-menu:checked .quick-toggle,
+.gnomac-glass-menu .quick-toggle-has-menu .quick-toggle-menu-button:checked {
+    background-color: rgba(49, 91, 220, 0.95);
+    color: #ffffff;
+}
+
+.gnomac-glass-menu .quick-toggle,
+.gnomac-glass-menu .quick-toggle-has-menu .quick-toggle:ltr:last-child {
+    border-radius: 16px;
+}
+
+.gnomac-glass-menu .quick-toggle-has-menu .quick-toggle:ltr {
+    border-radius: 16px 0 0 16px;
+}
+
+.gnomac-glass-menu .quick-toggle-has-menu .quick-toggle-menu-button:ltr {
+    border-radius: 0 16px 16px 0;
+}
+
+.gnomac-glass-menu .quick-toggle-menu {
+    border-radius: 18px;
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Thick macOS sliders. */
+.gnomac-glass-menu .slider {
+    -barlevel-height: 22px;
+    -barlevel-background-color: rgba(255, 255, 255, 0.16);
+    -barlevel-active-background-color: rgba(255, 255, 255, 0.92);
+    -slider-handle-radius: 11px;
+    color: #ffffff;
+}
+
+.gnomac-glass-menu .quick-slider .slider-bin {
+    padding: 4px 6px;
+}
