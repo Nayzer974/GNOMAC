@@ -5,12 +5,14 @@ import GLib from 'gi://GLib';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
 import {Dock} from './modules/dock.js';
+import {Spotlight} from './modules/spotlight.js';
 import {TopBar} from './modules/topbar.js';
 import {destroyTicker} from './lib/spring.js';
 
 const MODULES = [
     {key: 'enable-topbar', Module: TopBar},
     {key: 'enable-dock', Module: Dock},
+    {key: 'enable-spotlight', Module: Spotlight},
 ];
 
 export default class GnomacExtension extends Extension {

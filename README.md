@@ -10,7 +10,8 @@ GNOMAC est une extension GNOME Shell unique et cohérente, au lieu d'un empileme
 
 | Élément | Détail |
 |---|---|
-| **Liquid Glass** | Vraie réfraction : un shader GLSL courbe un clone flouté du fond d'écran près des bords arrondis, avec dispersion chromatique, éclairage du bord et reflet en haut. Dans RevoShell, le shader Quickshell réfracte un simple rectangle de couleur. |
+| **Liquid Glass** | Vraie réfraction : un shader GLSL courbe une copie floutée de ce qui est derrière (fenêtres comprises) près des bords arrondis, avec dispersion chromatique, éclairage du bord et reflet en haut. Dans RevoShell, le shader Quickshell réfracte un simple rectangle de couleur. |
+| **Spotlight** | Super + Espace : barre de recherche en verre au-dessus des fenêtres. Apps (classées comme dans GNOME), calculatrice (« 12,5 × 4 »), actions système (verrouiller, suspendre, éteindre…), recherche web. Flèches, Entrée, Échap. Ouverture avec un ressort. |
 | **Dock** | Flotte au-dessus du bas de l'écran. Agrandissement en courbe gaussienne qui écarte les icônes voisines, rebond au lancement (le saut en cours se termine avant l'arrêt), points sous les apps ouvertes, infobulles, menu contextuel GNOME, séparateurs, bouton Applications. |
 | **Moteur de ressorts** | Un seul minuteur partagé, une physique masse-ressort stable quelle que soit la fréquence d'images. Les animations gardent leur vitesse quand on les relance en cours de route. |
 | **Barre de menus** | Menu système à gauche (À propos, Réglages, App Store, Forcer à quitter, Suspendre, Redémarrer…), nom de l'app active en gras avec son menu, horloge à droite au format macOS, bouton Activités masqué. Fond transparent comme dans Golden Gate, ou Liquid Glass en option. |
@@ -40,6 +41,8 @@ Pour désinstaller : `./uninstall.sh`
 
 Le script désactive Dash to Dock s'il est actif, car deux docks ne peuvent pas cohabiter.
 
+Le Spotlight utilise Super + Espace, qui sert normalement à changer de disposition clavier. GNOMAC libère ce raccourci tant qu'il est actif et le rend quand on le désactive. `XF86Keyboard` continue de changer la disposition.
+
 ## Déboguer
 
 ```bash
@@ -54,9 +57,8 @@ dbus-run-session gnome-shell --devkit --wayland
 
 ## Feuille de route
 
-- [ ] Verre dynamique : réfracter aussi les fenêtres derrière, pas seulement le fond d'écran
 - [ ] Glisser-déposer pour réorganiser le dock, et une corbeille
-- [ ] Spotlight (⌘ Espace) : apps, fichiers, calcul, actions
+- [ ] Spotlight : recherche de fichiers et presse-papiers
 - [ ] Centre de contrôle en Liquid Glass (remplace les Réglages rapides)
 - [ ] Dynamic Island : musique (MPRIS) et notifications
 - [ ] Effet Génie intégré, piloté par le moteur de ressorts

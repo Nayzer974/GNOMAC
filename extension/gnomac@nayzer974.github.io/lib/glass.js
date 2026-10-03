@@ -2,20 +2,20 @@
 //
 // RevoShell's Quickshell shader refracts a flat colour rectangle, so its glass
 // only looks real thanks to a Hyprland plugin. Here the refraction samples real
-// pixels: a GlassSurface holds a blurred clone of the wallpaper aligned to its
-// stage position, and GlassEffect bends that texture near the rounded edges
-// (Snell-like lens profile), splits RGB slightly (chromatic dispersion) and
-// adds a directional rim light + top sheen.
-//
-// Surfaces that reserve screen space (dock, menu bar) never have windows
-// behind them, so a wallpaper source is exact there and costs one cached blur.
+// pixels: a GlassSurface holds a blurred copy of what lies behind it (the
+// windows, or just the wallpaper) aligned to its stage position, and
+// GlassEffect bends that texture near the rounded edges (Snell-like lens
+// profile), splits RGB slightly (chromatic dispersion) and adds a directional
+// rim light + top sheen.
 
 import Clutter from 'gi://Clutter';
 import Cogl from 'gi://Cogl';
 import GObject from 'gi://GObject';
+import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
+import * as Background from 'resource:///org/gnome/shell/ui/background.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 // Shell.SnippetHook was folded into Cogl.SnippetHook in recent GNOME releases.
@@ -143,30 +143,78 @@ export function glassParamsFromSettings(settings, radius) {
 }
 
 // A rounded glass pane. Owners must call setStageOrigin() whenever the
-// surface moves so the wallpaper clone stays aligned with the real one.
+// surface moves so the backdrop stays aligned with what is really behind it.
+//
+// `backdrop: 'wallpaper'` paints our own copy of the primary wallpaper.
+// Cloning GNOME's background group is not enough: mutter skips the parts of
+// it hidden behind windows, so a clone turns black wherever a window sits.
+// `backdrop: 'windows'` clones the whole window group (wallpaper included,
+// unculled in clone paints) for surfaces floating above windows such as
+// Spotlight. Shell.BlurEffect in BACKGROUND mode cannot be combined with an
+// offscreen shader, so the backdrop has to be a real child actor.
+//
+// The blur runs on a wrapper only as big as the surface plus a margin, which
+// keeps it cheap and gives Shell.BlurEffect a sane paint volume.
 export const GlassSurface = GObject.registerClass(
 class GlassSurface extends St.Widget {
-    _init({blur = 30, glass = {}} = {}) {
+    _init({blur = 30, glass = {}, backdrop = 'wallpaper'} = {}) {
         super._init({clip_to_allocation: true, reactive: false});
+        this._margin = Math.max(8, blur * 2);
+        this._origin = [0, 0];
 
-        this._wallpaper = new Clutter.Clone({
-            source: Main.layoutManager._backgroundGroup,
-            reactive: false,
-        });
+        this._wrapper = new Clutter.Actor({clip_to_allocation: true, reactive: false});
         this._blur = new Shell.BlurEffect({
             mode: Shell.BlurMode.ACTOR,
             radius: blur,
             brightness: 1.0,
         });
-        this._wallpaper.add_effect(this._blur);
-        this.add_child(this._wallpaper);
+        this._wrapper.add_effect(this._blur);
+        this.add_child(this._wrapper);
+
+        if (backdrop === 'windows') {
+            this._source = new Clutter.Clone({source: global.window_group, reactive: false});
+            this._sourceOrigin = [0, 0];
+        } else {
+            const monitor = Main.layoutManager.primaryMonitor;
+            this._source = new Meta.BackgroundGroup();
+            this._bgManager = new Background.BackgroundManager({
+                container: this._source,
+                monitorIndex: Main.layoutManager.primaryIndex,
+                controlPosition: false,
+            });
+            this._sourceOrigin = [monitor.x, monitor.y];
+        }
+        this._wrapper.add_child(this._source);
 
         this._glass = new GlassEffect(glass);
         this.add_effect(this._glass);
+
+        this.connect('notify::width', () => this._sync());
+        this.connect('notify::height', () => this._sync());
+        this.connect('notify::mapped', () => this._sync());
+        this.connect('destroy', () => {
+            this._bgManager?.destroy();
+            this._bgManager = null;
+        });
     }
 
     setStageOrigin(x, y) {
-        this._wallpaper.set_position(-Math.round(x), -Math.round(y));
+        this._origin = [Math.round(x), Math.round(y)];
+        this._sync();
+    }
+
+    _sync() {
+        // Sizing children before the surface is on stage only yields St
+        // warnings; notify::mapped brings us back here once it is.
+        if (!this.get_stage())
+            return;
+        const m = this._margin;
+        const [x, y] = this._origin;
+        this._wrapper.set_position(-m, -m);
+        this._wrapper.set_size(this.width + 2 * m, this.height + 2 * m);
+        this._source.set_position(
+            this._sourceOrigin[0] - x + m,
+            this._sourceOrigin[1] - y + m);
     }
 
     setGlass(params) {

@@ -20,4 +20,9 @@ for version in 3.0 4.0; do
 done
 
 gsettings reset org.gnome.desktop.wm.preferences button-layout
+# Spotlight lifts Super+Space from the input source switcher; give it back
+# even if the shell never ran the extension's disable().
+if ! gsettings get org.gnome.desktop.wm.keybindings switch-input-source | grep -q "<Super>space"; then
+  gsettings reset org.gnome.desktop.wm.keybindings switch-input-source
+fi
 echo "GNOMAC removed. Log out and back in to finish."

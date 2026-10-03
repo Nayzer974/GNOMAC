@@ -139,7 +139,9 @@ export class Dock {
             reactive: true,
             track_hover: true,
         });
+        // Windows can be dragged behind the dock, so it shows them like macOS.
         this._glass = new GlassSurface({
+            backdrop: 'windows',
             blur: s.get_int('glass-blur'),
             glass: glassParamsFromSettings(s, this._radius),
         });

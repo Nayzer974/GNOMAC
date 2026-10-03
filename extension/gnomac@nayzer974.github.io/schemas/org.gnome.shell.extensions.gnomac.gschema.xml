@@ -5,6 +5,14 @@
       <default>true</default>
       <summary>Show the GNOMAC dock</summary>
     </key>
+    <key name="enable-spotlight" type="b">
+      <default>true</default>
+      <summary>Spotlight search bar</summary>
+    </key>
+    <key name="spotlight-shortcut" type="as">
+      <default><![CDATA[['<Super>space']]]></default>
+      <summary>Keyboard shortcut that toggles Spotlight</summary>
+    </key>
     <key name="enable-topbar" type="b">
       <default>true</default>
       <summary>Turn the GNOME panel into a macOS-style menu bar</summary>

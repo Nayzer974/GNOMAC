@@ -35,6 +35,7 @@ export default class GnomacPreferences extends ExtensionPreferences {
 
         const modules = group('Modules');
         toggle(modules, 'enable-dock', 'Dock');
+        toggle(modules, 'enable-spotlight', 'Spotlight', 'Super + Espace : apps, calculs, actions système, recherche web');
         toggle(modules, 'enable-topbar', 'Barre de menus', 'Menu système, nom de l\'app active, horloge à droite');
 
         const dock = group('Dock');
