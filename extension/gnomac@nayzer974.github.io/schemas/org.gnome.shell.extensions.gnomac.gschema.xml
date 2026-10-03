@@ -45,6 +45,10 @@
       <default>true</default>
       <summary>macOS-style lock screen</summary>
     </key>
+    <key name="enable-vibrancy" type="b">
+      <default>true</default>
+      <summary>Frosted glass behind app sidebars (Files)</summary>
+    </key>
     <key name="enable-topbar" type="b">
       <default>true</default>
       <summary>Turn the GNOME panel into a macOS-style menu bar</summary>

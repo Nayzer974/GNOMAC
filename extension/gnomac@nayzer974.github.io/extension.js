@@ -15,6 +15,7 @@ import {LockScreen} from './modules/lockScreen.js';
 import {Notifications} from './modules/notifications.js';
 import {Spotlight} from './modules/spotlight.js';
 import {TopBar} from './modules/topbar.js';
+import {Vibrancy} from './modules/vibrancy.js';
 import {WindowAnimations} from './modules/windowAnimations.js';
 import {destroyTicker} from './lib/spring.js';
 
@@ -31,6 +32,7 @@ const MODULES = [
     {key: 'enable-window-animations', Module: WindowAnimations},
     {key: 'enable-dynamic-island', Module: DynamicIsland},
     {key: 'enable-notifications', Module: Notifications},
+    {key: 'enable-vibrancy', Module: Vibrancy},
 ];
 
 export default class GnomacExtension extends Extension {

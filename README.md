@@ -17,6 +17,7 @@ GNOMAC est une extension GNOME Shell unique et cohérente, au lieu d'un empileme
 | **Launchpad** | Bouton Applications du dock : grille plein écran sur verre flouté, recherche, pages avec points, défilement à ressort, zoom à l'ouverture et à la fermeture. |
 | **Notifications** | Bannières macOS en haut à droite sur une vraie surface de verre. Les actions et réponses de GNOME restent disponibles. |
 | **Écran de verrouillage** | Date et très grande heure en haut ; avatar, nom et pilule de verre « Saisir le mot de passe » en bas. Le fond d'écran est net au repos et se floute quand le champ apparaît. L'heure reste en place, au lieu de s'envoler comme dans GNOME. L'authentification reste celle de GNOME. Pendant le verrouillage, seul ce module tourne : tous les autres sont arrêtés, puis relancés au déverrouillage. |
+| **Barre latérale Finder** | Dans Fichiers, la barre latérale laisse voir un verre dépoli posé sous la fenêtre (la « vibrancy » de macOS), avec des icônes teintées accent, des lignes compactes et une sélection discrète. Le reste de la fenêtre reste opaque. Tout passe par un thème : aucun binaire injecté, contrairement au patch Nautilus de RevoShell. |
 | **Spotlight** | Super + Espace : barre de recherche en verre au-dessus des fenêtres. Apps (classées comme dans GNOME), calculatrice (« 12,5 × 4 »), actions système (verrouiller, suspendre, éteindre…), recherche web. Flèches, Entrée, Échap. Ouverture avec un ressort. |
 | **Dock** | Flotte au-dessus du bas de l'écran. Agrandissement en courbe gaussienne qui écarte les icônes voisines, rebond au lancement (le saut en cours se termine avant l'arrêt), points sous les apps ouvertes, infobulles, menu contextuel GNOME, séparateurs. **Glisser-déposer** pour réorganiser (un espace s'ouvre sous l'icône) ; tirer une icône hors du dock la retire. **Pile Téléchargements** qui s'ouvre en éventail, **Corbeille** vide/pleine avec « Vider la Corbeille… » (confirmation). |
 | **Moteur de ressorts** | Un seul minuteur partagé, une physique masse-ressort stable quelle que soit la fréquence d'images. Les animations gardent leur vitesse quand on les relance en cours de route. |
@@ -41,6 +42,7 @@ Options de `install.sh` :
 - `--deps` : installe `inter-font`, `gnome-shell-extensions`, `gnome-tweaks`… via pacman. C'est sudo qui demande le mot de passe, jamais le script.
 - `--extras` : installe [Compiz alike magic lamp](https://extensions.gnome.org/extension/3740/) (effet Génie) et [Global Menu for GNOME](https://extensions.gnome.org/extension/10288/) depuis extensions.gnome.org.
 - `--icons` : installe le thème d'icônes [MacTahoe](https://github.com/vinceliuice/MacTahoe-icon-theme).
+- `--cursors` : installe les curseurs façon macOS [WhiteSur](https://github.com/vinceliuice/WhiteSur-cursors), dont la main sur les liens.
 
 Pour ouvrir les réglages : `gnome-extensions prefs gnomac@nayzer974.github.io`
 Pour désinstaller : `./uninstall.sh`
@@ -65,8 +67,8 @@ dbus-run-session gnome-shell --devkit --wayland
 
 ## Feuille de route
 
-- [ ] Barre latérale façon Finder pour Fichiers (thème, sans binaire)
-- [ ] Curseurs et symboles façon SF Symbols
+- [ ] Titres de sections (« Favoris », « Emplacements ») dans la barre latérale de Fichiers
+- [ ] Symboles façon SF Symbols dans la barre de menus
 
 - [ ] Spotlight : recherche de fichiers et presse-papiers
 - [ ] Menu global intégré (DBusMenu et GMenu)

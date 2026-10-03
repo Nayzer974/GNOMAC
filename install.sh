@@ -5,6 +5,7 @@
 #   ./install.sh --deps     also install packages with pacman (asks sudo itself)
 #   ./install.sh --extras   also install Magic Lamp (genie) + Global Menu from extensions.gnome.org
 #   ./install.sh --icons    also install the MacTahoe icon theme
+#   ./install.sh --cursors  also install macOS-style cursors (WhiteSur)
 #   ./install.sh --all      everything above
 #
 # Never stores or pipes your password: sudo prompts you directly.
@@ -20,14 +21,15 @@ CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}"
 # extensions.gnome.org ids: Compiz alike magic lamp effect, Global Menu for GNOME
 EXTRA_EXTENSIONS=(3740 10288)
 
-WITH_DEPS=0 WITH_EXTRAS=0 WITH_ICONS=0
+WITH_DEPS=0 WITH_EXTRAS=0 WITH_ICONS=0 WITH_CURSORS=0
 for arg in "$@"; do
   case "$arg" in
     --deps) WITH_DEPS=1 ;;
     --extras) WITH_EXTRAS=1 ;;
     --icons) WITH_ICONS=1 ;;
-    --all) WITH_DEPS=1 WITH_EXTRAS=1 WITH_ICONS=1 ;;
-    -h|--help) sed -n '2,11p' "$0"; exit 0 ;;
+    --cursors) WITH_CURSORS=1 ;;
+    --all) WITH_DEPS=1 WITH_EXTRAS=1 WITH_ICONS=1 WITH_CURSORS=1 ;;
+    -h|--help) sed -n '2,12p' "$0"; exit 0 ;;
     *) echo "Unknown option: $arg" >&2; exit 1 ;;
   esac
 done
@@ -145,6 +147,17 @@ if (( WITH_ICONS )); then
   (cd "$icons_tmp/MacTahoe-icon-theme" && ./install.sh)
   rm -rf "$icons_tmp"
   gsettings set org.gnome.desktop.interface icon-theme 'MacTahoe-dark'
+fi
+
+if (( WITH_CURSORS )); then
+  command -v git >/dev/null || die "--cursors needs git."
+  info "Installing macOS-style cursors (WhiteSur)"
+  cursors_tmp="$(mktemp -d)"
+  git clone --depth 1 https://github.com/vinceliuice/WhiteSur-cursors.git "$cursors_tmp/WhiteSur-cursors"
+  mkdir -p "${XDG_DATA_HOME:-$HOME/.local/share}/icons/WhiteSur-cursors"
+  cp -r "$cursors_tmp/WhiteSur-cursors/dist/." "${XDG_DATA_HOME:-$HOME/.local/share}/icons/WhiteSur-cursors/"
+  rm -rf "$cursors_tmp"
+  gsettings set org.gnome.desktop.interface cursor-theme 'WhiteSur-cursors'
 fi
 
 echo

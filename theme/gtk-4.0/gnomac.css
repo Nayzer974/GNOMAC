@@ -81,3 +81,74 @@ window:backdrop windowcontrols > button {
 headerbar {
   min-height: 52px;
 }
+
+/* ------------------------------------------------------------------
+ * Finder look for Files (Nautilus).
+ *
+ * The window background goes transparent and only the content pane stays
+ * opaque, so the sidebar shows what GNOMAC's "vibrancy" puts under the
+ * window: a frosted copy of the wallpaper, like a macOS sidebar.
+ * Nautilus is the only window styled "view" at the toplevel.
+ * ------------------------------------------------------------------ */
+
+window.view.background {
+  background-color: transparent;
+}
+
+window.view .content-pane {
+  background-color: var(--view-bg-color);
+}
+
+window.view .sidebar-pane,
+window.view .sidebar-pane:backdrop {
+  background-color: transparent;
+}
+
+@media (prefers-color-scheme: dark) {
+  window.view .sidebar-pane {
+    background-color: rgb(28 28 34 / 0.38);
+  }
+}
+
+@media (prefers-color-scheme: light) {
+  window.view .sidebar-pane {
+    background-color: rgb(246 246 250 / 0.45);
+  }
+}
+
+window.view .sidebar-pane headerbar {
+  background-color: transparent;
+  box-shadow: none;
+}
+
+/* Finder sidebar rows: compact, accent-tinted icons, soft selection. */
+window.view .navigation-sidebar > row {
+  min-height: 28px;
+  margin: 0 8px;
+  padding: 0 6px;
+  border-radius: 7px;
+}
+
+window.view .navigation-sidebar > row image {
+  color: var(--accent-color);
+}
+
+window.view .navigation-sidebar > row:selected {
+  background-color: color-mix(in srgb, currentColor 14%, transparent);
+  color: inherit;
+}
+
+window.view .navigation-sidebar > separator {
+  margin: 6px 14px;
+  background: none;
+}
+
+/* Finder-like toolbar on the content side. */
+window.view .content-pane headerbar {
+  min-height: 52px;
+}
+
+/* Finder has no title above its sidebar. */
+window.view .sidebar-pane headerbar label.title {
+  color: transparent;
+}

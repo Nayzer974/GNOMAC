@@ -42,6 +42,7 @@ export default class GnomacPreferences extends ExtensionPreferences {
         toggle(modules, 'enable-launchpad', 'Launchpad', 'Grille d’applications plein écran depuis le dock');
         toggle(modules, 'enable-notifications', 'Notifications macOS', 'Bannières en verre en haut à droite');
         toggle(modules, 'enable-lock-screen', 'Écran de verrouillage', 'Grande horloge en haut, mot de passe en bas, fond net au repos');
+        toggle(modules, 'enable-vibrancy', 'Barre latérale Finder', 'Verre dépoli derrière la barre latérale de Fichiers');
         toggle(modules, 'enable-topbar', 'Barre de menus', 'Menu système, nom de l\'app active, horloge à droite');
 
         const dock = group('Dock');
