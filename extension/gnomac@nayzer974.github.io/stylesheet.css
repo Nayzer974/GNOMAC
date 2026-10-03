@@ -232,3 +232,215 @@
 .gnomac-glass-menu .quick-slider .slider-bin {
     padding: 4px 6px;
 }
+
+/* ---------- Dynamic Island ---------- */
+
+.gnomac-island {
+    background-color: #000000;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    color: #ffffff;
+}
+
+.gnomac-island-compact {
+    padding: 0 12px 0 6px;
+    spacing: 8px;
+}
+
+.gnomac-island-compact-art {
+    width: 20px;
+    height: 20px;
+}
+
+.gnomac-island-compact-label {
+    font-size: 9.5pt;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.gnomac-island-bars {
+    spacing: 2px;
+}
+
+.gnomac-island-bar {
+    width: 3px;
+    border-radius: 2px;
+    background-color: #30d158;
+}
+
+.gnomac-island-media {
+    padding: 18px 20px;
+    spacing: 16px;
+}
+
+.gnomac-island-media-art {
+    width: 80px;
+    height: 80px;
+}
+
+.gnomac-island-media-text {
+    spacing: 2px;
+}
+
+.gnomac-island-title {
+    font-size: 11.5pt;
+    font-weight: 700;
+    color: #ffffff;
+}
+
+.gnomac-island-artist {
+    font-size: 10pt;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.gnomac-island-controls {
+    spacing: 18px;
+    padding-top: 8px;
+}
+
+.gnomac-island-control {
+    color: #ffffff;
+    padding: 4px;
+    border-radius: 99px;
+}
+
+.gnomac-island-control:hover {
+    background-color: rgba(255, 255, 255, 0.14);
+}
+
+.gnomac-island-control:insensitive {
+    color: rgba(255, 255, 255, 0.3);
+}
+
+.gnomac-island-notice {
+    padding: 14px 20px;
+    spacing: 14px;
+}
+
+.gnomac-island-notice-icon {
+    color: #ffffff;
+}
+
+/* ---------- Dock extras: Downloads fan, Trash dialog ---------- */
+
+.gnomac-fan-item {
+    spacing: 12px;
+}
+
+.gnomac-fan-label {
+    max-width: 220px;
+    padding: 3px 10px;
+    border-radius: 8px;
+    background-color: rgba(28, 28, 32, 0.82);
+    color: #ffffff;
+    font-size: 10pt;
+    font-weight: 500;
+}
+
+.gnomac-fan-item:hover .gnomac-fan-label {
+    background-color: rgba(49, 91, 220, 0.95);
+}
+
+.gnomac-fan-thumb {
+    border-radius: 6px;
+    background-size: cover;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+.gnomac-fan-more,
+.gnomac-fan-empty {
+    padding: 5px 14px;
+    border-radius: 99px;
+    background-color: rgba(28, 28, 32, 0.82);
+    color: #ffffff;
+    font-size: 10pt;
+    font-weight: 600;
+}
+
+.gnomac-fan-more:hover {
+    background-color: rgba(49, 91, 220, 0.95);
+}
+
+.gnomac-confirm-content {
+    spacing: 8px;
+    padding: 8px 12px;
+    max-width: 380px;
+}
+
+.gnomac-confirm-title {
+    font-weight: 700;
+    font-size: 12pt;
+}
+
+.gnomac-confirm-body {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+/* ---------- Launchpad ---------- */
+
+.gnomac-launchpad-search {
+    border-radius: 10px;
+    padding: 6px 10px;
+    background-color: rgba(255, 255, 255, 0.14);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #ffffff;
+    caret-color: #ffffff;
+    box-shadow: none;
+}
+
+.gnomac-launchpad-search StLabel.hint-text {
+    color: rgba(255, 255, 255, 0.55);
+}
+
+.gnomac-launchpad-search-icon {
+    icon-size: 14px;
+    color: rgba(255, 255, 255, 0.7);
+    padding-right: 6px;
+}
+
+.gnomac-launchpad-tile {
+    spacing: 8px;
+    padding: 6px;
+    border-radius: 18px;
+}
+
+.gnomac-launchpad-tile:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+.gnomac-launchpad-label {
+    color: #ffffff;
+    font-size: 10.5pt;
+    font-weight: 500;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+.gnomac-launchpad-dots {
+    spacing: 10px;
+}
+
+.gnomac-launchpad-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 4px;
+    background-color: rgba(255, 255, 255, 0.35);
+}
+
+.gnomac-launchpad-dot:checked {
+    background-color: rgba(255, 255, 255, 0.95);
+}
+
+/* ---------- Notification banners ---------- */
+
+.gnomac-notifications .notification-banner {
+    width: 24em;
+    margin: 8px 10px;
+    border-radius: 20px;
+    background-color: rgba(30, 30, 34, 0.38);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.32);
+}
+
+.gnomac-notifications .notification-banner .message-title {
+    font-weight: 700;
+}

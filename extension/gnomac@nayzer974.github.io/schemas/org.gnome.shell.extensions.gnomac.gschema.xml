@@ -17,6 +17,30 @@
       <default>true</default>
       <summary>Liquid Glass menus and macOS-style Control Center</summary>
     </key>
+    <key name="enable-window-animations" type="b">
+      <default>true</default>
+      <summary>macOS window animations (open, close, Genie minimize)</summary>
+    </key>
+    <key name="enable-dynamic-island" type="b">
+      <default>true</default>
+      <summary>Dynamic Island for music and notifications</summary>
+    </key>
+    <key name="enable-launchpad" type="b">
+      <default>true</default>
+      <summary>Launchpad app grid (dock Applications button)</summary>
+    </key>
+    <key name="island-notifications" type="b">
+      <default>false</default>
+      <summary>Show notifications in the Dynamic Island too</summary>
+    </key>
+    <key name="enable-notifications" type="b">
+      <default>true</default>
+      <summary>macOS-style glass notification banners in the top-right corner</summary>
+    </key>
+    <key name="force-animations" type="b">
+      <default>false</default>
+      <summary>Keep animations on with software rendering (virtual machines)</summary>
+    </key>
     <key name="enable-topbar" type="b">
       <default>true</default>
       <summary>Turn the GNOME panel into a macOS-style menu bar</summary>

@@ -3,18 +3,23 @@
 // bounce, running dots, tooltips and the stock GNOME app context menu.
 
 import Clutter from 'gi://Clutter';
+import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
+import Meta from 'gi://Meta';
+import Mtk from 'gi://Mtk';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as AppFavorites from 'resource:///org/gnome/shell/ui/appFavorites.js';
 import * as BoxPointer from 'resource:///org/gnome/shell/ui/boxpointer.js';
+import * as DND from 'resource:///org/gnome/shell/ui/dnd.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 import {AppMenu} from 'resource:///org/gnome/shell/ui/appMenu.js';
 
 import {GlassSurface, glassParamsFromSettings} from '../lib/glass.js';
+import {DownloadsStack, TrashWatcher, confirmEmptyTrash, downloadsDir, openTrash} from './dockExtras.js';
 import {Spring, getTicker} from '../lib/spring.js';
 import {t} from '../lib/i18n.js';
 
@@ -25,7 +30,8 @@ const FLOAT_MARGIN = 8;
 
 const DockItem = GObject.registerClass(
 class DockItem extends St.Widget {
-    _init(dock, app) {
+    // kind: 'app', 'apps' (Launchpad), 'downloads' or 'trash'.
+    _init(dock, app, kind = 'app') {
         super._init({
             style_class: 'gnomac-dock-item',
             reactive: true,
@@ -33,20 +39,35 @@ class DockItem extends St.Widget {
         });
         this.dock = dock;
         this.app = app;
+        this.kind = app ? 'app' : kind;
         this.lift = 0;
         this.bounceStart = -1;
         this.stopBounce = false;
         this.menu = null;
+        this._delegate = this;
 
-        this.icon = app
-            ? app.create_icon_texture(dock.renderSize)
-            : new St.Icon({
-                icon_name: 'view-app-grid-symbolic',
+        if (app) {
+            this.icon = app.create_icon_texture(dock.renderSize);
+        } else {
+            const names = {
+                apps: 'view-app-grid-symbolic',
+                downloads: 'folder-download',
+                trash: dock.trashIconName,
+            };
+            this.icon = new St.Icon({
+                icon_name: names[this.kind],
                 icon_size: dock.renderSize,
-                style_class: 'gnomac-dock-apps-icon',
+                style_class: this.kind === 'apps' ? 'gnomac-dock-apps-icon' : 'gnomac-dock-special-icon',
             });
+        }
         this.icon.set_pivot_point(0.5, 1.0);
         this.add_child(this.icon);
+
+        if (app) {
+            this._draggable = DND.makeDraggable(this, {dragActorMaxSize: dock.base * 1.2});
+            this._draggable.connect('drag-begin', () => dock.onDragBegin(this));
+            this._draggable.connect('drag-end', (_d, _time, accepted) => dock.onDragEnd(this, accepted));
+        }
 
         this.dot = new St.Widget({style_class: 'gnomac-dock-dot', visible: false});
         this.add_child(this.dot);
@@ -60,7 +81,22 @@ class DockItem extends St.Widget {
     }
 
     get name() {
-        return this.app ? this.app.get_name() : t('Applications', 'Applications');
+        if (this.app)
+            return this.app.get_name();
+        return {
+            apps: t('Applications', 'Applications'),
+            downloads: t('Downloads', 'Téléchargements'),
+            trash: t('Trash', 'Corbeille'),
+        }[this.kind];
+    }
+
+    // DND: what follows the pointer, and where it flies back from.
+    getDragActor() {
+        return this.app.create_icon_texture(Math.round(this.dock.base * 1.2));
+    }
+
+    getDragActorSource() {
+        return this.icon;
     }
 
     get running() {
@@ -85,10 +121,18 @@ class DockItem extends St.Widget {
             this.dock.openMenu(this);
             return Clutter.EVENT_STOP;
         }
-        if (Main.overview.visible)
+        if (Main.overview.visible && this.kind !== 'apps')
             Main.overview.hide();
-        if (!this.app) {
-            Main.overview.showApps();
+        if (this.kind === 'apps') {
+            this.dock.openLaunchpad();
+            return Clutter.EVENT_STOP;
+        }
+        if (this.kind === 'downloads') {
+            this.dock.openDownloads(this);
+            return Clutter.EVENT_STOP;
+        }
+        if (this.kind === 'trash') {
+            openTrash();
             return Clutter.EVENT_STOP;
         }
         if (button === Clutter.BUTTON_MIDDLE) {
@@ -152,6 +196,17 @@ export class Dock {
         Main.layoutManager.uiGroup.add_child(this._tooltip);
 
         this._menuManager = new PopupMenu.PopupMenuManager(this.actor);
+        this._trash = new TrashWatcher(() => {
+            const item = this._items.find(i => i.kind === 'trash');
+            if (item)
+                item.icon.icon_name = this.trashIconName;
+        });
+        this._downloads = new DownloadsStack();
+        this._dropIndex = -1;
+        this._dragItem = null;
+        this.actor._delegate = this;
+        this._dragMonitor = {dragMotion: event => this._onDragMotion(event)};
+        DND.addDragMonitor(this._dragMonitor);
 
         Main.layoutManager.addChrome(this.actor, {
             affectsStruts: false,
@@ -172,12 +227,14 @@ export class Dock {
             return Clutter.EVENT_PROPAGATE;
         });
         this.actor.connect('notify::hover', () => this._onDockHover());
+        this.actor.connect('destroy', () => (this._actorGone = true));
 
         const appSystem = Shell.AppSystem.get_default();
         this._connect(AppFavorites.getAppFavorites(), 'changed', () => this._rebuild());
         this._connect(appSystem, 'installed-changed', () => this._rebuild());
         this._connect(appSystem, 'app-state-changed', (_sys, app) => this._onAppState(app));
         this._connect(Main.layoutManager, 'monitors-changed', () => this._relayout());
+        this._connect(global.display, 'window-created', () => this._queuePublish());
         this._connect(Main.overview, 'showing', () => this.actor.hide());
         this._connect(Main.overview, 'hidden', () => this.actor.show());
 
@@ -186,6 +243,18 @@ export class Dock {
 
     disable() {
         getTicker().remove(this._tick);
+        if (this._dragMonitor) {
+            DND.removeDragMonitor(this._dragMonitor);
+            this._dragMonitor = null;
+        }
+        this._trash?.destroy();
+        this._trash = null;
+        this._downloads?.destroy();
+        this._downloads = null;
+        if (this._publishLater) {
+            global.compositor.get_laters().remove(this._publishLater);
+            this._publishLater = 0;
+        }
         for (const [object, id] of this._signals)
             object.disconnect(id);
         this._signals = [];
@@ -220,8 +289,12 @@ export class Dock {
 
     _rebuild() {
         const {favorites, running} = this._wantedApps();
-        const previous = new Map(this._items.filter(i => i.app).map(i => [i.app.get_id(), i]));
-        const appsButton = this._items.find(i => !i.app);
+        const previous = new Map(this._items.map(i => [i.app ? i.app.get_id() : `@${i.kind}`, i]));
+        const special = kind => {
+            const item = previous.get(`@${kind}`) ?? this._addItem(null, kind);
+            previous.delete(`@${kind}`);
+            return item;
+        };
 
         const take = app => {
             const id = app.get_id();
@@ -235,7 +308,10 @@ export class Dock {
         for (const app of running)
             items.push(take(app));
         groups.push(items.length);
-        items.push(appsButton ?? this._addItem(null));
+        // macOS keeps Downloads and the Trash after the last separator.
+        items.push(special('apps'));
+        items.push(special('downloads'));
+        items.push(special('trash'));
 
         for (const stale of previous.values())
             stale.destroy();
@@ -259,10 +335,21 @@ export class Dock {
 
         this._items = items;
         this._relayout();
+        this._queuePublish();
     }
 
-    _addItem(app) {
-        const item = new DockItem(this, app);
+    _queuePublish() {
+        if (this._publishLater)
+            return;
+        this._publishLater = global.compositor.get_laters().add(Meta.LaterType.BEFORE_REDRAW, () => {
+            this._publishLater = 0;
+            this._publishIconGeometry();
+            return GLib.SOURCE_REMOVE;
+        });
+    }
+
+    _addItem(app, kind = 'app') {
+        const item = new DockItem(this, app, kind);
         this.actor.add_child(item);
         return item;
     }
@@ -297,9 +384,16 @@ export class Dock {
                 Math.exp(-(distance * distance) / (2 * SIGMA * SIGMA));
         });
 
-        const widths = scales.map(scale => base * scale);
+        // While an icon is dragged, its slot collapses and a gap opens where
+        // it would land, so the other icons slide apart like macOS.
+        const widths = scales.map((scale, i) => {
+            if (items[i] === this._dragItem)
+                return -this._spacing;
+            return base * scale;
+        });
+        const gap = this._dropIndex >= 0 ? step : 0;
         const width = 2 * this._pad + widths.reduce((a, b) => a + b, 0) +
-            (n - 1) * this._spacing + separators * separatorWidth;
+            (n - 1) * this._spacing + separators * separatorWidth + gap;
 
         const bouncing = items.some(item => item.bounceStart >= 0);
         const headroom = this._expanded || bouncing
@@ -322,8 +416,11 @@ export class Dock {
         let left = this._pad;
         let separatorIndex = 0;
         items.forEach((item, i) => {
+            if (i === this._dropIndex)
+                left += gap;
             item.set_position(Math.round(left), 0);
-            item.place(widths[i], glassY + this._glassHeight, iconBottom, scales[i], dotY);
+            item.visible = item !== this._dragItem;
+            item.place(Math.max(0, widths[i]), glassY + this._glassHeight, iconBottom, scales[i], dotY);
             left += widths[i] + this._spacing;
             if (this._separatorAfter.has(i)) {
                 const separator = this._separators[separatorIndex++];
@@ -438,14 +535,167 @@ export class Dock {
         this._relayout();
 
         const active = bouncing || !this._hover.settled;
-        if (!active)
+        if (!active) {
             this._ticking = false;
+            this._publishIconGeometry();
+        }
         return active;
     }
 
-    openMenu(item) {
-        if (!item.app)
+    // Tell mutter where each app sits in the dock: minimize animations
+    // (our Genie, and GNOME's own) fly windows into that rectangle.
+    _publishIconGeometry() {
+        // During shell shutdown the actors die before disable() runs.
+        if (!this.actor || this._actorGone)
             return;
+        for (const item of this._items) {
+            if (!item.app)
+                continue;
+            const [x, y] = item.icon.get_transformed_position();
+            const [width, height] = item.icon.get_transformed_size();
+            if (![x, y, width, height].every(Number.isFinite))
+                continue;
+            const rect = new Mtk.Rectangle({
+                x: Math.round(x),
+                y: Math.round(y),
+                width: Math.round(width),
+                height: Math.round(height),
+            });
+            for (const window of item.app.get_windows())
+                window.set_icon_geometry(rect);
+        }
+    }
+
+    get trashIconName() {
+        return this._trash?.iconName ?? 'user-trash';
+    }
+
+    openLaunchpad() {
+        const launchpad = this._extension.launchpad;
+        if (launchpad)
+            launchpad.toggle();
+        else
+            Main.overview.showApps();
+    }
+
+    openDownloads(item) {
+        this._tooltip.opacity = 0;
+        this._downloads.open(item.icon);
+    }
+
+    // ---- drag and drop -------------------------------------------------
+
+    _favoriteCount() {
+        return AppFavorites.getAppFavorites().getFavorites().length;
+    }
+
+    onDragBegin(item) {
+        this._dragItem = item;
+        this._tooltip.opacity = 0;
+        this._relayout();
+    }
+
+    onDragEnd(item, accepted) {
+        const wasFavorite = AppFavorites.getAppFavorites().isFavorite(item.app.get_id());
+        const [, dockY] = this.actor.get_transformed_position();
+        const glassTop = dockY + this.actor.height - this._glassHeight - FLOAT_MARGIN;
+        const draggedAway = this._lastDragY !== undefined &&
+            this._lastDragY < glassTop - this.base * 1.5;
+        this._dragItem = null;
+        this._dropIndex = -1;
+        // Dragging a pinned app off the dock unpins it (macOS "Remove").
+        if (!accepted && wasFavorite && draggedAway)
+            AppFavorites.getAppFavorites().removeFavorite(item.app.get_id());
+        this._relayout();
+    }
+
+    _onDragMotion(event) {
+        this._lastDragY = event.y;
+        if (this._dropIndex >= 0 && !this.actor.contains(event.targetActor)) {
+            this._dropIndex = -1;
+            this._relayout();
+        }
+        return DND.DragMotionResult.CONTINUE;
+    }
+
+    _indexAt(x) {
+        // Only the pinned section accepts drops.
+        const limit = this._favoriteCount();
+        let index = 0;
+        for (const item of this._items.slice(0, limit)) {
+            if (item !== this._dragItem && x < item.x + item.width / 2)
+                break;
+            index++;
+        }
+        return Math.min(index, limit);
+    }
+
+    handleDragOver(source, _actor, x, _y, _time) {
+        if (!source?.app)
+            return DND.DragMotionResult.NO_DROP;
+        const index = this._indexAt(x);
+        if (index !== this._dropIndex) {
+            this._dropIndex = index;
+            this._relayout();
+        }
+        return DND.DragMotionResult.MOVE_DROP;
+    }
+
+    acceptDrop(source, _actor, x, _y, _time) {
+        if (!source?.app)
+            return false;
+        const favorites = AppFavorites.getAppFavorites();
+        const id = source.app.get_id();
+        let position = this._indexAt(x);
+        const current = favorites.getFavorites().findIndex(app => app.get_id() === id);
+        if (current >= 0) {
+            if (current < position)
+                position--;
+            favorites.moveFavoriteToPos(id, position);
+        } else {
+            favorites.addFavoriteAtPos(id, position);
+        }
+        this._dropIndex = -1;
+        return true;
+    }
+
+    // ---- menus ---------------------------------------------------------
+
+    _specialMenu(item) {
+        const menu = new PopupMenu.PopupMenu(item, 0.5, St.Side.BOTTOM);
+        const add = (label, callback) => {
+            const entry = new PopupMenu.PopupMenuItem(label);
+            entry.connect('activate', callback);
+            menu.addMenuItem(entry);
+        };
+        if (item.kind === 'trash') {
+            add(t('Open', 'Ouvrir'), () => openTrash());
+            menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+            add(t('Empty Trash…', 'Vider la Corbeille…'), () => confirmEmptyTrash());
+        } else if (item.kind === 'downloads') {
+            add(t('Open Downloads', 'Ouvrir Téléchargements'), () => {
+                const uri = Gio.File.new_for_path(downloadsDir()).get_uri();
+                Gio.AppInfo.launch_default_for_uri(uri, global.create_app_launch_context(0, -1));
+            });
+        } else {
+            return null;
+        }
+        return menu;
+    }
+
+    openMenu(item) {
+        if (!item.app) {
+            if (!item.menu) {
+                item.menu = this._specialMenu(item);
+                if (!item.menu)
+                    return;
+                Main.uiGroup.add_child(item.menu.actor);
+                this._menuManager.addMenu(item.menu);
+            }
+            this._tooltip.opacity = 0;
+            item.menu.open(BoxPointer.PopupAnimation.FULL);
+            return;
+        }
         if (!item.menu) {
             item.menu = new AppMenu(item, St.Side.BOTTOM, {
                 favoritesSection: true,

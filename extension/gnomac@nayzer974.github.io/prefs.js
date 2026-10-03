@@ -37,6 +37,10 @@ export default class GnomacPreferences extends ExtensionPreferences {
         toggle(modules, 'enable-dock', 'Dock');
         toggle(modules, 'enable-spotlight', 'Spotlight', 'Super + Espace : apps, calculs, actions système, recherche web');
         toggle(modules, 'enable-glass-menus', 'Menus en verre', 'Tous les menus et le Centre de contrôle en Liquid Glass');
+        toggle(modules, 'enable-window-animations', 'Animations des fenêtres', 'Ouverture, fermeture et effet Génie vers le dock');
+        toggle(modules, 'enable-dynamic-island', 'Dynamic Island', 'Musique en cours et notifications en haut au centre');
+        toggle(modules, 'enable-launchpad', 'Launchpad', 'Grille d’applications plein écran depuis le dock');
+        toggle(modules, 'enable-notifications', 'Notifications macOS', 'Bannières en verre en haut à droite');
         toggle(modules, 'enable-topbar', 'Barre de menus', 'Menu système, nom de l\'app active, horloge à droite');
 
         const dock = group('Dock');
@@ -65,8 +69,13 @@ export default class GnomacPreferences extends ExtensionPreferences {
         spin(glass, 'glass-tint-opacity', 'Opacité de la teinte', 0, 0.9, 0.01, 2);
         toggle(glass, 'glass-dark', 'Teinte sombre');
 
+        const island = group('Dynamic Island');
+        toggle(island, 'island-notifications', 'Notifications dans l’île', 'En plus des bannières, façon RevoShell');
+
         const motion = group('Animations', 'Ressorts : plus de raideur = plus vif, plus d\'amortissement = moins de rebond');
         spin(motion, 'spring-stiffness', 'Raideur', 40, 1000, 10);
         spin(motion, 'spring-damping', 'Amortissement', 5, 80, 1);
+        toggle(motion, 'force-animations', 'Forcer les animations',
+            'GNOME les coupe en rendu logiciel (machines virtuelles sans 3D)');
     }
 }
