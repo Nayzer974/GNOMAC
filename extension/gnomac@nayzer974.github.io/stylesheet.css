@@ -818,3 +818,24 @@
     font-size: 8pt;
     color: rgba(255, 255, 255, 0.35);
 }
+
+/* Spotlight modes: round glass buttons at the end of the bar. */
+.gnomac-spotlight-mode {
+    width: 30px;
+    height: 30px;
+    border-radius: 15px;
+    background-color: rgba(255, 255, 255, 0.10);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: rgba(255, 255, 255, 0.8);
+    margin-left: 4px;
+}
+
+.gnomac-spotlight-mode:hover {
+    background-color: rgba(255, 255, 255, 0.18);
+}
+
+.gnomac-spotlight-mode:checked {
+    background-color: rgba(49, 91, 220, 0.9);
+    border-color: rgba(255, 255, 255, 0.25);
+    color: #ffffff;
+}
