@@ -1,0 +1,89 @@
+# GNOMAC Plymouth theme: black screen, white logo that fades in, a thin
+# progress bar under it. Same look as the in-session start-up animation.
+
+Window.SetBackgroundTopColor(0.0, 0.0, 0.0);
+Window.SetBackgroundBottomColor(0.0, 0.0, 0.0);
+
+screen_w = Window.GetWidth();
+screen_h = Window.GetHeight();
+
+# ---------------------------------------------------------------- logo
+logo_image = Image("logo.png");
+logo_scale = (screen_h * 0.11) / logo_image.GetHeight();
+logo_image = logo_image.Scale(logo_image.GetWidth() * logo_scale,
+                              logo_image.GetHeight() * logo_scale);
+logo_sprite = Sprite(logo_image);
+logo_x = screen_w / 2 - logo_image.GetWidth() / 2;
+logo_y = screen_h * 0.42 - logo_image.GetHeight() / 2;
+logo_sprite.SetPosition(logo_x, logo_y, 10);
+logo_sprite.SetOpacity(0);
+
+# ---------------------------------------------------------------- bar
+bar_w = screen_w * 0.13;
+if (bar_w < 150)
+    bar_w = 150;
+bar_h = 4;
+bar_x = screen_w / 2 - bar_w / 2;
+bar_y = screen_h * 0.42 + logo_image.GetHeight() * 0.9;
+
+pixel_image = Image("pixel.png");
+
+track_sprite = Sprite(pixel_image.Scale(bar_w, bar_h));
+track_sprite.SetPosition(bar_x, bar_y, 9);
+track_sprite.SetOpacity(0);
+
+fill_sprite = Sprite(pixel_image.Scale(1, bar_h));
+fill_sprite.SetPosition(bar_x, bar_y, 11);
+fill_sprite.SetOpacity(0);
+
+frame = 0;
+
+fun refresh_callback()
+{
+    frame++;
+    # The logo fades in over about 0.7 s (50 refreshes a second).
+    opacity = frame / 35.0;
+    if (opacity > 1)
+        opacity = 1;
+    logo_sprite.SetOpacity(opacity);
+    track_sprite.SetOpacity(opacity * 0.22);
+}
+Plymouth.SetRefreshFunction(refresh_callback);
+
+fun progress_callback(duration, progress)
+{
+    width = bar_w * progress;
+    if (width < 1)
+        width = 1;
+    fill_sprite.SetImage(pixel_image.Scale(width, bar_h));
+    fill_sprite.SetOpacity(1);
+}
+Plymouth.SetBootProgressFunction(progress_callback);
+
+fun quit_callback()
+{
+    logo_sprite.SetOpacity(0);
+    track_sprite.SetOpacity(0);
+    fill_sprite.SetOpacity(0);
+}
+Plymouth.SetQuitFunction(quit_callback);
+
+# Disk encryption passphrase: a plain prompt with bullets under the bar.
+password_sprite = Sprite();
+
+fun password_callback(prompt, bullets)
+{
+    text = prompt + " ";
+    for (i = 0; i < bullets; i++)
+        text = text + "*";
+    password_image = Image.Text(text, 1, 1, 1);
+    password_sprite.SetImage(password_image);
+    password_sprite.SetPosition(screen_w / 2 - password_image.GetWidth() / 2, bar_y + 40, 12);
+}
+Plymouth.SetDisplayPasswordFunction(password_callback);
+
+fun display_normal_callback()
+{
+    password_sprite.SetOpacity(0);
+}
+Plymouth.SetDisplayNormalFunction(display_normal_callback);

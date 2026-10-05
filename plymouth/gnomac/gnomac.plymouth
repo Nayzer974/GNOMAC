@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=GNOMAC
+Description=macOS-style boot: a white logo on black with a thin progress bar.
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/gnomac
+ScriptFile=/usr/share/plymouth/themes/gnomac/gnomac.script

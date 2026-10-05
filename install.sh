@@ -6,6 +6,7 @@
 #   ./install.sh --extras   also install rounded window corners + app tray icons (extensions.gnome.org)
 #   ./install.sh --icons    also install the MacTahoe icon theme
 #   ./install.sh --cursors  also install macOS-style cursors (WhiteSur)
+#   ./install.sh --plymouth prepare the macOS-style boot splash (prints the sudo commands, never runs them)
 #   ./install.sh --all      everything above
 #
 # Never stores or pipes your password: sudo prompts you directly.
@@ -23,15 +24,16 @@ CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}"
 # Genie and app menus, so Magic Lamp / Global Menu would now conflict.
 EXTRA_EXTENSIONS=(7048 615)
 
-WITH_DEPS=0 WITH_EXTRAS=0 WITH_ICONS=0 WITH_CURSORS=0
+WITH_DEPS=0 WITH_EXTRAS=0 WITH_ICONS=0 WITH_CURSORS=0 WITH_PLYMOUTH=0
 for arg in "$@"; do
   case "$arg" in
     --deps) WITH_DEPS=1 ;;
     --extras) WITH_EXTRAS=1 ;;
     --icons) WITH_ICONS=1 ;;
     --cursors) WITH_CURSORS=1 ;;
+    --plymouth) WITH_PLYMOUTH=1 ;;
     --all) WITH_DEPS=1 WITH_EXTRAS=1 WITH_ICONS=1 WITH_CURSORS=1 ;;
-    -h|--help) sed -n '2,12p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,13p' "$0"; exit 0 ;;
     *) echo "Unknown option: $arg" >&2; exit 1 ;;
   esac
 done
@@ -160,6 +162,21 @@ if (( WITH_CURSORS )); then
   cp -r "$cursors_tmp/WhiteSur-cursors/dist/." "${XDG_DATA_HOME:-$HOME/.local/share}/icons/WhiteSur-cursors/"
   rm -rf "$cursors_tmp"
   gsettings set org.gnome.desktop.interface cursor-theme 'WhiteSur-cursors'
+fi
+
+if (( WITH_PLYMOUTH )); then
+  info "Boot splash (Plymouth): needs root, so these commands are for you to run:"
+  cat <<PLY
+
+    sudo cp -r "$ROOT/plymouth/gnomac" /usr/share/plymouth/themes/gnomac
+    sudo plymouth-set-default-theme gnomac
+    sudo mkinitcpio -P          # Arch / CachyOS (use 'sudo update-initramfs -u' on Debian/Ubuntu)
+
+  Make sure the kernel command line has "quiet splash" and that mkinitcpio's HOOKS
+  contain "plymouth" (CachyOS has both by default). To go back:
+    sudo plymouth-set-default-theme -R cachyos
+
+PLY
 fi
 
 echo

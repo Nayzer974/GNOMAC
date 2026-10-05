@@ -25,4 +25,8 @@ gsettings reset org.gnome.desktop.wm.preferences button-layout
 if ! gsettings get org.gnome.desktop.wm.keybindings switch-input-source | grep -q "<Super>space"; then
   gsettings reset org.gnome.desktop.wm.keybindings switch-input-source
 fi
+if [[ -d /usr/share/plymouth/themes/gnomac ]]; then
+  echo "A GNOMAC boot theme is installed. To remove it (needs root):"
+  echo "  sudo plymouth-set-default-theme -R cachyos && sudo rm -rf /usr/share/plymouth/themes/gnomac"
+fi
 echo "GNOMAC removed. Log out and back in to finish."
