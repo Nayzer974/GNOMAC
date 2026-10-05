@@ -50,7 +50,9 @@ export default class GnomacPreferences extends ExtensionPreferences {
         toggle(modules, 'enable-topbar', 'Barre de menus', 'Menu système, nom de l\'app active, horloge à droite');
 
         const dock = group('Dock');
-        spin(dock, 'dock-icon-size', 'Taille des icônes', 24, 128, 2);
+        toggle(dock, 'dock-auto-size', 'Taille automatique', 'Suit la hauteur de l’écran : le dock garde ses proportions si la résolution change');
+        spin(dock, 'dock-size-scale', 'Taille (multiplicateur)', 0.5, 2.0, 0.05, 2);
+        spin(dock, 'dock-icon-size', 'Taille des icônes (mode manuel, px)', 24, 128, 2);
         toggle(dock, 'dock-magnification', 'Agrandissement');
         spin(dock, 'dock-max-scale', 'Agrandissement maximal', 1.0, 3.0, 0.05, 2);
         toggle(dock, 'dock-reserve-space', 'Réserver l\'espace', 'Les fenêtres maximisées s\'arrêtent au-dessus du dock');

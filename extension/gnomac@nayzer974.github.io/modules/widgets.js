@@ -15,6 +15,7 @@ import {GlassSurface, glassParamsFromSettings} from '../lib/glass.js';
 import * as Mpris from 'resource:///org/gnome/shell/ui/mpris.js';
 
 import {MonthCalendar} from '../lib/notchViews.js';
+import {uiScale} from '../lib/ui.js';
 import {WeatherSource} from '../lib/weather.js';
 import {t} from '../lib/i18n.js';
 
@@ -254,7 +255,8 @@ export class Widgets {
 
     // XXL widgets (macOS 27): the whole cluster scales; positions follow.
     get _scale() {
-        return {standard: 1, large: 1.25, xxl: 1.5}[this._settings.get_string('widget-size')] ?? 1;
+        const size = {standard: 1, large: 1.25, xxl: 1.5}[this._settings.get_string('widget-size')] ?? 1;
+        return size * uiScale();
     }
 
     _place() {

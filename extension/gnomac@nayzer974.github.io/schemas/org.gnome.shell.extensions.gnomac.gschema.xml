@@ -123,6 +123,15 @@
       <summary>Turn the GNOME panel into a macOS-style menu bar</summary>
     </key>
 
+    <key name="dock-auto-size" type="b">
+      <default>true</default>
+      <summary>Size the dock from the screen height instead of a fixed pixel size</summary>
+    </key>
+    <key name="dock-size-scale" type="d">
+      <range min="0.5" max="2.0"/>
+      <default>1.0</default>
+      <summary>Dock size multiplier applied on top of the automatic size</summary>
+    </key>
     <key name="dock-icon-size" type="i">
       <range min="24" max="128"/>
       <default>48</default>

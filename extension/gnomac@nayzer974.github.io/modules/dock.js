@@ -22,6 +22,7 @@ import {GlassSurface, glassParamsFromSettings} from '../lib/glass.js';
 import {DownloadsStack, TrashWatcher, confirmEmptyTrash, downloadsDir, openTrash} from './dockExtras.js';
 import {Spring, getTicker} from '../lib/spring.js';
 import {t} from '../lib/i18n.js';
+import {dockBaseSize} from '../lib/ui.js';
 
 const SIGMA = 1.05; // magnification falloff, in icon slots
 const BOUNCE_PERIOD = 0.6; // seconds per hop
@@ -186,7 +187,7 @@ export class Dock {
 
     enable() {
         const s = this._settings;
-        this.base = s.get_int('dock-icon-size');
+        this.base = dockBaseSize(s);
         this.magnify = s.get_boolean('dock-magnification');
         this.maxScale = this.magnify ? s.get_double('dock-max-scale') : 1.0;
         this.renderSize = Math.round(this.base * this.maxScale);
@@ -257,7 +258,13 @@ export class Dock {
         this._connect(AppFavorites.getAppFavorites(), 'changed', () => this._rebuild());
         this._connect(appSystem, 'installed-changed', () => this._rebuild());
         this._connect(appSystem, 'app-state-changed', (_sys, app) => this._onAppState(app));
-        this._connect(Main.layoutManager, 'monitors-changed', () => this._relayout());
+        // A new resolution changes the automatic size: rebuild with it.
+        this._connect(Main.layoutManager, 'monitors-changed', () => {
+            if (dockBaseSize(this._settings) !== this.base)
+                this._extension._scheduleReload?.();
+            else
+                this._relayout();
+        });
         this._connect(global.display, 'window-created', () => this._queuePublish());
         // GNOME's dash would be a second dock in the overview.
         // Hidden with opacity, never with hide()/show():
