@@ -30,7 +30,9 @@ const SIZES = {
     date: {width: 230, height: 78},
     media: {width: 400, height: 132},
     notice: {width: 400, height: 78},
+    hud: {width: 300, height: 34},
 };
+const HUD_MS = 1500;
 const NOTICE_MS = 4000;
 const WORKSPACE_MS = 1400;
 const BARS = 4;
@@ -151,6 +153,18 @@ class Island extends St.Widget {
             this.media.add_child(child);
         this.add_child(this.media);
 
+        // Volume / brightness HUD (replaces GNOME's OSD), like Alcove.
+        this.hud = new St.BoxLayout({style_class: 'gnomac-notch-hud'});
+        this.hudIcon = new St.Icon({icon_size: 16, y_align: Clutter.ActorAlign.CENTER});
+        this.hudTrack = new St.Widget({style_class: 'gnomac-notch-track', x_expand: true,
+            y_align: Clutter.ActorAlign.CENTER, layout_manager: new Clutter.BinLayout()});
+        this.hudFill = new St.Widget({style_class: 'gnomac-notch-fill', x_align: Clutter.ActorAlign.START,
+            y_expand: true});
+        this.hudTrack.add_child(this.hudFill);
+        this.hud.add_child(this.hudIcon);
+        this.hud.add_child(this.hudTrack);
+        this.add_child(this.hud);
+
         // Notification card.
         this.notice = new St.BoxLayout({style_class: 'gnomac-notch-notice'});
         this.noticeIcon = new St.Icon({icon_size: 32, y_align: Clutter.ActorAlign.CENTER});
@@ -241,10 +255,43 @@ export class DynamicIsland {
             return GLib.SOURCE_CONTINUE;
         });
 
+        // Route GNOME's volume/brightness OSD into the notch.
+        const osd = Main.osdWindowManager;
+        this._osdSaved = {show: osd.show, showAll: osd.showAll};
+        osd.show = (icon, label, levels) => {
+            const level = Object.values(levels ?? {}).find(Boolean);
+            if (level && level.level !== undefined && level.level !== null)
+                this._showHud(icon, level.level, level.maxLevel ?? 1);
+            else
+                this._osdSaved.show.call(osd, icon, label, levels);
+        };
+        osd.showAll = (icon, label, level, maxLevel) => {
+            if (level !== undefined && level !== null)
+                this._showHud(icon, level, maxLevel ?? 1);
+            else
+                this._osdSaved.showAll.call(osd, icon, label, level, maxLevel);
+        };
+
+        this._update();
+    }
+
+    _showHud(icon, level, maxLevel) {
+        const island = this.island;
+        if (!island || this._islandGone)
+            return;
+        island.hudIcon.gicon = icon;
+        this._hudLevel = Math.max(0, Math.min(1, level / Math.max(1, maxLevel > 0 ? maxLevel : 1)));
+        this._hudUntil = GLib.get_monotonic_time() + HUD_MS * 1000;
         this._update();
     }
 
     disable() {
+        if (this._osdSaved) {
+            Object.assign(Main.osdWindowManager, this._osdSaved);
+            delete Main.osdWindowManager.show;
+            delete Main.osdWindowManager.showAll;
+            this._osdSaved = null;
+        }
         getTicker().remove(this._tick);
         if (this._clockId) {
             GLib.source_remove(this._clockId);
@@ -360,6 +407,8 @@ export class DynamicIsland {
     _wantedMode() {
         if (GLib.get_monotonic_time() < this._noticeUntil)
             return 'notice';
+        if (GLib.get_monotonic_time() < (this._hudUntil ?? 0))
+            return 'hud';
         if (this.island.hover || this._pinned)
             return this._hasMedia() ? 'media' : 'date';
         return 'rest';
@@ -445,14 +494,15 @@ export class DynamicIsland {
         this._phase += dt;
 
         const now = GLib.get_monotonic_time();
-        if ((this._mode === 'notice' && now >= this._noticeUntil) ||
+        if ((this._mode === 'hud' && now >= (this._hudUntil ?? 0)) ||
+            (this._mode === 'notice' && now >= this._noticeUntil) ||
             (this.island.dots.visible && now >= this._workspaceUntil))
             this._update();
 
         this._layout();
 
         const playing = this._player?.status === 'Playing' && this._hasMedia();
-        const timed = now < this._noticeUntil || now < this._workspaceUntil;
+        const timed = now < this._noticeUntil || now < this._workspaceUntil || now < (this._hudUntil ?? 0);
         return playing || timed || !this._width.settled || !this._height.settled;
     }
 
@@ -469,6 +519,13 @@ export class DynamicIsland {
         island.shape.queue_repaint();
 
         const inner = width - 2 * EAR;
+        island.hud.set_position(EAR, 0);
+        island.hud.set_size(inner, height);
+        island.hud.visible = this._mode === 'hud';
+        if (island.hud.visible) {
+            const tw = island.hudTrack.width;
+            island.hudFill.set_width(Math.round(tw * (this._hudLevel ?? 0)));
+        }
         for (const child of [island.rest, island.media, island.notice]) {
             child.set_position(EAR, 0);
             child.set_size(inner, height);
@@ -476,7 +533,7 @@ export class DynamicIsland {
 
         const grow = Math.min(1, Math.max(0,
             (height - SIZES.rest.height) / (SIZES.notice.height - SIZES.rest.height)));
-        island.rest.opacity = Math.round(255 * (1 - grow));
+        island.rest.opacity = this._mode === 'hud' ? 0 : Math.round(255 * (1 - grow));
         island.media.opacity = this._mode === 'media' ? Math.round(255 * grow) : 0;
         island.notice.opacity = this._mode === 'notice' || this._mode === 'date'
             ? Math.round(255 * grow) : 0;

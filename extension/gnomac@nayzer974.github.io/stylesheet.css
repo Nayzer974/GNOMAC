@@ -864,3 +864,9 @@
     font-size: 9pt;
     color: rgba(255, 255, 255, 0.45);
 }
+
+.gnomac-notch-hud {
+    padding: 0 14px;
+    spacing: 10px;
+    color: #ffffff;
+}
