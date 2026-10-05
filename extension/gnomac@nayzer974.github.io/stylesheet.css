@@ -972,3 +972,141 @@
 .gnomac-notch-shelf-item:hover {
     background-color: rgba(255, 255, 255, 0.12);
 }
+
+/* ---------- Dynamic Island: pages ---------- */
+
+.gnomac-notch-dot.done {
+    background-color: rgba(255, 159, 10, 0.55);
+}
+
+.gnomac-notch-pill-button.primary {
+    background-color: rgba(255, 255, 255, 0.92);
+    color: #000000;
+}
+
+.gnomac-notch-pill-button:checked {
+    background-color: rgba(49, 91, 220, 0.9);
+}
+
+.gnomac-notch-timer-main {
+    spacing: 2px;
+}
+
+.gnomac-notch-timer-head {
+    spacing: 8px;
+}
+
+.gnomac-notch-timer-time {
+    font-size: 26pt;
+}
+
+.gnomac-notch-timer-settings {
+    spacing: 10px;
+    padding-top: 6px;
+}
+
+.gnomac-notch-stepper {
+    spacing: 6px;
+    min-width: 150px;
+}
+
+.gnomac-notch-step {
+    width: 20px;
+    height: 20px;
+    border-radius: 10px;
+    background-color: rgba(255, 255, 255, 0.14);
+    color: #ffffff;
+    font-weight: 700;
+}
+
+.gnomac-notch-step-value {
+    min-width: 46px;
+    text-align: center;
+    color: #ffffff;
+    font-size: 9pt;
+    font-weight: 600;
+}
+
+.gnomac-notch-stats {
+    spacing: 7px;
+    padding: 6px 16px 0;
+}
+
+.gnomac-notch-stat-row {
+    spacing: 10px;
+}
+
+.gnomac-notch-stat-name {
+    min-width: 80px;
+    font-size: 9pt;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.gnomac-notch-stat-value {
+    min-width: 84px;
+    font-size: 9pt;
+    color: #ffffff;
+    text-align: right;
+    font-feature-settings: "tnum";
+}
+
+.gnomac-notch-actions {
+    padding: 6px 8px 0;
+}
+
+.gnomac-notch-chip {
+    padding: 8px 4px;
+    border-radius: 14px;
+    background-color: rgba(255, 255, 255, 0.09);
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.gnomac-notch-chip:hover {
+    background-color: rgba(255, 255, 255, 0.16);
+}
+
+.gnomac-notch-chip:checked {
+    background-color: rgba(49, 91, 220, 0.92);
+    color: #ffffff;
+}
+
+.gnomac-notch-chip-label {
+    font-size: 7.5pt;
+    padding-top: 3px;
+}
+
+.gnomac-notch-clipboard {
+    spacing: 6px;
+    padding: 4px 10px 0;
+}
+
+.gnomac-notch-clip-row {
+    padding: 4px 10px;
+    border-radius: 9px;
+    background-color: rgba(255, 255, 255, 0.08);
+    color: #ffffff;
+    font-size: 9pt;
+    text-align: left;
+    margin-bottom: 3px;
+}
+
+.gnomac-notch-clip-row:hover {
+    background-color: rgba(255, 255, 255, 0.18);
+}
+
+.gnomac-notch-idle {
+    spacing: 2px;
+    padding: 4px 4px 0;
+}
+
+.gnomac-notch-idle-time {
+    font-size: 30pt;
+    font-weight: 700;
+    color: #ffffff;
+    font-feature-settings: "tnum";
+}
+
+.gnomac-notch-idle-chips {
+    spacing: 6px;
+    padding-top: 8px;
+}

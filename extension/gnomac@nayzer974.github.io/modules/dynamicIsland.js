@@ -20,6 +20,8 @@ import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as Mpris from 'resource:///org/gnome/shell/ui/mpris.js';
 
+import {ActionsPage, ClipboardPage, IdleHome, StatsPage} from '../lib/notchPages.js';
+import {startClipboard, stopClipboard} from '../lib/clipboardHistory.js';
 import {MonthCalendar, PomodoroTimer, Shelf} from '../lib/notchViews.js';
 import {Spring, getTicker} from '../lib/spring.js';
 import {t} from '../lib/i18n.js';
@@ -33,7 +35,7 @@ const SIZES = {
     // not over it, and menus that would overlap are hidden by AppMenus.
     date: {width: 230, height: 78},
     media: {width: 400, height: 132},
-    dashboard: {width: 560, height: 190},
+    dashboard: {width: 560, height: 206},
     notice: {width: 400, height: 78},
     hud: {width: 300, height: 34},
 };
@@ -87,10 +89,12 @@ function bars(count) {
 }
 
 const Island = GObject.registerClass({
-    Signals: {'tab': {param_types: [GObject.TYPE_STRING]}, 'timer-changed': {}},
+    Signals: {'tab': {param_types: [GObject.TYPE_STRING]}, 'timer-changed': {param_types: [GObject.TYPE_BOOLEAN]},
+        'close-request': {}},
 }, class Island extends St.Widget {
-    _init() {
+    _init(settings) {
         super._init({name: 'gnomacDynamicIsland', reactive: true, track_hover: true});
+        this._settings = settings;
 
         this.shape = new St.DrawingArea({reactive: false});
         this.shape.connect('repaint', area => drawNotch(area));
@@ -118,7 +122,8 @@ const Island = GObject.registerClass({
             cr.setSourceRGBA(1, 1, 1, 0.18);
             cr.arc(w / 2, h / 2, w / 2 - 2, 0, 2 * Math.PI);
             cr.stroke();
-            cr.setSourceRGBA(1, 0.62, 0.04, 1);
+            const [cr_, cg, cb] = this.timer?.color ?? [1, 0.62, 0.04];
+            cr.setSourceRGBA(cr_, cg, cb, 1);
             cr.arc(w / 2, h / 2, w / 2 - 2, -Math.PI / 2, -Math.PI / 2 + 2 * Math.PI * fraction);
             cr.stroke();
             cr.$dispose();
@@ -218,18 +223,33 @@ const Island = GObject.registerClass({
         this.calendar = new MonthCalendar();
         for (const row of this._playerRows)
             this.homePlayer.add_child(row);
+        // Nothing playing: a big clock and one-tap chips take the player's place.
+        this.idleHome = new IdleHome(() => this.emit('close-request'));
         this.homePage.add_child(this.homePlayer);
+        this.homePage.add_child(this.idleHome.actor);
         this.homePage.add_child(this.calendar.actor);
-        this.timer = new PomodoroTimer(() => this.emit('timer-changed'));
+        this.timer = new PomodoroTimer(this._settings, finished => this.emit('timer-changed', finished));
         this.timerPage = this.timer.actor;
         this.shelf = new Shelf();
         this.shelfPage = this.shelf.actor;
-        for (const page of [this.homePage, this.timerPage, this.shelfPage])
+        this.statsView = new StatsPage();
+        this.statsPage = this.statsView.actor;
+        this.actionsView = new ActionsPage(() => this.emit('close-request'));
+        this.actionsPage = this.actionsView.actor;
+        this.clipboardView = new ClipboardPage();
+        this.clipboardPage = this.clipboardView.actor;
+        this.pageMap = {
+            home: this.homePage, stats: this.statsPage, actions: this.actionsPage,
+            clipboard: this.clipboardPage, timer: this.timerPage, shelf: this.shelfPage,
+        };
+        for (const page of Object.values(this.pageMap))
             this.pages.add_child(page);
 
         const tabs = new St.BoxLayout({style_class: 'gnomac-notch-tabs', x_align: Clutter.ActorAlign.CENTER});
         this.tabButtons = [];
-        [['user-home-symbolic', 'home'], ['alarm-symbolic', 'timer'], ['folder-symbolic', 'shelf']].forEach(([icon, id]) => {
+        [['user-home-symbolic', 'home'], ['utilities-system-monitor-symbolic', 'stats'],
+            ['view-grid-symbolic', 'actions'], ['edit-paste-symbolic', 'clipboard'],
+            ['alarm-symbolic', 'timer'], ['folder-symbolic', 'shelf']].forEach(([icon, id]) => {
             const button = new St.Button({style_class: 'gnomac-notch-tab', toggle_mode: true, can_focus: false,
                 child: new St.Icon({icon_name: icon, icon_size: 13})});
             button.connect('clicked', () => this.emit('tab', id));
@@ -242,9 +262,8 @@ const Island = GObject.registerClass({
     }
 
     showTab(tab) {
-        this.homePage.visible = tab === 'home';
-        this.timerPage.visible = tab === 'timer';
-        this.shelfPage.visible = tab === 'shelf';
+        for (const [id, page] of Object.entries(this.pageMap))
+            page.visible = id === tab;
         for (const [id, button] of this.tabButtons)
             button.checked = id === tab;
     }
@@ -275,7 +294,8 @@ export class DynamicIsland {
     }
 
     enable() {
-        this.island = new Island();
+        startClipboard();
+        this.island = new Island(this._settings);
         this.island.connect('destroy', () => (this._islandGone = true));
         Main.layoutManager.addTopChrome(this.island);
 
@@ -293,9 +313,14 @@ export class DynamicIsland {
         this._tab = 'home';
         this.island.connect('tab', (_i, tab) => {
             this._tab = tab;
+            this._refreshTab();
             this._update();
         });
-        this.island.connect('timer-changed', () => this._onTimer());
+        this.island.connect('timer-changed', (_i, finished) => this._onTimer(finished));
+        this.island.connect('close-request', () => {
+            this._pinned = false;
+            this._update();
+        });
         this.island.showTab('home');
         // Dropping a file on the notch puts it on the shelf.
         this.island._delegate = this;
@@ -327,8 +352,12 @@ export class DynamicIsland {
 
         this._clockId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 1, () => {
             this._syncContent();
-            if (this._mode === 'media')
-                this._pollPosition();
+            if (this._mode === 'dashboard') {
+                if (this._hasMedia() && this._tab === 'home')
+                    this._pollPosition();
+                if (this._tab === 'stats')
+                    this.island.statsView.update();
+            }
             return GLib.SOURCE_CONTINUE;
         });
 
@@ -352,6 +381,19 @@ export class DynamicIsland {
         this._update();
     }
 
+    // Pages that read live state refresh when they come into view.
+    _refreshTab() {
+        const island = this.island;
+        if (!island || this._islandGone)
+            return;
+        if (this._tab === 'actions')
+            island.actionsView.refresh();
+        else if (this._tab === 'stats')
+            island.statsView.update();
+        else if (this._tab === 'clipboard')
+            island.clipboardView.refresh();
+    }
+
     handleDragOver() {
         this._pinned = true;
         this._tab = 'shelf';
@@ -369,13 +411,20 @@ export class DynamicIsland {
     _onTimer(finished = false) {
         if (!this.island || this._islandGone)
             return;
-        this.island.ring.visible = this.island.timer.running;
+        const timer = this.island.timer;
+        this.island.ring.visible = timer.running && this._mode === 'rest';
         this.island.ring.queue_repaint();
-        if (finished)
-            Main.notify(t('Timer finished', 'Minuteur terminé'),
-                this.island.timer.phase === 'break'
-                    ? t('Time for a break.', 'C’est l’heure de la pause.')
-                    : t('Back to focus.', 'On reprend la concentration.'));
+        if (finished) {
+            const body = {
+                focus: t('Back to focus.', 'On reprend la concentration.'),
+                short: t('Time for a short break.', 'C’est l’heure d’une pause courte.'),
+                long: t('Time for a long break. Well done!', 'Pause longue : bien joué !'),
+            }[timer.phase];
+            Main.notify(t('Pomodoro', 'Pomodoro'), body);
+            try {
+                global.display.get_sound_player().play_from_theme('complete', 'Pomodoro', null);
+            } catch {}
+        }
         this._update();
     }
 
@@ -390,6 +439,9 @@ export class DynamicIsland {
     }
 
     disable() {
+        this.island?.timer?.destroy();
+        this.island?.clipboardView?.destroy();
+        stopClipboard();
         if (this._osdSaved) {
             Object.assign(Main.osdWindowManager, this._osdSaved);
             delete Main.osdWindowManager.show;
@@ -543,6 +595,12 @@ export class DynamicIsland {
 
         island.calendar.update();
         island.showTab(this._tab ?? 'home');
+        // The player's place on Home: the player when something plays,
+        // the clock and chips otherwise.
+        island.homePlayer.visible = this._hasMedia();
+        island.idleHome.actor.visible = !this._hasMedia();
+        if (this._mode === 'dashboard' && this._tab === 'home' && !this._hasMedia())
+            island.idleHome.update();
         island.ring.visible = island.timer.running && this._mode === 'rest';
         const unread = this._unread();
         island.badge.visible = unread > 0;

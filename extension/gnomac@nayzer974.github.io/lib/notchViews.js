@@ -56,47 +56,145 @@ export class MonthCalendar {
 
 // ---------------------------------------------------------------- pomodoro
 
-const FOCUS = 25 * 60;
-const BREAK = 5 * 60;
-
+// Focus rounds with short breaks, then a long break; every length is a
+// setting, editable live from the notch (gear button) or the preferences.
 export class PomodoroTimer {
-    constructor(onChange) {
+    constructor(settings, onChange) {
+        this._settings = settings;
         this._onChange = onChange;
         this.running = false;
-        this.phase = 'focus';
-        this.remaining = FOCUS;
+        this.phase = 'focus'; // focus | short | long
+        this.round = 1;
         this._id = 0;
+        this.remaining = this._length('focus');
 
         this.actor = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL,
-            style_class: 'gnomac-notch-timer', x_align: Clutter.ActorAlign.CENTER});
-        this.phaseLabel = new St.Label({style_class: 'gnomac-notch-subtitle',
-            x_align: Clutter.ActorAlign.CENTER});
-        this.timeLabel = new St.Label({style_class: 'gnomac-notch-timer-time',
-            x_align: Clutter.ActorAlign.CENTER});
-        const buttons = new St.BoxLayout({style_class: 'gnomac-notch-controls',
-            x_align: Clutter.ActorAlign.CENTER});
-        this.startButton = new St.Button({style_class: 'gnomac-notch-pill-button', can_focus: true});
-        this.resetButton = new St.Button({style_class: 'gnomac-notch-pill-button',
-            label: t('Reset', 'Réinitialiser'), can_focus: true});
+            style_class: 'gnomac-notch-timer', x_align: Clutter.ActorAlign.CENTER, x_expand: true});
+
+        // Main view: phase, countdown, round dots, controls.
+        this.main = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL,
+            x_align: Clutter.ActorAlign.CENTER, style_class: 'gnomac-notch-timer-main'});
+        const head = new St.BoxLayout({x_align: Clutter.ActorAlign.CENTER, style_class: 'gnomac-notch-timer-head'});
+        this.phaseLabel = new St.Label({style_class: 'gnomac-notch-subtitle', y_align: Clutter.ActorAlign.CENTER});
+        this.dots = new St.BoxLayout({style_class: 'gnomac-notch-dots', y_align: Clutter.ActorAlign.CENTER});
+        head.add_child(this.phaseLabel);
+        head.add_child(this.dots);
+        this.timeLabel = new St.Label({style_class: 'gnomac-notch-timer-time', x_align: Clutter.ActorAlign.CENTER});
+        const buttons = new St.BoxLayout({style_class: 'gnomac-notch-controls', x_align: Clutter.ActorAlign.CENTER});
+        this.startButton = new St.Button({style_class: 'gnomac-notch-pill-button primary', can_focus: true});
+        this.skipButton = new St.Button({style_class: 'gnomac-notch-pill-button', can_focus: true,
+            label: t('Skip', 'Passer')});
+        this.resetButton = new St.Button({style_class: 'gnomac-notch-pill-button', can_focus: true,
+            label: t('Reset', 'Réinit.')});
+        this.gearButton = new St.Button({style_class: 'gnomac-notch-pill-button', can_focus: true,
+            child: new St.Icon({icon_name: 'emblem-system-symbolic', icon_size: 13})});
         this.startButton.connect('clicked', () => this.toggle());
+        this.skipButton.connect('clicked', () => this.skip());
         this.resetButton.connect('clicked', () => this.reset());
-        buttons.add_child(this.startButton);
-        buttons.add_child(this.resetButton);
-        for (const child of [this.phaseLabel, this.timeLabel, buttons])
-            this.actor.add_child(child);
+        this.gearButton.connect('clicked', () => this.showSettings(!this.settingsOpen));
+        for (const b of [this.startButton, this.skipButton, this.resetButton, this.gearButton])
+            buttons.add_child(b);
+        for (const child of [head, this.timeLabel, buttons])
+            this.main.add_child(child);
+
+        // Settings view: steppers for every length.
+        this.settingsView = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL,
+            style_class: 'gnomac-notch-timer-settings', visible: false, x_align: Clutter.ActorAlign.CENTER});
+        const grid = new St.Widget({layout_manager: new Clutter.GridLayout({column_spacing: 22, row_spacing: 6})});
+        this._steppers = [];
+        [
+            ['pomodoro-focus', t('Focus', 'Concentration'), 'min'],
+            ['pomodoro-short', t('Short break', 'Pause courte'), 'min'],
+            ['pomodoro-long', t('Long break', 'Pause longue'), 'min'],
+            ['pomodoro-rounds', t('Rounds', 'Cycles'), ''],
+        ].forEach(([key, label, unit], i) => {
+            const stepper = this._stepper(key, label, unit);
+            grid.layout_manager.attach(stepper, i % 2, Math.floor(i / 2), 1, 1);
+        });
+        this.autoButton = new St.Button({style_class: 'gnomac-notch-pill-button', toggle_mode: true,
+            label: t('Auto-start', 'Enchaîner'), can_focus: true, x_align: Clutter.ActorAlign.CENTER});
+        this.autoButton.checked = this._settings.get_boolean('pomodoro-auto');
+        this.autoButton.connect('clicked', () =>
+            this._settings.set_boolean('pomodoro-auto', this.autoButton.checked));
+        const done = new St.Button({style_class: 'gnomac-notch-pill-button primary', can_focus: true,
+            label: t('Done', 'OK'), x_align: Clutter.ActorAlign.CENTER});
+        done.connect('clicked', () => this.showSettings(false));
+        const row = new St.BoxLayout({style_class: 'gnomac-notch-controls', x_align: Clutter.ActorAlign.CENTER});
+        row.add_child(this.autoButton);
+        row.add_child(done);
+        this.settingsView.add_child(grid);
+        this.settingsView.add_child(row);
+
+        this.actor.add_child(this.main);
+        this.actor.add_child(this.settingsView);
+        this.settingsOpen = false;
         this._render();
     }
 
+    _stepper(key, label, unit) {
+        const box = new St.BoxLayout({style_class: 'gnomac-notch-stepper'});
+        const name = new St.Label({text: label, style_class: 'gnomac-notch-subtitle', y_align: Clutter.ActorAlign.CENTER});
+        const minus = new St.Button({style_class: 'gnomac-notch-step', label: '−', can_focus: true});
+        const value = new St.Label({style_class: 'gnomac-notch-step-value', y_align: Clutter.ActorAlign.CENTER});
+        const plus = new St.Button({style_class: 'gnomac-notch-step', label: '+', can_focus: true});
+        const sync = () => (value.text = `${this._settings.get_int(key)}${unit ? ` ${unit}` : ''}`);
+        const bump = delta => {
+            const range = this._settings.settings_schema.get_key(key).get_range().deepUnpack()[1].deepUnpack();
+            const next = Math.max(range[0], Math.min(range[1], this._settings.get_int(key) + delta));
+            this._settings.set_int(key, next);
+            sync();
+            this.applySettings();
+        };
+        minus.connect('clicked', () => bump(-1));
+        plus.connect('clicked', () => bump(1));
+        sync();
+        for (const child of [name, minus, value, plus])
+            box.add_child(child);
+        this._steppers.push(sync);
+        return box;
+    }
+
+    _length(phase) {
+        const key = {focus: 'pomodoro-focus', short: 'pomodoro-short', long: 'pomodoro-long'}[phase];
+        return this._settings.get_int(key) * 60;
+    }
+
+    get total() {
+        return this._length(this.phase);
+    }
+
     get fraction() {
-        const total = this.phase === 'focus' ? FOCUS : BREAK;
-        return this.remaining / total;
+        return Math.max(0, Math.min(1, this.remaining / this.total));
+    }
+
+    get color() {
+        return this.phase === 'focus' ? [1, 0.62, 0.04] : [0.19, 0.82, 0.35];
+    }
+
+    showSettings(open) {
+        this.settingsOpen = open;
+        this.main.visible = !open;
+        this.settingsView.visible = open;
+        for (const sync of this._steppers)
+            sync();
+        this.autoButton.checked = this._settings.get_boolean('pomodoro-auto');
+        this._onChange();
+    }
+
+    // Lengths changed: the displayed countdown follows.
+    applySettings() {
+        if (!this.running)
+            this.remaining = this.total;
+        else
+            this.remaining = Math.min(this.remaining, this.total);
+        this._render();
+        this._onChange();
     }
 
     toggle() {
         this.running = !this.running;
-        if (this.running && !this._id) {
+        if (this.running && !this._id)
             this._id = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 1, () => this._tick());
-        }
         this._render();
         this._onChange();
     }
@@ -104,9 +202,27 @@ export class PomodoroTimer {
     reset() {
         this.running = false;
         this.phase = 'focus';
-        this.remaining = FOCUS;
+        this.round = 1;
+        this.remaining = this.total;
         this._render();
         this._onChange();
+    }
+
+    // Jump to the next phase (also what happens when the countdown ends).
+    skip(auto = false) {
+        const rounds = this._settings.get_int('pomodoro-rounds');
+        if (this.phase === 'focus') {
+            this.phase = this.round % rounds === 0 ? 'long' : 'short';
+        } else {
+            this.round = this.phase === 'long' ? 1 : this.round + 1;
+            this.phase = 'focus';
+        }
+        this.remaining = this.total;
+        this.running = auto && this._settings.get_boolean('pomodoro-auto');
+        if (this.running && !this._id)
+            this._id = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 1, () => this._tick());
+        this._render();
+        this._onChange(auto);
     }
 
     _tick() {
@@ -116,12 +232,8 @@ export class PomodoroTimer {
         }
         this.remaining -= 1;
         if (this.remaining <= 0) {
-            this.phase = this.phase === 'focus' ? 'break' : 'focus';
-            this.remaining = this.phase === 'focus' ? FOCUS : BREAK;
-            this.running = false;
             this._id = 0;
-            this._render();
-            this._onChange(true);
+            this.skip(true);
             return GLib.SOURCE_REMOVE;
         }
         this._render();
@@ -133,8 +245,22 @@ export class PomodoroTimer {
         const m = Math.floor(this.remaining / 60);
         const s = this.remaining % 60;
         this.timeLabel.text = `${m}:${String(s).padStart(2, '0')}`;
-        this.phaseLabel.text = this.phase === 'focus' ? t('Focus', 'Concentration') : t('Break', 'Pause');
+        this.phaseLabel.text = {
+            focus: t('Focus', 'Concentration'),
+            short: t('Short break', 'Pause courte'),
+            long: t('Long break', 'Pause longue'),
+        }[this.phase];
         this.startButton.label = this.running ? t('Pause', 'Pause') : t('Start', 'Démarrer');
+        this.dots.destroy_all_children();
+        const rounds = this._settings.get_int('pomodoro-rounds');
+        for (let i = 1; i <= rounds; i++) {
+            const done = i < this.round || (i === this.round && this.phase !== 'focus');
+            this.dots.add_child(new St.Widget({
+                style_class: i === this.round ? 'gnomac-notch-dot active'
+                    : (done ? 'gnomac-notch-dot done' : 'gnomac-notch-dot'),
+                y_align: Clutter.ActorAlign.CENTER,
+            }));
+        }
     }
 
     destroy() {
