@@ -1251,3 +1251,25 @@
     padding-top: 3px;
     font-weight: 600;
 }
+
+/* ---------- Start-up / shut-down ---------- */
+
+.gnomac-boot-logo {
+    color: #ffffff;
+}
+
+.gnomac-boot-caption {
+    font-size: 11pt;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.gnomac-boot-track {
+    border-radius: 2px;
+    background-color: rgba(255, 255, 255, 0.22);
+}
+
+.gnomac-boot-fill {
+    border-radius: 2px;
+    background-color: #ffffff;
+}

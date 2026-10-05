@@ -47,6 +47,7 @@ export default class GnomacPreferences extends ExtensionPreferences {
         toggle(modules, 'enable-menubar-icons', 'Symboles de la barre de menus', 'Wi-Fi, batterie et Centre de contrôle façon macOS');
         toggle(modules, 'enable-app-menus', 'Menus d’app', 'Fichier, Édition, Présentation, Fenêtre, Aide pour l’app active');
         toggle(modules, 'enable-wallpaper-picker', 'Fonds d’écran', 'Super + W : carrousel et transition en cercle');
+        toggle(modules, 'enable-boot-shutdown', 'Démarrage et extinction', 'Logo et barre de progression à l’ouverture de session, animation avant l’arrêt');
         toggle(modules, 'enable-topbar', 'Barre de menus', 'Menu système, nom de l\'app active, horloge à droite');
 
         const dock = group('Dock');
@@ -98,6 +99,11 @@ export default class GnomacPreferences extends ExtensionPreferences {
         spin(pomodoro, 'pomodoro-long', 'Pause longue (minutes)', 1, 120, 1);
         spin(pomodoro, 'pomodoro-rounds', 'Cycles avant la pause longue', 1, 12, 1);
         toggle(pomodoro, 'pomodoro-auto', 'Enchaîner automatiquement', 'Démarre la phase suivante sans clic');
+
+        const boot = group('Démarrage et extinction');
+        toggle(boot, 'enable-shutdown-animation', 'Animation d’arrêt', 'Avant l’arrêt, le redémarrage ou la fermeture de session');
+        spin(boot, 'boot-duration', 'Durée du démarrage (ms)', 600, 8000, 100);
+        spin(boot, 'shutdown-duration', 'Durée de l’arrêt (ms)', 600, 6000, 100);
 
         const misc = group('Bureau et barre de menus');
         const sizes = ['standard', 'large', 'xxl'];

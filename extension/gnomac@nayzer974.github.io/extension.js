@@ -8,6 +8,7 @@ import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {AppMenus} from './modules/appMenus.js';
+import {BootShutdown} from './modules/bootShutdown.js';
 import {Dock} from './modules/dock.js';
 import {DynamicIsland} from './modules/dynamicIsland.js';
 import {Gaps} from './modules/gaps.js';
@@ -28,6 +29,8 @@ import {destroyTicker} from './lib/spring.js';
 // extension stays loaded in the unlock-dialog session mode for the lock
 // screen, and everything else is stopped until the session is unlocked.
 const MODULES = [
+    // First, so the boot cover is up before the other modules build the UI.
+    {key: 'enable-boot-shutdown', Module: BootShutdown},
     {key: 'enable-lock-screen', Module: LockScreen, locked: true},
     {key: 'enable-launchpad', Module: Launchpad},
     {key: 'enable-topbar', Module: TopBar},

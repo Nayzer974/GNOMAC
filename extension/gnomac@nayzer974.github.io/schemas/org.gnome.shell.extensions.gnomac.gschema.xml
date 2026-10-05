@@ -118,6 +118,24 @@
       <default>false</default>
       <summary>Start the next phase automatically</summary>
     </key>
+    <key name="enable-boot-shutdown" type="b">
+      <default>true</default>
+      <summary>macOS start-up and shut-down animations</summary>
+    </key>
+    <key name="enable-shutdown-animation" type="b">
+      <default>true</default>
+      <summary>Play the shut-down animation before powering off, restarting or logging out</summary>
+    </key>
+    <key name="boot-duration" type="i">
+      <range min="600" max="8000"/>
+      <default>2600</default>
+      <summary>Start-up progress bar duration in milliseconds</summary>
+    </key>
+    <key name="shutdown-duration" type="i">
+      <range min="600" max="6000"/>
+      <default>1900</default>
+      <summary>Shut-down animation duration in milliseconds</summary>
+    </key>
     <key name="enable-topbar" type="b">
       <default>true</default>
       <summary>Turn the GNOME panel into a macOS-style menu bar</summary>
