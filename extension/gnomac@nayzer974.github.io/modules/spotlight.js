@@ -15,6 +15,9 @@ import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {GlassSurface, clearGlassParams} from '../lib/glass.js';
+import {clipboardItems, copyText, startClipboard, stopClipboard} from '../lib/clipboardHistory.js';
+import {shortcutLabel} from '../lib/keys.js';
+import {menuEntries} from './appMenus.js';
 import {Spring, getTicker} from '../lib/spring.js';
 import {evaluate, format, looksLikeMath} from '../lib/calculator.js';
 import * as Session from '../lib/session.js';
@@ -110,7 +113,6 @@ export class Spotlight {
         this._selected = -1;
         this._grab = null;
         this._mode = 'all';
-        this._clipboard = [];
         this._fileCache = new Map();
         this._tick = dt => this._onTick(dt);
     }
@@ -159,7 +161,7 @@ export class Spotlight {
         }));
         this._entry = new St.Entry({
             style_class: 'gnomac-spotlight-entry',
-            hint_text: t('Spotlight Search', 'Recherche Spotlight'),
+            hint_text: t('Search or Ask', 'Rechercher ou demander'),
             can_focus: true,
             x_expand: true,
             y_align: Clutter.ActorAlign.CENTER,
@@ -173,6 +175,7 @@ export class Spotlight {
             ['files', 'folder-symbolic', t('Files', 'Fichiers')],
             ['actions', 'system-run-symbolic', t('Actions', 'Actions')],
             ['clipboard', 'edit-paste-symbolic', t('Clipboard', 'Presse-papiers')],
+            ['menu', 'open-menu-symbolic', t('Menu Items', 'Éléments de menu')],
         ];
         this._modeHints = Object.fromEntries(modes.map(([id, , label]) => [id, label]));
         for (const [id, icon] of modes) {
@@ -214,24 +217,11 @@ export class Spotlight {
         this._overviewId = Main.overview.connect('showing', () => this.close());
 
         // Remember what gets copied, for the Clipboard mode.
-        this._selection = global.display.get_selection();
-        this._selectionId = this._selection.connect('owner-changed', (_sel, type) => {
-            if (type !== Meta.SelectionType.SELECTION_CLIPBOARD)
-                return;
-            St.Clipboard.get_default().get_text(St.ClipboardType.CLIPBOARD, (_clip, text) => {
-                if (!text || !text.trim())
-                    return;
-                this._clipboard = [text, ...this._clipboard.filter(entry => entry !== text)].slice(0, 25);
-            });
-        });
+        startClipboard();
     }
 
     disable() {
-        if (this._selectionId) {
-            this._selection.disconnect(this._selectionId);
-            this._selectionId = 0;
-        }
-        this._clipboard = [];
+        stopClipboard();
         this._fileCache.clear();
         Main.wm.removeKeybinding(SHORTCUT_KEY);
         if (this._overviewId) {
@@ -279,6 +269,7 @@ export class Spotlight {
         this._root.set_size(monitor.width, monitor.height);
         this._cardX = Math.round((monitor.width - WIDTH) / 2);
         this._cardY = Math.round(monitor.height * 0.22);
+        this._app = Shell.WindowTracker.get_default().focus_app;
         this._entry.text = '';
         this._setMode('all', false);
         this._clearResults();
@@ -351,7 +342,7 @@ export class Spotlight {
         for (const [id, button] of this._modeButtons)
             button.checked = id === mode;
         this._entry.hint_text = mode === 'all'
-            ? t('Spotlight Search', 'Recherche Spotlight')
+            ? t('Search or Ask', 'Rechercher ou demander')
             : this._modeHints[mode];
         if (search)
             this._search();
@@ -368,6 +359,8 @@ export class Spotlight {
             return this._actionResults(q.toLowerCase(), true);
         case 'clipboard':
             return this._clipboardResults(q.toLowerCase());
+        case 'menu':
+            return this._menuResults(q.toLowerCase());
         }
         return this._allResults(q);
     }
@@ -409,7 +402,7 @@ export class Spotlight {
     }
 
     _clipboardResults(lower) {
-        return this._clipboard
+        return clipboardItems()
             .filter(text => !lower || text.toLowerCase().includes(lower))
             .slice(0, 10)
             .map(text => ({
@@ -417,7 +410,21 @@ export class Spotlight {
                 title: text.replace(/\s+/g, ' ').slice(0, 90),
                 icon: 'edit-paste-symbolic',
                 subtitle: t('Enter to copy', 'Entrée pour copier'),
-                run: () => St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, text),
+                run: () => copyText(text),
+            }));
+    }
+
+    // Tahoe's "Menu Items": search the focused app's menus and run them.
+    _menuResults(lower) {
+        return menuEntries(this._app)
+            .filter(e => !lower || `${e.menu} ${e.label}`.toLowerCase().includes(lower))
+            .slice(0, 10)
+            .map(e => ({
+                section: this._app?.get_name() ?? t('Menu Items', 'Éléments de menu'),
+                title: `${e.menu} › ${e.label}`,
+                subtitle: e.shortcut ? shortcutLabel(e.shortcut) : '',
+                icon: 'open-menu-symbolic',
+                run: e.action,
             }));
     }
 
@@ -579,6 +586,18 @@ export class Spotlight {
             }
         }
 
+        // A question or a long sentence is an "Ask", as in macOS 27.
+        if (q.endsWith('?') || q.split(/\s+/).length >= 4) {
+            results.unshift({
+                section: t('Ask', 'Demander'),
+                title: t(`Ask: “${q}”`, `Demander : « ${q} »`),
+                icon: 'dialog-question-symbolic',
+                run: () => Gio.AppInfo.launch_default_for_uri(
+                    `https://duckduckgo.com/?q=${encodeURIComponent(q)}&ia=chat`,
+                    global.create_app_launch_context(0, -1)),
+            });
+        }
+
         results.push({
             section: t('Web', 'Web'),
             title: t(`Search the web for “${q}”`, `Rechercher « ${q} » sur le Web`),
@@ -642,8 +661,8 @@ export class Spotlight {
                 this.close();
             return Clutter.EVENT_STOP;
         }
-        const modes = ['apps', 'files', 'actions', 'clipboard'];
-        const digit = [Clutter.KEY_1, Clutter.KEY_2, Clutter.KEY_3, Clutter.KEY_4].indexOf(key);
+        const modes = ['apps', 'files', 'actions', 'clipboard', 'menu'];
+        const digit = [Clutter.KEY_1, Clutter.KEY_2, Clutter.KEY_3, Clutter.KEY_4, Clutter.KEY_5].indexOf(key);
         if (digit >= 0 && (event.get_state() & Clutter.ModifierType.CONTROL_MASK)) {
             this._setMode(this._mode === modes[digit] ? 'all' : modes[digit]);
             return Clutter.EVENT_STOP;

@@ -65,6 +65,42 @@
       <default><![CDATA[['<Super>w']]]></default>
       <summary>Keyboard shortcut that opens the wallpaper picker</summary>
     </key>
+    <key name="enable-widgets" type="b">
+      <default>true</default>
+      <summary>Desktop widgets (battery, calendar, reminders)</summary>
+    </key>
+    <key name="widget-reminders" type="as">
+      <default>[]</default>
+      <summary>Reminders shown in the desktop widget</summary>
+    </key>
+    <key name="menubar-hide-extras" type="b">
+      <default>true</default>
+      <summary>Collapse app tray icons behind a chevron in the menu bar</summary>
+    </key>
+    <key name="pomodoro-focus" type="i">
+      <range min="1" max="180"/>
+      <default>25</default>
+      <summary>Pomodoro focus length in minutes</summary>
+    </key>
+    <key name="pomodoro-short" type="i">
+      <range min="1" max="60"/>
+      <default>5</default>
+      <summary>Pomodoro short break length in minutes</summary>
+    </key>
+    <key name="pomodoro-long" type="i">
+      <range min="1" max="120"/>
+      <default>15</default>
+      <summary>Pomodoro long break length in minutes</summary>
+    </key>
+    <key name="pomodoro-rounds" type="i">
+      <range min="1" max="12"/>
+      <default>4</default>
+      <summary>Focus rounds before a long break</summary>
+    </key>
+    <key name="pomodoro-auto" type="b">
+      <default>false</default>
+      <summary>Start the next phase automatically</summary>
+    </key>
     <key name="enable-topbar" type="b">
       <default>true</default>
       <summary>Turn the GNOME panel into a macOS-style menu bar</summary>
@@ -149,10 +185,14 @@
       <default>0.55</default>
       <summary>Rim light intensity</summary>
     </key>
-    <key name="glass-tint-opacity" type="d">
-      <range min="0" max="0.9"/>
-      <default>0.18</default>
-      <summary>Glass tint opacity</summary>
+    <key name="glass-intensity" type="d">
+      <range min="0" max="1"/>
+      <default>0.3</default>
+      <summary>Liquid Glass intensity: how much the glass is tinted (macOS Tahoe slider)</summary>
+    </key>
+    <key name="glass-tinted" type="b">
+      <default>false</default>
+      <summary>Tinted glass (accent colour) instead of clear glass</summary>
     </key>
     <key name="glass-dark" type="b">
       <default>true</default>

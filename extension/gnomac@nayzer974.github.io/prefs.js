@@ -81,12 +81,24 @@ export default class GnomacPreferences extends ExtensionPreferences {
         spin(glass, 'glass-refraction', 'Réfraction des bords (px)', 0, 60, 1, 1);
         spin(glass, 'glass-chroma', 'Dispersion chromatique (px)', 0, 8, 0.1, 1);
         spin(glass, 'glass-rim', 'Lumière de bord', 0, 1, 0.05, 2);
-        spin(glass, 'glass-tint-opacity', 'Opacité de la teinte', 0, 0.9, 0.01, 2);
+        spin(glass, 'glass-intensity', 'Intensité (curseur Liquid Glass de macOS)', 0, 1, 0.05, 2);
+        toggle(glass, 'glass-tinted', 'Verre teinté', 'Teinté avec la couleur d’accentuation au lieu de clair');
         toggle(glass, 'glass-dark', 'Teinte sombre');
 
         const island = group('Dynamic Island');
         toggle(island, 'island-always-visible', 'Toujours visible', 'Encoche noire au repos, mini tableau de bord au survol');
         toggle(island, 'island-notifications', 'Notifications dans l’île', 'En plus des bannières, façon RevoShell');
+
+        const pomodoro = group('Minuteur Pomodoro', 'Réglable aussi directement dans l’encoche (roue crantée)');
+        spin(pomodoro, 'pomodoro-focus', 'Concentration (minutes)', 1, 180, 1);
+        spin(pomodoro, 'pomodoro-short', 'Pause courte (minutes)', 1, 60, 1);
+        spin(pomodoro, 'pomodoro-long', 'Pause longue (minutes)', 1, 120, 1);
+        spin(pomodoro, 'pomodoro-rounds', 'Cycles avant la pause longue', 1, 12, 1);
+        toggle(pomodoro, 'pomodoro-auto', 'Enchaîner automatiquement', 'Démarre la phase suivante sans clic');
+
+        const misc = group('Bureau et barre de menus');
+        toggle(misc, 'enable-widgets', 'Widgets du bureau', 'Batterie, calendrier et rappels sur le bureau');
+        toggle(misc, 'menubar-hide-extras', 'Masquer les icônes d’apps', 'Regroupées derrière une flèche « dans la barre de menus');
 
         const motion = group('Animations', 'Ressorts : plus de raideur = plus vif, plus d\'amortissement = moins de rebond');
         spin(motion, 'spring-stiffness', 'Raideur', 40, 1000, 10);

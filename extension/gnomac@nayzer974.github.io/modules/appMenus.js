@@ -115,6 +115,20 @@ function standardMenus(app) {
     ];
 }
 
+// Flat list of every menu item of `app` (for Spotlight's Menu Items mode).
+export function menuEntries(app) {
+    const entries = [];
+    for (const menu of standardMenus(app)) {
+        for (const entry of menu.items) {
+            if (!entry)
+                continue;
+            const [label, shortcut, action] = entry;
+            entries.push({menu: menu.title, label, shortcut, action});
+        }
+    }
+    return entries;
+}
+
 // App-specific menus, as in RevoShell's per-app TopBar configuration.
 function extraMenus(app) {
     const id = app?.get_id() ?? '';

@@ -62,7 +62,13 @@ export default class GnomacExtension extends Extension {
         this._start();
         // Any change rebuilds the modules; debounce so dragging a slider in
         // the preferences does not rebuild on every step.
-        this._settingsId = this._settings.connect('changed', () => this._scheduleReload());
+        // Runtime state (Pomodoro timings, reminders) is read live by its
+        // module: changing it must not rebuild the whole shell UI.
+        this._settingsId = this._settings.connect('changed', (_s, key) => {
+            if (key.startsWith('pomodoro-') || key === 'widget-reminders')
+                return;
+            this._scheduleReload();
+        });
         this._sessionId = Main.sessionMode.connect('updated', () => this._reload());
     }
 

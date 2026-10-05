@@ -137,9 +137,14 @@ class GlassEffect extends Shell.GLSLEffect {
 });
 
 export function glassParamsFromSettings(settings, radius) {
-    const alpha = settings.get_double('glass-tint-opacity');
+    // macOS Tahoe's Liquid Glass slider: clear glass is barely tinted, tinted
+    // glass takes the accent colour; intensity is how strong the tint gets.
+    const intensity = settings.get_double('glass-intensity');
+    const tinted = settings.get_boolean('glass-tinted');
     const dark = settings.get_boolean('glass-dark');
-    const tint = dark ? [0.07, 0.07, 0.09, alpha] : [0.97, 0.97, 0.98, alpha];
+    const base = tinted ? [0.19, 0.36, 0.86] : (dark ? [0.07, 0.07, 0.09] : [0.97, 0.97, 0.98]);
+    const alpha = tinted ? Math.min(0.9, 0.3 + intensity * 0.55) : Math.min(0.85, 0.04 + intensity * 0.5);
+    const tint = [...base, alpha];
     return {
         radius,
         thickness: Math.max(6, radius * 0.9),
