@@ -204,12 +204,16 @@ export class MenuBarIcons {
     }
 
     disable() {
-        if (this._rightId) {
+        // During shell shutdown the panel boxes die before disable() runs.
+        const panelAlive = Main.panel._rightBox && !Main.panel._rightBox.is_destroyed?.() &&
+            Main.panel._rightBox.get_stage?.();
+        if (this._rightId && panelAlive)
             Main.panel._rightBox.disconnect(this._rightId);
-            this._rightId = 0;
+        this._rightId = 0;
+        if (panelAlive) {
+            for (const container of this._extraButtons?.() ?? [])
+                container.visible = true;
         }
-        for (const container of this._extraButtons?.() ?? [])
-            container.visible = true;
         this._chevron?.destroy();
         this._chevron = null;
         if (this._focusId) {

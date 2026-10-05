@@ -15,7 +15,7 @@ GNOMAC est une extension GNOME Shell unique et cohérente, au lieu d'un empileme
 | **Animations des fenêtres** | Ouverture façon macOS (la fenêtre surgit à 90 % avec un fondu rapide). Réduction et restauration avec l'**effet Génie** vers l'icône du dock : l'instantané de la fenêtre est découpé en bandes, comme dans le Genie de RevoShell, ce qui fonctionne même en rendu logiciel. La fermeture garde l'animation GNOME, déjà proche de macOS. |
 | **Dynamic Island** | Toujours présente en haut au centre, comme une encoche noire, avec un mini tableau de bord au survol (heure, date). Pendant la lecture : pochette, titre et égaliseur animé. Au survol ou au clic : titre, artiste, précédent/lecture/suivant. Peut aussi afficher les notifications (option). Toutes les transitions passent par des ressorts. |
 | **Encoche (Dynamic Island) à la Alcove** | Collée au bord haut, avec raccords concaves. Repliée : pochette et égaliseur, heure, anneau orange du minuteur, pastille de notifications ; elle s'élargit quand elle a du contenu. Au survol : tableau de bord large avec six onglets : Accueil (lecteur ou, quand rien ne joue, grande horloge et raccourcis, avec le calendrier du mois), Système (processeur, mémoire, disque, réseau), Actions rapides (Wi-Fi, Bluetooth, Ne pas déranger, mode sombre, lumière nocturne, capture, verrouillage), Presse-papiers, Minuteur Pomodoro (concentration, pauses courtes et longue, cycles, durées réglables dans l'encoche) et Étagère (fichiers à portée). Le volume et la luminosité s'y affichent aussi, à la place de la fenêtre GNOME. |
-| **Widgets du bureau** | Comme macOS 27 : tuiles de verre sur le fond d'écran, sous les fenêtres. Batterie avec anneau (vert en charge, rouge sous 20 %), calendrier du mois, et rappels éditables (on les ajoute dans le champ, un clic sur le cercle les termine). |
+| **Widgets du bureau** | Comme macOS 27 : tuiles de verre sur le fond d'écran, sous les fenêtres. Batterie avec anneau (vert en charge, rouge sous 20 %), calendrier du mois, rappels éditables (on les ajoute dans le champ, un clic sur le cercle les termine), **météo** et **lecture en cours** avec ses contrôles. Trois tailles, dont **XXL**. La météo interroge [wttr.in](https://wttr.in) : sans ville réglée, le service localise la requête par adresse IP ; elle se désactive ou se fixe sur une ville dans les préférences. |
 | **Barre de menus : icônes masquées** | Les icônes d'applications (AppIndicator) se replient derrière une flèche « ; un clic les déploie. |
 | **Liquid Glass réglable** | Curseur d'intensité et option « teinté » comme dans les Réglages de macOS 27, appliqués à tout le verre. |
 | **Launchpad** | Bouton Applications du dock : grille plein écran sur verre flouté, recherche, pages avec points, défilement à ressort, zoom à l'ouverture et à la fermeture. |
@@ -73,7 +73,6 @@ dbus-run-session gnome-shell --devkit --wayland
 ## Feuille de route
 
 - [ ] Titres de sections (« Favoris », « Emplacements ») dans la barre latérale de Fichiers
-- [ ] Widgets supplémentaires (météo, musique) et tailles XXL
 
 - [ ] Spotlight : recherche de fichiers et presse-papiers
 - [ ] Menu global intégré (DBusMenu et GMenu)

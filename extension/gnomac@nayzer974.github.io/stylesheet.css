@@ -1201,3 +1201,25 @@
 .gnomac-widget-entry StLabel.hint-text {
     color: rgba(255, 255, 255, 0.4);
 }
+
+.gnomac-widget-music-title {
+    font-size: 11pt;
+    font-weight: 700;
+    color: #ffffff;
+    max-width: 180px;
+}
+
+.gnomac-widget-music-controls {
+    spacing: 14px;
+    padding-top: 6px;
+}
+
+.gnomac-widget-music-button {
+    padding: 4px;
+    border-radius: 99px;
+    color: #ffffff;
+}
+
+.gnomac-widget-music-button:hover {
+    background-color: rgba(255, 255, 255, 0.18);
+}

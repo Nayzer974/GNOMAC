@@ -260,12 +260,17 @@ export class Dock {
         this._connect(Main.layoutManager, 'monitors-changed', () => this._relayout());
         this._connect(global.display, 'window-created', () => this._queuePublish());
         // GNOME's dash would be a second dock in the overview.
+        // Hidden with opacity, never with hide()/show():
+        // toggling its visibility made GNOME rebuild its icons, leaving a
+        // stack of orphaned "dash-label" tooltips in the UI group per reload.
         this._dash = Main.overview.dash;
         if (this._dash) {
-            this._dash.hide();
-            this._connect(this._dash, 'notify::visible', () => {
-                if (this._dash.visible)
-                    this._dash.hide();
+            this._dashSaved = {opacity: this._dash.opacity, reactive: this._dash.reactive};
+            this._dash.opacity = 0;
+            this._dash.reactive = false;
+            this._connect(this._dash, 'notify::opacity', () => {
+                if (this._dash.opacity !== 0)
+                    this._dash.opacity = 0;
             });
         }
         this._connect(Main.overview, 'showing', () => this.actor.hide());
@@ -291,7 +296,10 @@ export class Dock {
         for (const [object, id] of this._signals)
             object.disconnect(id);
         this._signals = [];
-        this._dash?.show();
+        if (this._dash && this._dashSaved && !this._dash.is_destroyed?.()) {
+            this._dash.opacity = this._dashSaved.opacity;
+            this._dash.reactive = this._dashSaved.reactive;
+        }
         this._dash = null;
         this._items = [];
         this._separators = [];

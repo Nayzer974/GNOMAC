@@ -12,7 +12,10 @@ import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {GlassSurface, glassParamsFromSettings} from '../lib/glass.js';
+import * as Mpris from 'resource:///org/gnome/shell/ui/mpris.js';
+
 import {MonthCalendar} from '../lib/notchViews.js';
+import {WeatherSource} from '../lib/weather.js';
 import {t} from '../lib/i18n.js';
 
 const RADIUS = 22;
@@ -89,6 +92,12 @@ export class Widgets {
             GLib.source_remove(this._timeoutId);
             this._timeoutId = 0;
         }
+        this._weather?.stop();
+        this._weather = null;
+        for (const id of this._mprisIds ?? [])
+            this._mpris?.disconnect(id);
+        this._mprisIds = [];
+        this._mpris = null;
         if (this._upower && this._upowerId)
             this._upower.disconnect(this._upowerId);
         this._upower = null;
@@ -147,22 +156,126 @@ export class Widgets {
         this._remindersTile.content.add_child(this._entry);
         this._renderReminders();
 
+        // Weather (optional) and now playing, on a second row.
         this._tiles = [this._battery, this._calendarTile, this._remindersTile];
+        if (settings.get_boolean('widget-weather')) {
+            this._weatherTile = new Tile(settings, 170, 118);
+            this._weatherTile.content.add_child(new St.Label({text: t('Weather', 'Météo'),
+                style_class: 'gnomac-widget-title'}));
+            const row = new St.BoxLayout({style_class: 'gnomac-widget-row'});
+            this._weatherIcon = new St.Icon({icon_size: 34, y_align: Clutter.ActorAlign.CENTER});
+            const text = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL, y_align: Clutter.ActorAlign.CENTER});
+            this._weatherTemp = new St.Label({style_class: 'gnomac-widget-big'});
+            this._weatherCaption = new St.Label({style_class: 'gnomac-widget-caption'});
+            text.add_child(this._weatherTemp);
+            text.add_child(this._weatherCaption);
+            row.add_child(this._weatherIcon);
+            row.add_child(text);
+            this._weatherTile.content.add_child(row);
+            this._weatherRange = new St.Label({style_class: 'gnomac-widget-caption'});
+            this._weatherTile.content.add_child(this._weatherRange);
+            this._weatherTemp.text = '…';
+            this._tiles.push(this._weatherTile);
+            this._weather = new WeatherSource(settings, () => this._syncWeather());
+            this._weather.start();
+        }
+
+        this._musicTile = new Tile(settings, 214, 118);
+        this._musicTitle = new St.Label({style_class: 'gnomac-widget-music-title'});
+        this._musicArtist = new St.Label({style_class: 'gnomac-widget-caption'});
+        const controls = new St.BoxLayout({style_class: 'gnomac-widget-music-controls'});
+        const button = (icon, action) => {
+            const b = new St.Button({style_class: 'gnomac-widget-music-button', can_focus: false,
+                child: new St.Icon({icon_name: icon, icon_size: 16})});
+            b.connect('clicked', () => action());
+            controls.add_child(b);
+            return b;
+        };
+        button('media-skip-backward-symbolic', () => this._player?.previous());
+        this._playButton = button('media-playback-start-symbolic', () => this._player?.playPause());
+        button('media-skip-forward-symbolic', () => this._player?.next());
+        this._musicTile.content.add_child(new St.Label({text: t('Now Playing', 'Lecture en cours'),
+            style_class: 'gnomac-widget-title'}));
+        this._musicTile.content.add_child(this._musicTitle);
+        this._musicTile.content.add_child(this._musicArtist);
+        this._musicTile.content.add_child(controls);
+        this._tiles.push(this._musicTile);
+        this._mpris = new Mpris.MprisSource();
+        this._mprisIds = [
+            this._mpris.connect('player-added', (_s, player) => this._watchPlayer(player)),
+            this._mpris.connect('player-removed', () => this._pickPlayer()),
+        ];
+        for (const player of this._mpris.players)
+            this._watchPlayer(player);
+        this._syncMusic();
+
         for (const tile of this._tiles)
             group.add_child(tile.actor);
         this._place();
+    }
+
+    _watchPlayer(player) {
+        player.connectObject('changed', () => {
+            if (player.status === 'Playing' || !this._player)
+                this._player = player;
+            this._syncMusic();
+        }, this);
+        if (player.status === 'Playing' || !this._player)
+            this._player = player;
+        this._syncMusic();
+    }
+
+    _pickPlayer() {
+        this._player = this._mpris?.players.find(p => p.status === 'Playing') ?? this._mpris?.players[0] ?? null;
+        this._syncMusic();
+    }
+
+    _syncMusic() {
+        if (!this._musicTitle || this._musicTitle.is_finalized?.())
+            return;
+        const player = this._player;
+        const active = !!player && player.canPlay;
+        this._musicTitle.text = active ? (player.trackTitle || t('Unknown title', 'Titre inconnu'))
+            : t('Nothing playing', 'Aucune lecture');
+        this._musicArtist.text = active ? (player.trackArtists ?? []).join(', ') : '';
+        this._playButton.child.icon_name = active && player.status === 'Playing'
+            ? 'media-playback-pause-symbolic' : 'media-playback-start-symbolic';
+    }
+
+    _syncWeather() {
+        const data = this._weather?.data;
+        if (!data || !this._weatherTemp)
+            return;
+        this._weatherTemp.text = `${data.temp}°`;
+        this._weatherIcon.icon_name = data.icon;
+        this._weatherCaption.text = data.city || data.description;
+        this._weatherRange.text = `${data.description} · ${data.high}° / ${data.low}°`;
+    }
+
+    // XXL widgets (macOS 27): the whole cluster scales; positions follow.
+    get _scale() {
+        return {standard: 1, large: 1.25, xxl: 1.5}[this._settings.get_string('widget-size')] ?? 1;
     }
 
     _place() {
         const monitor = Main.layoutManager.primaryMonitor;
         if (!monitor || this._tiles.length < 3)
             return;
+        const k = this._scale;
         const gap = this._settings.get_int('window-gap');
         const x = monitor.x + gap + 18;
         const y = monitor.y + Main.panel.height + gap + 18;
-        this._battery.place(x, y);
-        this._remindersTile.place(x, y + 118 + GAP);
-        this._calendarTile.place(x + 170 + GAP, y);
+        const at = (tile, dx, dy) => {
+            tile.actor.set_pivot_point(0, 0);
+            tile.actor.set_scale(k, k);
+            tile.place(x + dx * k, y + dy * k);
+        };
+        at(this._battery, 0, 0);
+        at(this._remindersTile, 0, 118 + GAP);
+        at(this._calendarTile, 170 + GAP, 0);
+        if (this._weatherTile)
+            at(this._weatherTile, 0, 240 + GAP);
+        at(this._musicTile, this._weatherTile ? 170 + GAP : 0, 240 + GAP);
     }
 
     _renderReminders() {

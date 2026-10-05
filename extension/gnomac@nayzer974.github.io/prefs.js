@@ -38,7 +38,8 @@ export default class GnomacPreferences extends ExtensionPreferences {
         toggle(modules, 'enable-spotlight', 'Spotlight', 'Super + Espace : apps, calculs, actions système, recherche web');
         toggle(modules, 'enable-glass-menus', 'Menus en verre', 'Tous les menus et le Centre de contrôle en Liquid Glass');
         toggle(modules, 'enable-window-animations', 'Animations des fenêtres', 'Ouverture, fermeture et effet Génie vers le dock');
-        toggle(modules, 'enable-dynamic-island', 'Dynamic Island', 'Musique en cours et notifications en haut au centre');
+        toggle(modules, 'enable-dynamic-island', 'Dynamic Island', 'Encoche : musique, minuteur, système, actions rapides, presse-papiers');
+        toggle(modules, 'enable-widgets', 'Widgets du bureau', 'Batterie, calendrier, rappels, météo, lecteur');
         toggle(modules, 'enable-launchpad', 'Launchpad', 'Grille d’applications plein écran depuis le dock');
         toggle(modules, 'enable-notifications', 'Notifications macOS', 'Bannières en verre en haut à droite');
         toggle(modules, 'enable-lock-screen', 'Écran de verrouillage', 'Grande horloge en haut, mot de passe en bas, fond net au repos');
@@ -97,7 +98,22 @@ export default class GnomacPreferences extends ExtensionPreferences {
         toggle(pomodoro, 'pomodoro-auto', 'Enchaîner automatiquement', 'Démarre la phase suivante sans clic');
 
         const misc = group('Bureau et barre de menus');
-        toggle(misc, 'enable-widgets', 'Widgets du bureau', 'Batterie, calendrier et rappels sur le bureau');
+        const sizes = ['standard', 'large', 'xxl'];
+        const sizeRow = new Adw.ComboRow({title: 'Taille des widgets',
+            model: Gtk.StringList.new(['Standard', 'Grands', 'XXL'])});
+        sizeRow.selected = Math.max(0, sizes.indexOf(settings.get_string('widget-size')));
+        sizeRow.connect('notify::selected', () => settings.set_string('widget-size', sizes[sizeRow.selected]));
+        misc.add(sizeRow);
+        toggle(misc, 'widget-weather', 'Widget météo', 'Interroge wttr.in ; sans ville, localise par adresse IP');
+        const cityRow = new Adw.EntryRow({title: 'Ville pour la météo (vide = automatique)'});
+        settings.bind('widget-weather-city', cityRow, 'text', Gio.SettingsBindFlags.DEFAULT);
+        misc.add(cityRow);
+        const logos = ['apple', 'bridge'];
+        const logoRow = new Adw.ComboRow({title: 'Logo de la barre de menus',
+            model: Gtk.StringList.new(['Pomme', 'Golden Gate (pont)'])});
+        logoRow.selected = Math.max(0, logos.indexOf(settings.get_string('logo-style')));
+        logoRow.connect('notify::selected', () => settings.set_string('logo-style', logos[logoRow.selected]));
+        misc.add(logoRow);
         toggle(misc, 'menubar-hide-extras', 'Masquer les icônes d’apps', 'Regroupées derrière une flèche « dans la barre de menus');
 
         const motion = group('Animations', 'Ressorts : plus de raideur = plus vif, plus d\'amortissement = moins de rebond');

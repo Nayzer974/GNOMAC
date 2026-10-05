@@ -213,10 +213,13 @@ export class AppMenus {
     }
 
     enable() {
+        // GNOME destroys the UI group before it disables extensions at
+        // shutdown; stop touching it as soon as shutdown starts.
+        this._shutdownId = global.connect('shutdown', () => (this._shuttingDown = true));
         // The notch changes width: re-fit the menus whenever it does.
         this._notchTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT_IDLE, 400, () => {
             // During shell shutdown the UI group dies before disable() runs.
-            if (Main.layoutManager._startingUp || !Main.layoutManager.uiGroup || Main.layoutManager.uiGroup.is_destroyed?.())
+            if (Main.layoutManager._startingUp || this._shuttingDown)
                 return GLib.SOURCE_CONTINUE;
             const island = Main.layoutManager.uiGroup.get_children().find(a => a.name === 'gnomacDynamicIsland');
             const width = island?.width ?? 0;
@@ -232,6 +235,11 @@ export class AppMenus {
     }
 
     disable() {
+        if (this._shutdownId) {
+            global.disconnect(this._shutdownId);
+            this._shutdownId = 0;
+        }
+        this._shuttingDown = false;
         if (this._notchTimer) {
             GLib.source_remove(this._notchTimer);
             this._notchTimer = 0;

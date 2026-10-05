@@ -69,6 +69,23 @@
       <default>true</default>
       <summary>Desktop widgets (battery, calendar, reminders)</summary>
     </key>
+    <key name="widget-size" type="s">
+      <choices>
+        <choice value="standard"/>
+        <choice value="large"/>
+        <choice value="xxl"/>
+      </choices>
+      <default>'standard'</default>
+      <summary>Desktop widget size (macOS 27 offers XXL widgets)</summary>
+    </key>
+    <key name="widget-weather" type="b">
+      <default>true</default>
+      <summary>Weather widget (asks wttr.in for the forecast)</summary>
+    </key>
+    <key name="widget-weather-city" type="s">
+      <default>''</default>
+      <summary>City for the weather widget; empty means locate by IP address</summary>
+    </key>
     <key name="widget-reminders" type="as">
       <default>[]</default>
       <summary>Reminders shown in the desktop widget</summary>
