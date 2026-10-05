@@ -7,8 +7,10 @@ import St from 'gi://St';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
+import {AppMenus} from './modules/appMenus.js';
 import {Dock} from './modules/dock.js';
 import {DynamicIsland} from './modules/dynamicIsland.js';
+import {Gaps} from './modules/gaps.js';
 import {GlassMenus} from './modules/glassMenus.js';
 import {Launchpad} from './modules/launchpad.js';
 import {MenuBarIcons} from './modules/menuBarIcons.js';
@@ -27,7 +29,9 @@ const MODULES = [
     {key: 'enable-lock-screen', Module: LockScreen, locked: true},
     {key: 'enable-launchpad', Module: Launchpad},
     {key: 'enable-topbar', Module: TopBar},
+    {key: 'enable-app-menus', Module: AppMenus},
     {key: 'enable-dock', Module: Dock},
+    {key: 'enable-dock', Module: Gaps},
     {key: 'enable-spotlight', Module: Spotlight},
     {key: 'enable-glass-menus', Module: GlassMenus},
     {key: 'enable-window-animations', Module: WindowAnimations},

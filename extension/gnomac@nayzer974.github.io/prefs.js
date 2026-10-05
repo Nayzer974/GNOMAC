@@ -44,6 +44,7 @@ export default class GnomacPreferences extends ExtensionPreferences {
         toggle(modules, 'enable-lock-screen', 'Écran de verrouillage', 'Grande horloge en haut, mot de passe en bas, fond net au repos');
         toggle(modules, 'enable-vibrancy', 'Barre latérale Finder', 'Verre dépoli derrière la barre latérale de Fichiers');
         toggle(modules, 'enable-menubar-icons', 'Symboles de la barre de menus', 'Wi-Fi, batterie et Centre de contrôle façon macOS');
+        toggle(modules, 'enable-app-menus', 'Menus d’app', 'Fichier, Édition, Présentation, Fenêtre, Aide pour l’app active');
         toggle(modules, 'enable-topbar', 'Barre de menus', 'Menu système, nom de l\'app active, horloge à droite');
 
         const dock = group('Dock');
@@ -51,6 +52,7 @@ export default class GnomacPreferences extends ExtensionPreferences {
         toggle(dock, 'dock-magnification', 'Agrandissement');
         spin(dock, 'dock-max-scale', 'Agrandissement maximal', 1.0, 3.0, 0.05, 2);
         toggle(dock, 'dock-reserve-space', 'Réserver l\'espace', 'Les fenêtres maximisées s\'arrêtent au-dessus du dock');
+        spin(dock, 'window-gap', 'Marge autour des fenêtres (px)', 0, 40, 1);
         toggle(dock, 'dock-show-running', 'Points sous les apps ouvertes');
 
         const bar = group('Barre de menus');

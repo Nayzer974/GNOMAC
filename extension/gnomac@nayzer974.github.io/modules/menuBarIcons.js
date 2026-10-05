@@ -51,6 +51,7 @@ function networkSymbol(iconName) {
 
 export class MenuBarIcons {
     constructor(extension) {
+        this._extension = extension;
         this._path = extension.path;
         this._hidden = [];
         this._networkIds = [];
@@ -100,10 +101,38 @@ export class MenuBarIcons {
         this._battery.add_child(nub);
         this._box.add_child(this._battery);
 
+        // Focus / Do Not Disturb: the purple moon pill of the video.
+        this._focus = new St.Bin({style_class: 'gnomac-sf-pill gnomac-sf-focus', visible: false,
+            y_align: Clutter.ActorAlign.CENTER,
+            child: new St.Icon({gicon: this._icon('moon'), icon_size: 13})});
+        this._box.add_child(this._focus);
+        this._notifSettings = new Gio.Settings({schema_id: 'org.gnome.desktop.notifications'});
+        this._focusId = this._notifSettings.connect('changed::show-banners', () => this._syncFocus());
+        this._syncFocus();
+
         this._box.add_child(new St.Icon({gicon: this._icon('control-center'),
             style_class: 'gnomac-sf-icon', icon_size: 16}));
 
         qs._indicators.add_child(this._box);
+
+        // Spotlight's magnifier sits right before the Control Center.
+        this._search = new St.Button({
+            style_class: 'panel-button gnomac-sf-search',
+            child: new St.Icon({gicon: this._icon('search'), icon_size: 15}),
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this._search.connect('clicked', () => {
+            const spotlight = this._extension._modules?.find(m => m.constructor.name === 'Spotlight');
+            spotlight?.toggle();
+        });
+        const right = Main.panel._rightBox;
+        right.insert_child_below(this._search, qs.container);
+
+        // Keyboard layout as a white badge ("EN"), microphone in use as an
+        // orange pill, like the macOS 27 menu bar.
+        this._keyboard = Main.panel.statusArea.keyboard;
+        this._keyboard?.add_style_class_name('gnomac-kbd');
+        qs._volumeInput?.add_style_class_name('gnomac-mic-pill');
 
         this._watchNetwork();
         this._watchBattery();
@@ -136,6 +165,15 @@ export class MenuBarIcons {
     }
 
     disable() {
+        if (this._focusId) {
+            this._notifSettings.disconnect(this._focusId);
+            this._focusId = 0;
+        }
+        this._search?.destroy();
+        this._search = null;
+        this._keyboard?.remove_style_class_name('gnomac-kbd');
+        this._keyboard = null;
+        this._qs?._volumeInput?.remove_style_class_name('gnomac-mic-pill');
         if (this._childAddedId) {
             this._qs._indicators.disconnect(this._childAddedId);
             this._childAddedId = 0;
@@ -157,6 +195,11 @@ export class MenuBarIcons {
         this._box?.destroy();
         this._box = null;
         this._qs = null;
+    }
+
+    _syncFocus() {
+        if (this._focus)
+            this._focus.visible = !this._notifSettings.get_boolean('show-banners');
     }
 
     // GNOME's network indicator already tracks NetworkManager; read the

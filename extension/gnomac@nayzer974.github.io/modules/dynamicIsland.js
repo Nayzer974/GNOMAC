@@ -23,10 +23,10 @@ import * as Mpris from 'resource:///org/gnome/shell/ui/mpris.js';
 import {Spring, getTicker} from '../lib/spring.js';
 import {t} from '../lib/i18n.js';
 
-const EAR = 9;
+const EAR = 7;
 const SIZES = {
-    rest: {width: 190, height: 28},
-    date: {width: 300, height: 28},
+    rest: {width: 156, height: 24},
+    date: {width: 290, height: 24},
     media: {width: 400, height: 132},
     notice: {width: 400, height: 78},
 };

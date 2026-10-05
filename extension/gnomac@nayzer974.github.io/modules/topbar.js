@@ -19,6 +19,7 @@ import {AppMenu} from 'resource:///org/gnome/shell/ui/appMenu.js';
 
 import {GlassSurface, glassParamsFromSettings} from '../lib/glass.js';
 import * as Session from '../lib/session.js';
+import {closeAbout, showAbout} from '../lib/about.js';
 import {t} from '../lib/i18n.js';
 
 function launch(argv) {
@@ -42,39 +43,96 @@ function launchFirst(desktopIds, fallback) {
         launch(fallback);
 }
 
+// Recently used files, from GTK's shared recent-files list.
+function recentFiles(limit = 8) {
+    try {
+        const path = GLib.build_filenamev([GLib.get_user_data_dir(), 'recently-used.xbel']);
+        const [ok, bytes] = GLib.file_get_contents(path);
+        if (!ok)
+            return [];
+        const text = new TextDecoder().decode(bytes);
+        return [...text.matchAll(/<bookmark href="([^"]+)"[^>]*modified="([^"]+)"/g)]
+            .map(m => ({uri: m[1], modified: m[2]}))
+            .filter(e => e.uri.startsWith('file://'))
+            .sort((a, b) => b.modified.localeCompare(a.modified))
+            .slice(0, limit)
+            .map(e => ({uri: e.uri, name: decodeURIComponent(e.uri.split('/').pop())}));
+    } catch {
+        return [];
+    }
+}
+
 const SystemMenuButton = GObject.registerClass(
 class SystemMenuButton extends PanelMenu.Button {
-    _init(extensionPath) {
+    _init(extensionPath, logo) {
         super._init(0.0, 'GNOMAC system menu');
+        this.add_style_class_name('gnomac-apple-button');
         this.add_child(new St.Icon({
-            gicon: Gio.icon_new_for_string(`${extensionPath}/icons/gnomac-logo.svg`),
+            gicon: Gio.icon_new_for_string(`${extensionPath}/icons/${logo === 'bridge' ? 'gnomac-logo' : 'apple'}.svg`),
             style_class: 'system-status-icon gnomac-logo',
         }));
 
-        const add = (label, callback) => {
-            const item = new PopupMenu.PopupMenuItem(label);
+        // macOS Tahoe menus show a small symbol before each item and the
+        // shortcut on the right.
+        const add = (icon, label, callback, shortcut = null) => {
+            const item = new PopupMenu.PopupImageMenuItem(label, icon);
+            if (shortcut) {
+                item.add_child(new St.Label({text: shortcut, style_class: 'gnomac-menu-shortcut',
+                    x_expand: true, x_align: Clutter.ActorAlign.END}));
+            }
             item.connect('activate', callback);
             this.menu.addMenuItem(item);
+            return item;
         };
         const separator = () => this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
-        add(t('About This Computer', 'À propos de cet ordinateur'),
-            () => launch(['gnome-control-center', 'system']));
+        add('computer-symbolic', t('About This Mac', 'À propos de ce Mac'), () => showAbout());
         separator();
-        add(t('System Settings…', 'Réglages Système…'),
+        add('emblem-system-symbolic', t('System Settings…', 'Réglages Système…'),
             () => launch(['gnome-control-center']));
-        add(t('App Store…', 'App Store…'),
+        add('system-software-install-symbolic', t('App Store…', 'App Store…'),
             () => launchFirst(['org.gnome.Software.desktop', 'io.github.kolunmi.Bazaar.desktop'], ['gnome-software']));
         separator();
-        add(t('Force Quit…', 'Forcer à quitter…'),
-            () => launchFirst(['org.gnome.SystemMonitor.desktop', 'io.missioncenter.MissionCenter.desktop'], ['gnome-system-monitor']));
+        this._recent = new PopupMenu.PopupSubMenuMenuItem(t('Recent Items', 'Éléments récents'), true);
+        this._recent.icon.icon_name = 'document-open-recent-symbolic';
+        this.menu.addMenuItem(this._recent);
         separator();
-        add(t('Sleep', 'Suspendre l\'activité'), () => Session.suspend());
-        add(t('Restart…', 'Redémarrer…'), () => Session.restart());
-        add(t('Shut Down…', 'Éteindre…'), () => Session.powerOff());
+        add('process-stop-symbolic', t('Force Quit…', 'Forcer à quitter…'),
+            () => launchFirst(['org.gnome.SystemMonitor.desktop', 'io.missioncenter.MissionCenter.desktop'], ['gnome-system-monitor']),
+            '⌥⌘⎋');
         separator();
-        add(t('Lock Screen', 'Verrouiller l\'écran'), () => Session.lockScreen());
-        add(t('Log Out…', 'Fermer la session…'), () => Session.logOut());
+        add('weather-clear-night-symbolic', t('Sleep', 'Suspendre l\'activité'), () => Session.suspend());
+        add('system-reboot-symbolic', t('Restart…', 'Redémarrer…'), () => Session.restart());
+        add('system-shutdown-symbolic', t('Shut Down…', 'Éteindre…'), () => Session.powerOff());
+        separator();
+        add('system-lock-screen-symbolic', t('Lock Screen', 'Verrouiller l\'écran'),
+            () => Session.lockScreen(), '⌃⌘Q');
+        const user = GLib.get_real_name() || GLib.get_user_name();
+        add('system-log-out-symbolic', t(`Log Out ${user}…`, `Fermer la session de ${user}…`),
+            () => Session.logOut(), '⇧⌘Q');
+
+        this.menu.connect('open-state-changed', (_m, open) => {
+            if (open)
+                this._fillRecent();
+        });
+    }
+
+    _fillRecent() {
+        const menu = this._recent.menu;
+        menu.removeAll();
+        const files = recentFiles();
+        if (!files.length) {
+            const empty = new PopupMenu.PopupMenuItem(t('No Recent Items', 'Aucun élément récent'));
+            empty.sensitive = false;
+            menu.addMenuItem(empty);
+            return;
+        }
+        for (const file of files) {
+            const item = new PopupMenu.PopupMenuItem(file.name);
+            item.connect('activate', () => Gio.AppInfo.launch_default_for_uri(file.uri,
+                global.create_app_launch_context(0, -1)));
+            menu.addMenuItem(item);
+        }
     }
 });
 
@@ -125,7 +183,8 @@ export class TopBar {
         this._activities = panel.statusArea.activities;
         this._activities?.container.hide();
 
-        this._systemMenu = new SystemMenuButton(this._extension.path);
+        this._systemMenu = new SystemMenuButton(this._extension.path,
+            this._settings.get_string('logo-style'));
         panel.addToStatusArea('gnomac-system', this._systemMenu, 0, 'left');
         this._appName = new AppNameButton();
         panel.addToStatusArea('gnomac-appname', this._appName, 1, 'left');
@@ -137,6 +196,7 @@ export class TopBar {
     }
 
     disable() {
+        closeAbout();
         this._removeGlass();
         this._restoreClock();
         this._appName?.destroy();

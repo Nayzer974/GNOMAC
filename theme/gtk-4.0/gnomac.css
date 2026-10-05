@@ -152,3 +152,14 @@ window.view .content-pane headerbar {
 window.view .sidebar-pane headerbar label.title {
   color: transparent;
 }
+
+/* GNOMAC keeps gaps around maximized windows, so like macOS they keep
+   their rounded corners instead of going square. */
+window.csd.maximized,
+window.csd.tiled,
+window.csd.tiled-top,
+window.csd.tiled-bottom,
+window.csd.tiled-left,
+window.csd.tiled-right {
+  border-radius: 15px;
+}

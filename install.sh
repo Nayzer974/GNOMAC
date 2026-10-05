@@ -3,7 +3,7 @@
 #
 #   ./install.sh            extension + GTK window controls + macOS button layout
 #   ./install.sh --deps     also install packages with pacman (asks sudo itself)
-#   ./install.sh --extras   also install Magic Lamp (genie) + Global Menu from extensions.gnome.org
+#   ./install.sh --extras   also install rounded window corners + app tray icons (extensions.gnome.org)
 #   ./install.sh --icons    also install the MacTahoe icon theme
 #   ./install.sh --cursors  also install macOS-style cursors (WhiteSur)
 #   ./install.sh --all      everything above
@@ -18,8 +18,10 @@ EXT_SRC="$ROOT/extension/$UUID"
 EXT_DST="${XDG_DATA_HOME:-$HOME/.local/share}/gnome-shell/extensions/$UUID"
 CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}"
 
-# extensions.gnome.org ids: Compiz alike magic lamp effect, Global Menu for GNOME
-EXTRA_EXTENSIONS=(3740 10288)
+# extensions.gnome.org ids: Rounded Window Corners Reborn (rounded corners on
+# every window), AppIndicator (app icons in the menu bar). GNOMAC has its own
+# Genie and app menus, so Magic Lamp / Global Menu would now conflict.
+EXTRA_EXTENSIONS=(7048 615)
 
 WITH_DEPS=0 WITH_EXTRAS=0 WITH_ICONS=0 WITH_CURSORS=0
 for arg in "$@"; do

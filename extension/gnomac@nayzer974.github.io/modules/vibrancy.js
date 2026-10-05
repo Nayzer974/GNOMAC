@@ -103,7 +103,7 @@ export class Vibrancy {
         glass.set_position(frame.x - buffer.x, frame.y - buffer.y);
         glass.set_size(frame.width, frame.height);
         glass.setStageOrigin(frame.x, frame.y);
-        const square = window.maximized_horizontally && window.maximized_vertically;
-        glass.setGlass({radius: square ? 0 : RADIUS});
+        // With GNOMAC's gaps, maximized windows keep their round corners.
+        glass.setGlass({radius: RADIUS});
     }
 }

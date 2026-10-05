@@ -85,6 +85,23 @@
       <summary>Show a dot under running apps</summary>
     </key>
 
+    <key name="logo-style" type="s">
+      <choices>
+        <choice value="apple"/>
+        <choice value="bridge"/>
+      </choices>
+      <default>'apple'</default>
+      <summary>Menu bar logo: Apple-style or Golden Gate bridge</summary>
+    </key>
+    <key name="enable-app-menus" type="b">
+      <default>true</default>
+      <summary>macOS app menus (File, Edit, View, Window, Help) in the menu bar</summary>
+    </key>
+    <key name="window-gap" type="i">
+      <range min="0" max="40"/>
+      <default>10</default>
+      <summary>Gap between maximized windows and the screen edges / dock</summary>
+    </key>
     <key name="panel-style" type="s">
       <choices>
         <choice value="transparent"/>

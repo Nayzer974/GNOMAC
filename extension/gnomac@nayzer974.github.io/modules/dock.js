@@ -444,7 +444,8 @@ export class Dock {
         });
 
         if (this._strut) {
-            const reserved = this._glassHeight + FLOAT_MARGIN;
+            // Same breathing room above the dock as on the screen sides.
+            const reserved = this._glassHeight + FLOAT_MARGIN + this._settings.get_int('window-gap');
             this._strut.set_position(monitor.x, monitor.y + monitor.height - reserved);
             this._strut.set_size(monitor.width, reserved);
         }

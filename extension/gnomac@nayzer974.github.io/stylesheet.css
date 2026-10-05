@@ -690,3 +690,131 @@
     padding: 30px 18px 10px;
     spacing: 12px;
 }
+
+/* ---------- Menu bar: Apple menu, app menus, status extras ---------- */
+
+#panel.gnomac-panel .gnomac-logo {
+    icon-size: 16px;
+}
+
+#panel.gnomac-panel .gnomac-menu-title {
+    font-weight: 500;
+    -natural-hpadding: 9px;
+    -minimum-hpadding: 5px;
+}
+
+#panel.gnomac-panel .gnomac-menu-title:checked,
+#panel.gnomac-panel .gnomac-apple-button:checked {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+.gnomac-menu-shortcut {
+    padding-left: 28px;
+    color: rgba(255, 255, 255, 0.5);
+    font-feature-settings: "tnum";
+}
+
+.popup-menu-item:hover .gnomac-menu-shortcut,
+.popup-menu-item:selected .gnomac-menu-shortcut {
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.gnomac-sf-pill {
+    padding: 1px 8px;
+    border-radius: 7px;
+}
+
+.gnomac-sf-focus {
+    background-color: #a259ff;
+    color: #ffffff;
+}
+
+#panel.gnomac-panel .gnomac-sf-search {
+    -natural-hpadding: 6px;
+    -minimum-hpadding: 4px;
+}
+
+#panel.gnomac-panel .gnomac-kbd StLabel {
+    padding: 0 4px;
+    border-radius: 4px;
+    background-color: #ffffff;
+    color: #1c1c1e;
+    font-size: 8pt;
+    font-weight: 800;
+    text-shadow: none;
+}
+
+.gnomac-mic-pill {
+    padding: 1px 8px;
+    border-radius: 7px;
+    background-color: #ff9f0a;
+}
+
+/* ---------- About This Mac ---------- */
+
+.gnomac-about-box {
+    padding: 28px 24px 18px;
+    spacing: 4px;
+}
+
+.gnomac-about-machine {
+    color: rgba(255, 255, 255, 0.85);
+    padding-bottom: 10px;
+}
+
+.gnomac-about-model {
+    font-size: 15pt;
+    font-weight: 800;
+    color: #ffffff;
+}
+
+.gnomac-about-kind {
+    font-size: 9.5pt;
+    color: rgba(255, 255, 255, 0.55);
+    padding-bottom: 16px;
+}
+
+.gnomac-about-grid {
+    spacing: 5px;
+    padding-bottom: 18px;
+}
+
+.gnomac-about-row {
+    spacing: 10px;
+}
+
+.gnomac-about-key {
+    min-width: 110px;
+    text-align: right;
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 9.5pt;
+}
+
+.gnomac-about-value {
+    color: #ffffff;
+    font-size: 9.5pt;
+    max-width: 170px;
+}
+
+.gnomac-about-buttons {
+    spacing: 8px;
+    padding-bottom: 14px;
+}
+
+.gnomac-about-button {
+    padding: 3px 12px;
+    border-radius: 6px;
+    background-color: rgba(255, 255, 255, 0.92);
+    color: #1c1c1e;
+    font-size: 9pt;
+    font-weight: 500;
+}
+
+.gnomac-about-button:hover {
+    background-color: #ffffff;
+}
+
+.gnomac-about-footer {
+    font-size: 8pt;
+    color: rgba(255, 255, 255, 0.35);
+}
