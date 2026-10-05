@@ -57,6 +57,14 @@
       <default>true</default>
       <summary>macOS status symbols (Wi-Fi, battery, Control Center) in the menu bar</summary>
     </key>
+    <key name="enable-wallpaper-picker" type="b">
+      <default>true</default>
+      <summary>Wallpaper carousel (Super+W) with circle reveal</summary>
+    </key>
+    <key name="wallpaper-shortcut" type="as">
+      <default><![CDATA[['<Super>w']]]></default>
+      <summary>Keyboard shortcut that opens the wallpaper picker</summary>
+    </key>
     <key name="enable-topbar" type="b">
       <default>true</default>
       <summary>Turn the GNOME panel into a macOS-style menu bar</summary>

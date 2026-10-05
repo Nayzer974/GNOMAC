@@ -45,6 +45,7 @@ export default class GnomacPreferences extends ExtensionPreferences {
         toggle(modules, 'enable-vibrancy', 'Barre latérale Finder', 'Verre dépoli derrière la barre latérale de Fichiers');
         toggle(modules, 'enable-menubar-icons', 'Symboles de la barre de menus', 'Wi-Fi, batterie et Centre de contrôle façon macOS');
         toggle(modules, 'enable-app-menus', 'Menus d’app', 'Fichier, Édition, Présentation, Fenêtre, Aide pour l’app active');
+        toggle(modules, 'enable-wallpaper-picker', 'Fonds d’écran', 'Super + W : carrousel et transition en cercle');
         toggle(modules, 'enable-topbar', 'Barre de menus', 'Menu système, nom de l\'app active, horloge à droite');
 
         const dock = group('Dock');

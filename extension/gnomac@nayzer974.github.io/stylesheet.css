@@ -839,3 +839,28 @@
     border-color: rgba(255, 255, 255, 0.25);
     color: #ffffff;
 }
+
+/* ---------- Wallpaper picker ---------- */
+
+.gnomac-wallpicker {
+    background-color: rgba(6, 7, 9, 0.92);
+}
+
+.gnomac-wallpicker-card {
+    border-radius: 14px;
+    background-size: cover;
+    background-position: center;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+}
+
+.gnomac-wallpicker-title {
+    font-size: 11pt;
+    font-weight: 700;
+    color: #ffffff;
+}
+
+.gnomac-wallpicker-hint {
+    font-size: 9pt;
+    color: rgba(255, 255, 255, 0.45);
+}
