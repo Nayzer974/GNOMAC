@@ -138,6 +138,43 @@ export class MenuBarIcons {
 
         this._watchNetwork();
         this._watchBattery();
+        this._setupExtras();
+    }
+
+    // "Automatically hide menu bar items": app tray icons (AppIndicator)
+    // fold behind a chevron; a click unfolds them.
+    _setupExtras() {
+        this._extrasCollapsed = this._extension.getSettings().get_boolean('menubar-hide-extras');
+        this._chevron = new St.Button({
+            style_class: 'panel-button gnomac-sf-chevron',
+            child: new St.Label({text: '«', y_align: Clutter.ActorAlign.CENTER}),
+            y_align: Clutter.ActorAlign.CENTER,
+            visible: false,
+        });
+        this._chevron.connect('clicked', () => {
+            this._extrasCollapsed = !this._extrasCollapsed;
+            this._syncExtras();
+        });
+        this._chevron.connect('destroy', () => (this._chevron = null));
+        Main.panel._rightBox.insert_child_at_index(this._chevron, 0);
+        this._rightId = Main.panel._rightBox.connect('child-added', () => this._syncExtras());
+        this._syncExtras();
+    }
+
+    _extraButtons() {
+        return Object.entries(Main.panel.statusArea)
+            .filter(([key]) => key.startsWith('appindicator'))
+            .map(([, button]) => button.container);
+    }
+
+    _syncExtras() {
+        if (!this._chevron)
+            return;
+        const extras = this._extraButtons();
+        for (const container of extras)
+            container.visible = !this._extrasCollapsed;
+        this._chevron.visible = extras.length > 0;
+        this._chevron.child.text = this._extrasCollapsed ? '«' : '»';
     }
 
     // Keep GNOME's status icons hidden even when they toggle themselves,
@@ -167,6 +204,14 @@ export class MenuBarIcons {
     }
 
     disable() {
+        if (this._rightId) {
+            Main.panel._rightBox.disconnect(this._rightId);
+            this._rightId = 0;
+        }
+        for (const container of this._extraButtons?.() ?? [])
+            container.visible = true;
+        this._chevron?.destroy();
+        this._chevron = null;
         if (this._focusId) {
             this._notifSettings.disconnect(this._focusId);
             this._focusId = 0;

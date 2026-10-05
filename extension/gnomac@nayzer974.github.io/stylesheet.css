@@ -1110,3 +1110,10 @@
     spacing: 6px;
     padding-top: 8px;
 }
+
+#panel.gnomac-panel .gnomac-sf-chevron {
+    -natural-hpadding: 6px;
+    -minimum-hpadding: 4px;
+    font-size: 11pt;
+    font-weight: 700;
+}

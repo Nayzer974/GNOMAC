@@ -493,7 +493,12 @@ export class Dock {
     onItemHover(item) {
         if (item.hover) {
             this._hoveredItem = item;
-            this._tooltip.text = item.name;
+            // macOS 27: apps that run without any window say so.
+            const background = item.app && item.app.state === Shell.AppState.RUNNING &&
+                item.app.get_windows().length === 0;
+            this._tooltip.text = background
+                ? `${item.name}\n${t('Running in Background', 'Exécutée en arrière-plan')}`
+                : item.name;
             this._tooltip.ease({opacity: 255, duration: 120, mode: Clutter.AnimationMode.EASE_OUT_QUAD});
         } else if (this._hoveredItem === item) {
             this._hoveredItem = null;
