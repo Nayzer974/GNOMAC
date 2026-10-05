@@ -70,7 +70,7 @@ export default class GnomacExtension extends Extension {
         // Runtime state (Pomodoro timings, reminders) is read live by its
         // module: changing it must not rebuild the whole shell UI.
         this._settingsId = this._settings.connect('changed', (_s, key) => {
-            if (key.startsWith('pomodoro-') || key === 'widget-reminders')
+            if (key.startsWith('pomodoro-') || key === 'widget-reminders' || key === 'widgets-layout')
                 return;
             this._scheduleReload();
         });

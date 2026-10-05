@@ -33,6 +33,9 @@ uniform float sheen;
 uniform vec2 light_dir;
 uniform vec4 tint;
 uniform float saturation;
+uniform vec2 pointer;     // pointer in actor pixels, (-1,-1) = none
+uniform float glow;        // strength of the pointer highlight
+uniform float depth_shade; // soft inner shadow near the edges
 
 float sd_round_rect(vec2 p, vec2 b, float r) {
     vec2 q = abs(p) - b + vec2(r);
@@ -80,7 +83,19 @@ float rim_light = band * (0.22 + 0.18 * max(facing, 0.0)) * rim;
 float top = clamp(1.0 - uv.y * 2.2, 0.0, 1.0);
 float sheen_light = top * top * sheen * 0.08;
 
-col = col + vec3(rim_light + sheen_light) * (1.0 - col);
+// Inner shadow: the glass looks thick, the edges darken a touch.
+float inner = smoothstep(0.0, max(thickness * 1.6, 8.0), -d);
+col *= mix(1.0 - depth_shade, 1.0, inner);
+
+// Pointer highlight: a soft specular bloom that follows the cursor, as on
+// macOS widgets and the Dock. Zero when no pointer is over the surface.
+float lit = 0.0;
+if (pointer.x >= 0.0) {
+    float dist = length(uv * size - pointer);
+    lit = glow * exp(-dist * dist / (2.0 * 70.0 * 70.0));
+}
+
+col = col + vec3(rim_light + sheen_light + lit * 0.14) * (1.0 - col);
 cogl_color_out = vec4(col * mask, mask);
 `;
 
@@ -98,10 +113,13 @@ class GlassEffect extends Shell.GLSLEffect {
             lightAngle: 55,
             tint: [0.07, 0.07, 0.09, 0.18],
             saturation: 1.15,
+            pointer: [-1, -1],
+            glow: 0,
+            depthShade: 0,
         };
         this._locations = {};
         for (const name of ['tex', 'size', 'radius', 'thickness', 'refraction',
-            'chroma', 'rim', 'sheen', 'light_dir', 'tint', 'saturation'])
+            'chroma', 'rim', 'sheen', 'light_dir', 'tint', 'saturation', 'pointer', 'glow', 'depth_shade'])
             this._locations[name] = this.get_uniform_location(name);
         this.setParams(params);
     }
@@ -125,6 +143,9 @@ class GlassEffect extends Shell.GLSLEffect {
         this.set_uniform_float(l.light_dir, 2, [Math.cos(angle), -Math.sin(angle)]);
         this.set_uniform_float(l.tint, 4, p.tint);
         this.set_uniform_float(l.saturation, 1, [p.saturation]);
+        this.set_uniform_float(l.pointer, 2, p.pointer);
+        this.set_uniform_float(l.glow, 1, [p.glow]);
+        this.set_uniform_float(l.depth_shade, 1, [p.depthShade]);
         this.queue_repaint();
     }
 
@@ -246,6 +267,21 @@ class GlassSurface extends St.Widget {
 
     setGlass(params) {
         this._glass.setParams(params);
+    }
+
+    // The glass blooms where the pointer is, fading in and out. `owner` is
+    // the reactive actor that receives the motion; coordinates are local to
+    // this surface.
+    followPointer(owner, strength = 1) {
+        const move = (_a, event) => {
+            const [x, y] = event.get_coords();
+            const [ok, lx, ly] = this.transform_stage_point(x, y);
+            if (ok)
+                this._glass.setParams({pointer: [lx, ly], glow: strength});
+        };
+        owner.connect('motion-event', move);
+        owner.connect('enter-event', move);
+        owner.connect('leave-event', () => this._glass.setParams({pointer: [-1, -1], glow: 0}));
     }
 
     setBlur(radius) {

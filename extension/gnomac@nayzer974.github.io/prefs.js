@@ -106,12 +106,14 @@ export default class GnomacPreferences extends ExtensionPreferences {
         spin(boot, 'shutdown-duration', 'Durée de l’arrêt (ms)', 600, 6000, 100);
 
         const misc = group('Bureau et barre de menus');
-        const sizes = ['standard', 'large', 'xxl'];
-        const sizeRow = new Adw.ComboRow({title: 'Taille des widgets',
-            model: Gtk.StringList.new(['Standard', 'Grands', 'XXL'])});
-        sizeRow.selected = Math.max(0, sizes.indexOf(settings.get_string('widget-size')));
-        sizeRow.connect('notify::selected', () => settings.set_string('widget-size', sizes[sizeRow.selected]));
-        misc.add(sizeRow);
+        const editRow = new Adw.ActionRow({title: 'Modifier les widgets',
+            subtitle: 'Clic droit sur le bureau › « Modifier les widgets… », ou Spotlight. Ajout, suppression, déplacement, taille et matière se font sur le bureau.'});
+        misc.add(editRow);
+        const resetRow = new Adw.ActionRow({title: 'Rétablir les widgets par défaut'});
+        const resetButton = new Gtk.Button({label: 'Rétablir', valign: Gtk.Align.CENTER});
+        resetButton.connect('clicked', () => settings.set_string('widgets-layout', ''));
+        resetRow.add_suffix(resetButton);
+        misc.add(resetRow);
         toggle(misc, 'widget-weather', 'Widget météo', 'Interroge wttr.in ; sans ville, localise par adresse IP');
         const cityRow = new Adw.EntryRow({title: 'Ville pour la météo (vide = automatique)'});
         settings.bind('widget-weather-city', cityRow, 'text', Gio.SettingsBindFlags.DEFAULT);

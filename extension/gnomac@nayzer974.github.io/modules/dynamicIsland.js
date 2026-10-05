@@ -295,6 +295,7 @@ const Island = GObject.registerClass({
 
 export class DynamicIsland {
     constructor(extension) {
+        this._extension = extension;
         this._settings = extension.getSettings();
         this._players = new Set();
         this._player = null;
@@ -720,6 +721,9 @@ export class DynamicIsland {
         const height = Math.round(Math.max(SIZES.rest.height, this._height.value));
         island.set_position(Math.round(monitor.x + (monitor.width - width) / 2), monitor.y);
         island.set_size(width, height);
+        // The app menus fit themselves around the notch's folded width.
+        if (this._mode === 'rest' || this._mode === 'hud')
+            this._extension.onNotchResize?.(Math.round(this._width.target));
         island.shape.set_size(width, height);
         island.shape.queue_repaint();
 

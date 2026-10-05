@@ -32,9 +32,11 @@ const WM_KEYBINDINGS = 'org.gnome.desktop.wm.keybindings';
 
 const decimalComma = (GLib.get_language_names()[0] ?? '').startsWith('fr');
 
-function systemActionEntries() {
+function systemActionEntries(extension) {
     const entry = (name, keywords, icon, run) => ({name, keywords, icon, run});
     return [
+        entry(t('Edit Widgets…', 'Modifier les widgets…'), ['widget', 'widgets', 'bureau', 'desktop', 'edit'],
+            'view-grid-symbolic', () => extension?.widgets?.startEditing()),
         entry(t('Lock Screen', 'Verrouiller l\'écran'), ['lock', 'verrouiller', 'verrou'],
             'system-lock-screen-symbolic', () => Session.lockScreen()),
         entry(t('Sleep', 'Suspendre l\'activité'), ['sleep', 'suspend', 'veille', 'suspendre'],
@@ -386,7 +388,7 @@ export class Spotlight {
     }
 
     _actionResults(lower, all = false) {
-        return systemActionEntries()
+        return systemActionEntries(this._extension)
             .filter(action => {
                 if (!lower)
                     return all;
@@ -573,7 +575,7 @@ export class Spotlight {
             });
         }
 
-        for (const action of systemActionEntries()) {
+        for (const action of systemActionEntries(this._extension)) {
             const words = [...action.name.toLowerCase().split(/[\s'’]+/), ...action.keywords];
             const hit = words.some(word => word.startsWith(lower));
             if (hit && lower.length >= 2) {

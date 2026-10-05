@@ -213,37 +213,22 @@ export class AppMenus {
     }
 
     enable() {
-        // GNOME destroys the UI group before it disables extensions at
-        // shutdown; stop touching it as soon as shutdown starts.
-        this._shutdownId = global.connect('shutdown', () => (this._shuttingDown = true));
-        // The notch changes width: re-fit the menus whenever it does.
-        this._notchTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT_IDLE, 400, () => {
-            // During shell shutdown the UI group dies before disable() runs.
-            if (Main.layoutManager._startingUp || this._shuttingDown)
-                return GLib.SOURCE_CONTINUE;
-            const island = Main.layoutManager.uiGroup.get_children().find(a => a.name === 'gnomacDynamicIsland');
-            const width = island?.width ?? 0;
+        // The Dynamic Island tells us when its width changes (through the
+        // extension object), so nothing here polls the UI group: it is
+        // destroyed before extensions are disabled at shell shutdown.
+        this._extension.onNotchResize = width => {
             if (width !== this._lastNotchWidth) {
                 this._lastNotchWidth = width;
                 this._queueAvoidNotch();
             }
-            return GLib.SOURCE_CONTINUE;
-        });
+        };
         this._tracker = Shell.WindowTracker.get_default();
         this._focusId = this._tracker.connect('notify::focus-app', () => this._rebuild());
         this._rebuild();
     }
 
     disable() {
-        if (this._shutdownId) {
-            global.disconnect(this._shutdownId);
-            this._shutdownId = 0;
-        }
-        this._shuttingDown = false;
-        if (this._notchTimer) {
-            GLib.source_remove(this._notchTimer);
-            this._notchTimer = 0;
-        }
+        this._extension.onNotchResize = null;
         if (this._laterId) {
             global.compositor.get_laters().remove(this._laterId);
             this._laterId = 0;
@@ -299,11 +284,9 @@ export class AppMenus {
         this._buttons = this._buttons.filter(b => !b._gone);
         if (!monitor || !this._buttons.length)
             return;
-        const island = Main.layoutManager.uiGroup.get_children()
-            .find(a => a.name === 'gnomacDynamicIsland' && a.visible);
-        // Real width of the folded notch (it widens with media or a timer),
-        // never the expanded card: that one only exists while hovered.
-        const notchHalf = island ? Math.min(island.width, 240) / 2 : 0;
+        // Folded width reported by the island (it widens with media or a
+        // timer); 0 when there is no island, the card only exists on hover.
+        const notchHalf = Math.min(this._lastNotchWidth ?? 0, 240) / 2;
         const limit = monitor.x + monitor.width / 2 - notchHalf - 6;
         // Freshly added buttons are only measured after the next layout.
         if (this._buttons.some(b => !b.container.has_allocation())) {

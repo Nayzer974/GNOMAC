@@ -69,6 +69,10 @@
       <default>true</default>
       <summary>Desktop widgets (battery, calendar, reminders)</summary>
     </key>
+    <key name="widgets-layout" type="s">
+      <default>''</default>
+      <summary>Desktop widgets layout (JSON list of widgets); empty means the default layout</summary>
+    </key>
     <key name="widget-size" type="s">
       <choices>
         <choice value="standard"/>

@@ -1273,3 +1273,95 @@
     border-radius: 2px;
     background-color: #ffffff;
 }
+
+/* ---------- Editable widgets ---------- */
+
+.gnomac-widget-clock {
+    font-size: 26pt;
+    font-weight: 700;
+    color: #ffffff;
+    font-feature-settings: "tnum";
+}
+
+.gnomac-widget-notes {
+    background-color: transparent;
+    border: none;
+    box-shadow: none;
+    color: #ffffff;
+    font-size: 10pt;
+    padding: 4px 0 0;
+    caret-color: #ffffff;
+}
+
+.gnomac-widget-notes StLabel.hint-text {
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.gnomac-widget-app {
+    padding: 4px;
+    border-radius: 12px;
+}
+
+.gnomac-widget-app:hover {
+    background-color: rgba(255, 255, 255, 0.14);
+}
+
+.gnomac-widget-badge {
+    width: 22px;
+    height: 22px;
+    border-radius: 11px;
+    background-color: rgba(60, 60, 64, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    color: #ffffff;
+    font-weight: 800;
+    font-size: 12pt;
+}
+
+.gnomac-widget-handle {
+    border-radius: 11px;
+    background-color: rgba(255, 255, 255, 0.28);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+.gnomac-gallery {
+    padding: 16px;
+    spacing: 10px;
+}
+
+.gnomac-gallery-header {
+    spacing: 8px;
+    padding-bottom: 6px;
+}
+
+.gnomac-gallery-title {
+    font-size: 13pt;
+    font-weight: 800;
+    color: #ffffff;
+}
+
+.gnomac-gallery-list {
+    spacing: 6px;
+}
+
+.gnomac-gallery-row {
+    border-radius: 12px;
+    background-color: rgba(255, 255, 255, 0.09);
+    padding: 8px 10px;
+}
+
+.gnomac-gallery-row:hover {
+    background-color: rgba(255, 255, 255, 0.18);
+}
+
+.gnomac-gallery-item {
+    spacing: 10px;
+    color: #ffffff;
+    font-size: 10.5pt;
+    font-weight: 500;
+}
+
+.gnomac-gallery-plus {
+    font-size: 15pt;
+    font-weight: 700;
+    color: #0a84ff;
+}
