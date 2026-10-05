@@ -14,7 +14,7 @@ import St from 'gi://St';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
-import {GlassSurface, glassParamsFromSettings} from '../lib/glass.js';
+import {GlassSurface, clearGlassParams} from '../lib/glass.js';
 import {Spring, getTicker} from '../lib/spring.js';
 import {evaluate, format, looksLikeMath} from '../lib/calculator.js';
 import * as Session from '../lib/session.js';
@@ -132,7 +132,7 @@ export class Spotlight {
             backdrop: 'windows',
             blur: Math.max(this._settings.get_int('glass-blur'), 40),
             glass: {
-                ...glassParamsFromSettings(this._settings, RADIUS),
+                ...clearGlassParams(this._settings, RADIUS),
                 refraction: this._settings.get_double('glass-refraction') * 1.2,
             },
         });

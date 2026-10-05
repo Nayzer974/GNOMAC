@@ -12,7 +12,7 @@ import St from 'gi://St';
 
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 
-import {GlassSurface, glassParamsFromSettings} from '../lib/glass.js';
+import {GlassSurface, clearGlassParams} from '../lib/glass.js';
 import {Spring, getTicker} from '../lib/spring.js';
 
 const FOLLOW_MS = 450; // a bit longer than BoxPointer's 150 ms animation
@@ -32,7 +32,7 @@ class MenuGlass {
             backdrop: 'windows',
             blur: Math.max(owner.settings.get_int('glass-blur'), 40),
             glass: {
-                ...glassParamsFromSettings(owner.settings, radius || 20),
+                ...clearGlassParams(owner.settings, radius || 20),
                 refraction: owner.settings.get_double('glass-refraction') * 0.8,
             },
         });

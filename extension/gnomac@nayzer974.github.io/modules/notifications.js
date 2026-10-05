@@ -8,7 +8,7 @@ import Meta from 'gi://Meta';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
-import {GlassSurface, glassParamsFromSettings} from '../lib/glass.js';
+import {GlassSurface, clearGlassParams} from '../lib/glass.js';
 
 const RADIUS = 20;
 
@@ -27,7 +27,7 @@ export class Notifications {
         this._glass = new GlassSurface({
             backdrop: 'windows',
             blur: Math.max(this._settings.get_int('glass-blur'), 40),
-            glass: glassParamsFromSettings(this._settings, RADIUS),
+            glass: clearGlassParams(this._settings, RADIUS),
         });
         this._glass.opacity = 0;
         tray.insert_child_below(this._glass, bin);
