@@ -28,6 +28,28 @@ const BOUNCE_PERIOD = 0.6; // seconds per hop
 const BOUNCE_TIMEOUT = 8; // give up bouncing after this many seconds
 const FLOAT_MARGIN = 8;
 
+// macOS Tahoe icon & widget styles, as RevoShell's dock offers them:
+// "dark" dims and calms colours, "tinted" turns icons monochrome (the look
+// of the showcase video), "clear" makes them pale and glassy.
+function applyIconStyle(icon, style) {
+    if (style === 'default')
+        return;
+    const desaturate = {dark: 0.35, tinted: 1.0, clear: 1.0}[style] ?? 0;
+    if (desaturate)
+        icon.add_effect(new Clutter.DesaturateEffect({factor: desaturate}));
+    const bc = new Clutter.BrightnessContrastEffect();
+    if (style === 'dark')
+        bc.set_brightness_full(-0.22, -0.22, -0.22);
+    else if (style === 'tinted')
+        bc.set_brightness_full(-0.12, -0.12, -0.08);
+    else if (style === 'clear')
+        bc.set_brightness_full(0.18, 0.18, 0.2);
+    bc.set_contrast(style === 'clear' ? -0.15 : 0.08);
+    icon.add_effect(bc);
+    if (style === 'clear')
+        icon.opacity = 215;
+}
+
 const DockItem = GObject.registerClass(
 class DockItem extends St.Widget {
     // kind: 'app', 'apps' (Launchpad), 'downloads' or 'trash'.
@@ -61,6 +83,7 @@ class DockItem extends St.Widget {
             });
         }
         this.icon.set_pivot_point(0.5, 1.0);
+        applyIconStyle(this.icon, dock.iconStyle);
         this.add_child(this.icon);
 
         if (app) {
@@ -168,6 +191,7 @@ export class Dock {
         this.maxScale = this.magnify ? s.get_double('dock-max-scale') : 1.0;
         this.renderSize = Math.round(this.base * this.maxScale);
         this.showRunning = s.get_boolean('dock-show-running');
+        this.iconStyle = s.get_string('dock-icon-style');
         this._pad = Math.round(this.base * 0.16);
         this._spacing = Math.round(this.base * 0.12);
         this._glassHeight = this.base + 2 * this._pad;

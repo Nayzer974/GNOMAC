@@ -53,6 +53,15 @@ export default class GnomacPreferences extends ExtensionPreferences {
         spin(dock, 'dock-max-scale', 'Agrandissement maximal', 1.0, 3.0, 0.05, 2);
         toggle(dock, 'dock-reserve-space', 'Réserver l\'espace', 'Les fenêtres maximisées s\'arrêtent au-dessus du dock');
         spin(dock, 'window-gap', 'Marge autour des fenêtres (px)', 0, 40, 1);
+        const iconStyles = ['default', 'dark', 'tinted', 'clear'];
+        const iconRow = new Adw.ComboRow({
+            title: 'Style des icônes',
+            model: Gtk.StringList.new(['Par défaut', 'Sombre', 'Teinté', 'Transparent']),
+        });
+        iconRow.selected = Math.max(0, iconStyles.indexOf(settings.get_string('dock-icon-style')));
+        iconRow.connect('notify::selected', () =>
+            settings.set_string('dock-icon-style', iconStyles[iconRow.selected]));
+        dock.add(iconRow);
         toggle(dock, 'dock-show-running', 'Points sous les apps ouvertes');
 
         const bar = group('Barre de menus');

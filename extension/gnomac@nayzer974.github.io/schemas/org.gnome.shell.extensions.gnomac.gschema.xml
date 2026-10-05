@@ -80,6 +80,16 @@
       <default>true</default>
       <summary>Keep maximized windows above the dock</summary>
     </key>
+    <key name="dock-icon-style" type="s">
+      <choices>
+        <choice value="default"/>
+        <choice value="dark"/>
+        <choice value="tinted"/>
+        <choice value="clear"/>
+      </choices>
+      <default>'default'</default>
+      <summary>Dock icon style (macOS Tahoe icon and widget styles)</summary>
+    </key>
     <key name="dock-show-running" type="b">
       <default>true</default>
       <summary>Show a dot under running apps</summary>

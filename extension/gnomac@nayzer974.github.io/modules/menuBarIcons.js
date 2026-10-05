@@ -125,6 +125,8 @@ export class MenuBarIcons {
             const spotlight = this._extension._modules?.find(m => m.constructor.name === 'Spotlight');
             spotlight?.toggle();
         });
+        // During shell shutdown the panel may destroy it before disable().
+        this._search.connect('destroy', () => (this._search = null));
         const right = Main.panel._rightBox;
         right.insert_child_below(this._search, qs.container);
 
