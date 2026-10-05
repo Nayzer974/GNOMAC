@@ -20,6 +20,7 @@ import {Spotlight} from './modules/spotlight.js';
 import {TopBar} from './modules/topbar.js';
 import {Vibrancy} from './modules/vibrancy.js';
 import {WallpaperPicker} from './modules/wallpaperPicker.js';
+import {Widgets} from './modules/widgets.js';
 import {WindowAnimations} from './modules/windowAnimations.js';
 import {destroyTicker} from './lib/spring.js';
 
@@ -39,6 +40,7 @@ const MODULES = [
     {key: 'enable-dynamic-island', Module: DynamicIsland},
     {key: 'enable-notifications', Module: Notifications},
     {key: 'enable-vibrancy', Module: Vibrancy},
+    {key: 'enable-widgets', Module: Widgets},
     {key: 'enable-wallpaper-picker', Module: WallpaperPicker},
     {key: 'enable-menubar-icons', Module: MenuBarIcons},
 ];

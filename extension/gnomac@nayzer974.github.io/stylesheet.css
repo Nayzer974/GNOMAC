@@ -1117,3 +1117,87 @@
     font-size: 11pt;
     font-weight: 700;
 }
+
+/* ---------- Desktop widgets ---------- */
+
+.gnomac-widget {
+    padding: 14px 16px;
+    spacing: 8px;
+}
+
+.gnomac-widget-title {
+    font-size: 8.5pt;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.gnomac-widget-row {
+    spacing: 12px;
+}
+
+.gnomac-widget-big {
+    font-size: 14pt;
+    font-weight: 700;
+    color: #ffffff;
+    font-feature-settings: "tnum";
+}
+
+.gnomac-widget-caption {
+    font-size: 8.5pt;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.gnomac-widget .gnomac-notch-cal {
+    spacing: 6px;
+}
+
+.gnomac-widget .gnomac-notch-cal-title {
+    font-size: 9pt;
+}
+
+.gnomac-widget .gnomac-notch-cal-head,
+.gnomac-widget .gnomac-notch-cal-day {
+    font-size: 8.5pt;
+    min-width: 24px;
+}
+
+.gnomac-widget-list {
+    spacing: 4px;
+}
+
+.gnomac-widget-reminder {
+    spacing: 8px;
+}
+
+.gnomac-widget-check {
+    width: 13px;
+    height: 13px;
+    border-radius: 7px;
+    border: 1.5px solid rgba(255, 255, 255, 0.55);
+    margin-top: 2px;
+}
+
+.gnomac-widget-check:hover {
+    background-color: rgba(255, 255, 255, 0.35);
+}
+
+.gnomac-widget-text {
+    font-size: 9.5pt;
+    color: #ffffff;
+    max-width: 120px;
+}
+
+.gnomac-widget-entry {
+    padding: 3px 8px;
+    border-radius: 8px;
+    background-color: rgba(255, 255, 255, 0.10);
+    border: none;
+    box-shadow: none;
+    color: #ffffff;
+    font-size: 9pt;
+    caret-color: #ffffff;
+}
+
+.gnomac-widget-entry StLabel.hint-text {
+    color: rgba(255, 255, 255, 0.4);
+}

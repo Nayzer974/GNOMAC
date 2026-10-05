@@ -14,7 +14,10 @@ GNOMAC est une extension GNOME Shell unique et cohérente, au lieu d'un empileme
 | **Menus en verre et Centre de contrôle** | Tous les menus du shell (menu système, menus d'apps, menus du dock, calendrier, Réglages rapides) reçoivent un fond Liquid Glass qui suit leur animation d'ouverture. Survol en bleu accent comme sur macOS. Les Réglages rapides prennent l'allure du Centre de contrôle : tuiles en rectangles arrondis, curseurs épais. Toutes les fonctions de GNOME restent disponibles (Wi-Fi, Bluetooth, son, luminosité…). |
 | **Animations des fenêtres** | Ouverture façon macOS (la fenêtre surgit à 90 % avec un fondu rapide). Réduction et restauration avec l'**effet Génie** vers l'icône du dock : l'instantané de la fenêtre est découpé en bandes, comme dans le Genie de RevoShell, ce qui fonctionne même en rendu logiciel. La fermeture garde l'animation GNOME, déjà proche de macOS. |
 | **Dynamic Island** | Toujours présente en haut au centre, comme une encoche noire, avec un mini tableau de bord au survol (heure, date). Pendant la lecture : pochette, titre et égaliseur animé. Au survol ou au clic : titre, artiste, précédent/lecture/suivant. Peut aussi afficher les notifications (option). Toutes les transitions passent par des ressorts. |
-| **Encoche (Dynamic Island) à la Alcove** | Collée au bord haut, avec raccords concaves. Repliée : pochette et égaliseur, heure, anneau orange du minuteur, pastille de notifications ; elle s'élargit quand elle a du contenu. Au survol : tableau de bord large avec le lecteur (progression, contrôles) et le calendrier du mois, plus trois onglets : Accueil, Minuteur Pomodoro, Étagère (fichiers à portée). Le volume et la luminosité s'y affichent aussi, à la place de la fenêtre GNOME. |
+| **Encoche (Dynamic Island) à la Alcove** | Collée au bord haut, avec raccords concaves. Repliée : pochette et égaliseur, heure, anneau orange du minuteur, pastille de notifications ; elle s'élargit quand elle a du contenu. Au survol : tableau de bord large avec six onglets : Accueil (lecteur ou, quand rien ne joue, grande horloge et raccourcis, avec le calendrier du mois), Système (processeur, mémoire, disque, réseau), Actions rapides (Wi-Fi, Bluetooth, Ne pas déranger, mode sombre, lumière nocturne, capture, verrouillage), Presse-papiers, Minuteur Pomodoro (concentration, pauses courtes et longue, cycles, durées réglables dans l'encoche) et Étagère (fichiers à portée). Le volume et la luminosité s'y affichent aussi, à la place de la fenêtre GNOME. |
+| **Widgets du bureau** | Comme macOS 27 : tuiles de verre sur le fond d'écran, sous les fenêtres. Batterie avec anneau (vert en charge, rouge sous 20 %), calendrier du mois, et rappels éditables (on les ajoute dans le champ, un clic sur le cercle les termine). |
+| **Barre de menus : icônes masquées** | Les icônes d'applications (AppIndicator) se replient derrière une flèche « ; un clic les déploie. |
+| **Liquid Glass réglable** | Curseur d'intensité et option « teinté » comme dans les Réglages de macOS 27, appliqués à tout le verre. |
 | **Launchpad** | Bouton Applications du dock : grille plein écran sur verre flouté, recherche, pages avec points, défilement à ressort, zoom à l'ouverture et à la fermeture. |
 | **Notifications** | Bannières macOS en haut à droite sur une vraie surface de verre. Les actions et réponses de GNOME restent disponibles. |
 | **Écran de verrouillage** | Date et très grande heure en haut ; avatar, nom et pilule de verre « Saisir le mot de passe » en bas. Le fond d'écran est net au repos et se floute quand le champ apparaît. L'heure reste en place, au lieu de s'envoler comme dans GNOME. L'authentification reste celle de GNOME. Pendant le verrouillage, seul ce module tourne : tous les autres sont arrêtés, puis relancés au déverrouillage. |
@@ -70,10 +73,10 @@ dbus-run-session gnome-shell --devkit --wayland
 ## Feuille de route
 
 - [ ] Titres de sections (« Favoris », « Emplacements ») dans la barre latérale de Fichiers
+- [ ] Widgets supplémentaires (météo, musique) et tailles XXL
 
 - [ ] Spotlight : recherche de fichiers et presse-papiers
 - [ ] Menu global intégré (DBusMenu et GMenu)
-- [ ] Liste des processus en arrière-plan dans le menu du dock (nouveauté de macOS 27)
 - [ ] Curseur « gant » de Golden Gate
 
 ## Pourquoi pas RevoShell ?
