@@ -26,7 +26,8 @@ import {t} from '../lib/i18n.js';
 const EAR = 7;
 const SIZES = {
     rest: {width: 156, height: 24},
-    date: {width: 290, height: 24},
+    // Grows down, never sideways: a wider notch would cover the app menus.
+    date: {width: 230, height: 78},
     media: {width: 400, height: 132},
     notice: {width: 400, height: 78},
 };
@@ -379,7 +380,13 @@ export class DynamicIsland {
         const showDots = GLib.get_monotonic_time() < this._workspaceUntil;
         island.dots.visible = showDots;
         island.clock.visible = !showDots;
-        island.clock.text = this._mode === 'date' ? now.format('%A %-d %B  %H:%M') : now.format('%H:%M');
+        island.clock.text = now.format('%H:%M');
+        if (this._mode === 'date') {
+            island.noticeIcon.gicon = null;
+            island.noticeIcon.icon_name = 'x-office-calendar-symbolic';
+            island.noticeTitle.text = now.format('%H:%M');
+            island.noticeBody.text = now.format('%A %-d %B');
+        }
 
         const unread = this._unread();
         island.badge.visible = unread > 0;
@@ -471,7 +478,8 @@ export class DynamicIsland {
             (height - SIZES.rest.height) / (SIZES.notice.height - SIZES.rest.height)));
         island.rest.opacity = Math.round(255 * (1 - grow));
         island.media.opacity = this._mode === 'media' ? Math.round(255 * grow) : 0;
-        island.notice.opacity = this._mode === 'notice' ? Math.round(255 * grow) : 0;
+        island.notice.opacity = this._mode === 'notice' || this._mode === 'date'
+            ? Math.round(255 * grow) : 0;
         for (const child of [island.rest, island.media, island.notice])
             child.visible = child.opacity > 0;
 

@@ -69,18 +69,16 @@ float luma = dot(col, vec3(0.299, 0.587, 0.114));
 col = clamp(mix(vec3(luma), col, saturation), 0.0, 1.0);
 col = mix(col, tint.rgb, tint.a);
 
-// Rim light: bright on the side facing the light, faint on the opposite one.
-float band = 1.0 - smoothstep(0.0, 1.6, -d);
+// Rim light: a hairline all around, a touch brighter on the side facing the
+// light. Kept faint on purpose: a thick or bright rim reads as a cheap white
+// border, especially where it piles up in the corners.
+float band = 1.0 - smoothstep(0.0, 1.0, -d);
 float facing = dot(n, light_dir);
-float rim_light = band * (0.25 + 0.75 * max(facing, 0.0) + 0.35 * max(-facing, 0.0)) * rim;
+float rim_light = band * (0.22 + 0.18 * max(facing, 0.0)) * rim;
 
 // Soft sheen on the upper part of the surface.
 float top = clamp(1.0 - uv.y * 2.2, 0.0, 1.0);
-float sheen_light = top * top * sheen * 0.12;
-// Thin bright line just inside the top edge, the signature Liquid Glass
-// highlight.
-float top_band = (1.0 - smoothstep(0.0, 2.2, -d - 0.6)) * max(-n.y, 0.0);
-sheen_light += top_band * rim * 0.6;
+float sheen_light = top * top * sheen * 0.08;
 
 col = col + vec3(rim_light + sheen_light) * (1.0 - col);
 cogl_color_out = vec4(col * mask, mask);
@@ -160,8 +158,7 @@ export function clearGlassParams(settings, radius) {
         ...base,
         refraction: base.refraction * 1.3,
         chroma: base.chroma * 1.4,
-        rim: Math.min(1, base.rim + 0.25),
-        sheen: 1.4,
+        sheen: 1.2,
         saturation: 1.25,
         tint: [...base.tint.slice(0, 3), base.tint[3] * 0.45],
     };

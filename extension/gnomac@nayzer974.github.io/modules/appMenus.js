@@ -5,6 +5,7 @@
 // on its window through mutter, and show the shortcut macOS-style.
 
 import Clutter from 'gi://Clutter';
+import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
 import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
@@ -204,6 +205,10 @@ export class AppMenus {
     }
 
     disable() {
+        if (this._laterId) {
+            global.compositor.get_laters().remove(this._laterId);
+            this._laterId = 0;
+        }
         if (this._focusId) {
             this._tracker.disconnect(this._focusId);
             this._focusId = 0;
@@ -233,5 +238,38 @@ export class AppMenus {
             Main.panel.addToStatusArea(`gnomac-menu-${i}`, button, position++, 'left');
             this._buttons.push(button);
         });
+        this._queueAvoidNotch();
+    }
+
+    // Like macOS on notched MacBooks: menus that would run under the
+    // Dynamic Island are dropped (the last ones first).
+    _queueAvoidNotch() {
+        if (this._laterId)
+            return;
+        this._laterId = global.compositor.get_laters().add(Meta.LaterType.BEFORE_REDRAW, () => {
+            this._laterId = 0;
+            this._avoidNotch();
+            return GLib.SOURCE_REMOVE;
+        });
+    }
+
+    _avoidNotch() {
+        const monitor = Main.layoutManager.primaryMonitor;
+        if (!monitor || !this._buttons.length)
+            return;
+        const island = Main.layoutManager.uiGroup.get_children()
+            .find(a => a.name === 'gnomacDynamicIsland' && a.visible);
+        const notchHalf = island ? 80 : 0;
+        const limit = monitor.x + monitor.width / 2 - notchHalf - 6;
+        // Freshly added buttons are only measured after the next layout.
+        if (this._buttons.some(b => !b.container.has_allocation())) {
+            this._queueAvoidNotch();
+            return;
+        }
+        for (const button of this._buttons) {
+            const [x] = button.container.get_transformed_position();
+            const fits = x + button.container.width <= limit;
+            button.container.visible = fits;
+        }
     }
 }
