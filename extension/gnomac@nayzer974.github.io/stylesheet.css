@@ -870,3 +870,105 @@
     spacing: 10px;
     color: #ffffff;
 }
+
+/* ---------- Dynamic Island dashboard ---------- */
+
+.gnomac-notch-dashboard {
+    padding: 30px 18px 8px;
+    spacing: 6px;
+}
+
+.gnomac-notch-home {
+    spacing: 18px;
+}
+
+.gnomac-notch-home-player {
+    spacing: 8px;
+}
+
+.gnomac-notch-cal {
+    spacing: 4px;
+    min-width: 170px;
+}
+
+.gnomac-notch-cal-title {
+    font-size: 8pt;
+    font-weight: 800;
+    color: #ff453a;
+}
+
+.gnomac-notch-cal-head {
+    font-size: 7.5pt;
+    color: rgba(255, 255, 255, 0.45);
+}
+
+.gnomac-notch-cal-day {
+    font-size: 8pt;
+    color: rgba(255, 255, 255, 0.85);
+    padding: 1px 0;
+    min-width: 20px;
+    text-align: center;
+    border-radius: 99px;
+}
+
+.gnomac-notch-cal-day.today {
+    background-color: #ff453a;
+    color: #ffffff;
+    font-weight: 800;
+}
+
+.gnomac-notch-tabs {
+    spacing: 6px;
+    padding-top: 2px;
+}
+
+.gnomac-notch-tab {
+    width: 26px;
+    height: 18px;
+    border-radius: 9px;
+    color: rgba(255, 255, 255, 0.55);
+}
+
+.gnomac-notch-tab:checked {
+    background-color: rgba(255, 255, 255, 0.18);
+    color: #ffffff;
+}
+
+.gnomac-notch-timer {
+    spacing: 4px;
+    padding-top: 8px;
+}
+
+.gnomac-notch-timer-time {
+    font-size: 30pt;
+    font-weight: 700;
+    color: #ffffff;
+    font-feature-settings: "tnum";
+}
+
+.gnomac-notch-pill-button {
+    padding: 3px 14px;
+    border-radius: 99px;
+    background-color: rgba(255, 255, 255, 0.14);
+    color: #ffffff;
+    font-size: 9pt;
+    font-weight: 600;
+}
+
+.gnomac-notch-pill-button:hover {
+    background-color: rgba(255, 255, 255, 0.24);
+}
+
+.gnomac-notch-shelf {
+    spacing: 10px;
+    padding: 12px 6px;
+}
+
+.gnomac-notch-shelf-item {
+    padding: 6px;
+    border-radius: 10px;
+}
+
+.gnomac-notch-shelf-item:hover {
+    background-color: rgba(255, 255, 255, 0.12);
+}

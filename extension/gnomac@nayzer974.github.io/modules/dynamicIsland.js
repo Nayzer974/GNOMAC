@@ -20,15 +20,20 @@ import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as Mpris from 'resource:///org/gnome/shell/ui/mpris.js';
 
+import {MonthCalendar, PomodoroTimer, Shelf} from '../lib/notchViews.js';
 import {Spring, getTicker} from '../lib/spring.js';
 import {t} from '../lib/i18n.js';
 
 const EAR = 7;
 const SIZES = {
     rest: {width: 156, height: 24},
-    // Grows down, never sideways: a wider notch would cover the app menus.
+    // The folded notch widens when it has something to show on its sides.
+    restBusy: {width: 232, height: 24},
+    // Grows down, never sideways far: the wide card sits under the menu bar,
+    // not over it, and menus that would overlap are hidden by AppMenus.
     date: {width: 230, height: 78},
     media: {width: 400, height: 132},
+    dashboard: {width: 560, height: 190},
     notice: {width: 400, height: 78},
     hud: {width: 300, height: 34},
 };
@@ -81,8 +86,9 @@ function bars(count) {
     return [box, actors];
 }
 
-const Island = GObject.registerClass(
-class Island extends St.Widget {
+const Island = GObject.registerClass({
+    Signals: {'tab': {param_types: [GObject.TYPE_STRING]}, 'timer-changed': {}},
+}, class Island extends St.Widget {
     _init() {
         super._init({name: 'gnomacDynamicIsland', reactive: true, track_hover: true});
 
@@ -102,14 +108,34 @@ class Island extends St.Widget {
             x_align: Clutter.ActorAlign.CENTER, y_align: Clutter.ActorAlign.CENTER});
         this.dots = new St.BoxLayout({style_class: 'gnomac-notch-dots', visible: false,
             x_align: Clutter.ActorAlign.CENTER, y_align: Clutter.ActorAlign.CENTER});
+        this.ring = new St.DrawingArea({style_class: 'gnomac-notch-ring', width: 18, height: 18,
+            visible: false, y_align: Clutter.ActorAlign.CENTER, x_align: Clutter.ActorAlign.END});
+        this.ring.connect('repaint', area => {
+            const cr = area.get_context();
+            const [w, h] = area.get_surface_size();
+            const fraction = this.timer?.fraction ?? 1;
+            cr.setLineWidth(2.4);
+            cr.setSourceRGBA(1, 1, 1, 0.18);
+            cr.arc(w / 2, h / 2, w / 2 - 2, 0, 2 * Math.PI);
+            cr.stroke();
+            cr.setSourceRGBA(1, 0.62, 0.04, 1);
+            cr.arc(w / 2, h / 2, w / 2 - 2, -Math.PI / 2, -Math.PI / 2 + 2 * Math.PI * fraction);
+            cr.stroke();
+            cr.$dispose();
+        });
         this.badge = new St.BoxLayout({style_class: 'gnomac-notch-side',
             x_align: Clutter.ActorAlign.END, y_align: Clutter.ActorAlign.CENTER});
         this.badge.add_child(new St.Widget({style_class: 'gnomac-notch-badge-dot',
             y_align: Clutter.ActorAlign.CENTER}));
         this.badgeLabel = new St.Label({style_class: 'gnomac-notch-badge', y_align: Clutter.ActorAlign.CENTER});
         this.badge.add_child(this.badgeLabel);
-        for (const child of [left, this.clock, this.dots, this.badge])
+        // BinLayout only honours x_align/y_align on children that expand into
+        // the whole cell; without it everything piles up in the middle.
+        for (const child of [left, this.clock, this.dots, this.ring, this.badge]) {
+            child.x_expand = true;
+            child.y_expand = true;
             this.rest.add_child(child);
+        }
         this.add_child(this.rest);
 
         // Media card.
@@ -149,8 +175,10 @@ class Island extends St.Widget {
         for (const child of [this.prevButton, this.playButton, this.nextButton])
             controls.add_child(child);
 
-        for (const child of [top, progress, controls])
-            this.media.add_child(child);
+        // The player rows live on the dashboard's Home page; `media` stays
+        // as an (unused) empty container so older code paths keep working.
+        this._playerRows = [top, progress, controls];
+        this.media = new St.Widget({visible: false});
         this.add_child(this.media);
 
         // Volume / brightness HUD (replaces GNOME's OSD), like Alcove.
@@ -179,6 +207,46 @@ class Island extends St.Widget {
         this.notice.add_child(this.noticeIcon);
         this.notice.add_child(noticeText);
         this.add_child(this.notice);
+
+        // Wide dashboard: player + calendar on "Home", timer, shelf.
+        this.dashboard = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL,
+            style_class: 'gnomac-notch-dashboard'});
+        this.pages = new St.Widget({layout_manager: new Clutter.BinLayout(), x_expand: true, y_expand: true});
+        this.homePage = new St.BoxLayout({style_class: 'gnomac-notch-home'});
+        this.homePlayer = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL, x_expand: true,
+            style_class: 'gnomac-notch-home-player'});
+        this.calendar = new MonthCalendar();
+        for (const row of this._playerRows)
+            this.homePlayer.add_child(row);
+        this.homePage.add_child(this.homePlayer);
+        this.homePage.add_child(this.calendar.actor);
+        this.timer = new PomodoroTimer(() => this.emit('timer-changed'));
+        this.timerPage = this.timer.actor;
+        this.shelf = new Shelf();
+        this.shelfPage = this.shelf.actor;
+        for (const page of [this.homePage, this.timerPage, this.shelfPage])
+            this.pages.add_child(page);
+
+        const tabs = new St.BoxLayout({style_class: 'gnomac-notch-tabs', x_align: Clutter.ActorAlign.CENTER});
+        this.tabButtons = [];
+        [['user-home-symbolic', 'home'], ['alarm-symbolic', 'timer'], ['folder-symbolic', 'shelf']].forEach(([icon, id]) => {
+            const button = new St.Button({style_class: 'gnomac-notch-tab', toggle_mode: true, can_focus: false,
+                child: new St.Icon({icon_name: icon, icon_size: 13})});
+            button.connect('clicked', () => this.emit('tab', id));
+            tabs.add_child(button);
+            this.tabButtons.push([id, button]);
+        });
+        this.dashboard.add_child(this.pages);
+        this.dashboard.add_child(tabs);
+        this.add_child(this.dashboard);
+    }
+
+    showTab(tab) {
+        this.homePage.visible = tab === 'home';
+        this.timerPage.visible = tab === 'timer';
+        this.shelfPage.visible = tab === 'shelf';
+        for (const [id, button] of this.tabButtons)
+            button.checked = id === tab;
     }
 
     _control(iconName, size) {
@@ -222,6 +290,15 @@ export class DynamicIsland {
             }
             return Clutter.EVENT_STOP;
         });
+        this._tab = 'home';
+        this.island.connect('tab', (_i, tab) => {
+            this._tab = tab;
+            this._update();
+        });
+        this.island.connect('timer-changed', () => this._onTimer());
+        this.island.showTab('home');
+        // Dropping a file on the notch puts it on the shelf.
+        this.island._delegate = this;
         this.island.prevButton.connect('clicked', () => this._player?.previous());
         this.island.playButton.connect('clicked', () => this._player?.playPause());
         this.island.nextButton.connect('clicked', () => this._player?.next());
@@ -272,6 +349,33 @@ export class DynamicIsland {
                 this._osdSaved.showAll.call(osd, icon, label, level, maxLevel);
         };
 
+        this._update();
+    }
+
+    handleDragOver() {
+        this._pinned = true;
+        this._tab = 'shelf';
+        this._update();
+        return 1; // DragMotionResult.COPY_DROP
+    }
+
+    acceptDrop(source) {
+        const uri = source?.file?.get_uri?.() ?? source?.uri;
+        if (uri)
+            this.island.shelf.add(uri);
+        return !!uri;
+    }
+
+    _onTimer(finished = false) {
+        if (!this.island || this._islandGone)
+            return;
+        this.island.ring.visible = this.island.timer.running;
+        this.island.ring.queue_repaint();
+        if (finished)
+            Main.notify(t('Timer finished', 'Minuteur terminé'),
+                this.island.timer.phase === 'break'
+                    ? t('Time for a break.', 'C’est l’heure de la pause.')
+                    : t('Back to focus.', 'On reprend la concentration.'));
         this._update();
     }
 
@@ -410,7 +514,7 @@ export class DynamicIsland {
         if (GLib.get_monotonic_time() < (this._hudUntil ?? 0))
             return 'hud';
         if (this.island.hover || this._pinned)
-            return this._hasMedia() ? 'media' : 'date';
+            return 'dashboard';
         return 'rest';
     }
 
@@ -437,6 +541,9 @@ export class DynamicIsland {
             island.noticeBody.text = now.format('%A %-d %B');
         }
 
+        island.calendar.update();
+        island.showTab(this._tab ?? 'home');
+        island.ring.visible = island.timer.running && this._mode === 'rest';
         const unread = this._unread();
         island.badge.visible = unread > 0;
         island.badgeLabel.text = String(unread);
@@ -481,8 +588,11 @@ export class DynamicIsland {
         this._syncContent();
         if (changed && mode === 'media')
             this._pollPosition();
-        this._width.setTarget(SIZES[mode].width);
-        this._height.setTarget(SIZES[mode].height);
+        const busy = mode === 'rest' &&
+            (this._hasMedia() || this.island.timer.running || this._unread() > 0);
+        const size = busy ? SIZES.restBusy : SIZES[mode];
+        this._width.setTarget(size.width);
+        this._height.setTarget(size.height);
         getTicker().add(this._tick);
     }
 
@@ -533,8 +643,12 @@ export class DynamicIsland {
 
         const grow = Math.min(1, Math.max(0,
             (height - SIZES.rest.height) / (SIZES.notice.height - SIZES.rest.height)));
+        island.dashboard.set_position(EAR, 0);
+        island.dashboard.set_size(inner, height);
+        island.dashboard.opacity = this._mode === 'dashboard' ? Math.round(255 * Math.min(1, grow * 1.4)) : 0;
+        island.dashboard.visible = island.dashboard.opacity > 0;
         island.rest.opacity = this._mode === 'hud' ? 0 : Math.round(255 * (1 - grow));
-        island.media.opacity = this._mode === 'media' ? Math.round(255 * grow) : 0;
+        island.media.opacity = 0;
         island.notice.opacity = this._mode === 'notice' || this._mode === 'date'
             ? Math.round(255 * grow) : 0;
         for (const child of [island.rest, island.media, island.notice])
