@@ -213,12 +213,29 @@ export class AppMenus {
     }
 
     enable() {
+        // The notch changes width: re-fit the menus whenever it does.
+        this._notchTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT_IDLE, 400, () => {
+            // During shell shutdown the UI group dies before disable() runs.
+            if (Main.layoutManager._startingUp || !Main.layoutManager.uiGroup || Main.layoutManager.uiGroup.is_destroyed?.())
+                return GLib.SOURCE_CONTINUE;
+            const island = Main.layoutManager.uiGroup.get_children().find(a => a.name === 'gnomacDynamicIsland');
+            const width = island?.width ?? 0;
+            if (width !== this._lastNotchWidth) {
+                this._lastNotchWidth = width;
+                this._queueAvoidNotch();
+            }
+            return GLib.SOURCE_CONTINUE;
+        });
         this._tracker = Shell.WindowTracker.get_default();
         this._focusId = this._tracker.connect('notify::focus-app', () => this._rebuild());
         this._rebuild();
     }
 
     disable() {
+        if (this._notchTimer) {
+            GLib.source_remove(this._notchTimer);
+            this._notchTimer = 0;
+        }
         if (this._laterId) {
             global.compositor.get_laters().remove(this._laterId);
             this._laterId = 0;
@@ -249,6 +266,7 @@ export class AppMenus {
         let position = appName ? Main.panel._leftBox.get_children().indexOf(appName.container) + 1 : 2;
         menus.forEach((spec, i) => {
             const button = new MenuTitle(spec);
+            button.connect('destroy', () => (button._gone = true));
             Main.panel.addToStatusArea(`gnomac-menu-${i}`, button, position++, 'left');
             this._buttons.push(button);
         });
@@ -269,11 +287,15 @@ export class AppMenus {
 
     _avoidNotch() {
         const monitor = Main.layoutManager.primaryMonitor;
+        // Buttons are destroyed on every rebuild; drop the dead ones first.
+        this._buttons = this._buttons.filter(b => !b._gone);
         if (!monitor || !this._buttons.length)
             return;
         const island = Main.layoutManager.uiGroup.get_children()
             .find(a => a.name === 'gnomacDynamicIsland' && a.visible);
-        const notchHalf = island ? 80 : 0;
+        // Real width of the folded notch (it widens with media or a timer),
+        // never the expanded card: that one only exists while hovered.
+        const notchHalf = island ? Math.min(island.width, 240) / 2 : 0;
         const limit = monitor.x + monitor.width / 2 - notchHalf - 6;
         // Freshly added buttons are only measured after the next layout.
         if (this._buttons.some(b => !b.container.has_allocation())) {
