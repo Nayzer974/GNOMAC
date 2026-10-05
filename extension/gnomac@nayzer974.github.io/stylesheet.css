@@ -725,7 +725,7 @@
 }
 
 .gnomac-sf-focus {
-    background-color: #a259ff;
+    background-color: #bf5af2;
     color: #ffffff;
 }
 
@@ -1222,4 +1222,32 @@
 
 .gnomac-widget-music-button:hover {
     background-color: rgba(255, 255, 255, 0.18);
+}
+
+/* ---------- Colour chips (macOS system colours) ---------- */
+
+.gnomac-chip {
+    min-height: 46px;
+    border-radius: 14px;
+    background-color: rgba(255, 255, 255, 0.09);
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.gnomac-chip:hover {
+    background-color: rgba(255, 255, 255, 0.16);
+}
+
+.gnomac-chip-fill {
+    border-radius: 14px;
+}
+
+.gnomac-chip:active,
+.gnomac-chip.active {
+    color: #ffffff;
+}
+
+.gnomac-chip-label {
+    font-size: 7.5pt;
+    padding-top: 3px;
+    font-weight: 600;
 }

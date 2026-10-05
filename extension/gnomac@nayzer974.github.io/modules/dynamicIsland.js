@@ -22,6 +22,7 @@ import * as Mpris from 'resource:///org/gnome/shell/ui/mpris.js';
 
 import {ActionsPage, ClipboardPage, IdleHome, StatsPage} from '../lib/notchPages.js';
 import {startClipboard, stopClipboard} from '../lib/clipboardHistory.js';
+import {cascade, press, slideIn} from '../lib/motion.js';
 import {MonthCalendar, PomodoroTimer, Shelf} from '../lib/notchViews.js';
 import {Spring, getTicker} from '../lib/spring.js';
 import {t} from '../lib/i18n.js';
@@ -253,6 +254,7 @@ const Island = GObject.registerClass({
             const button = new St.Button({style_class: 'gnomac-notch-tab', toggle_mode: true, can_focus: false,
                 child: new St.Icon({icon_name: icon, icon_size: 13})});
             button.connect('clicked', () => this.emit('tab', id));
+            press(button, {down: 0.85});
             tabs.add_child(button);
             this.tabButtons.push([id, button]);
         });
@@ -262,18 +264,32 @@ const Island = GObject.registerClass({
     }
 
     showTab(tab) {
+        const order = this.tabButtons.map(([id]) => id);
+        const direction = order.indexOf(tab) >= order.indexOf(this._shownTab ?? tab) ? 1 : -1;
+        const changed = this._shownTab !== undefined && this._shownTab !== tab;
         for (const [id, page] of Object.entries(this.pageMap))
             page.visible = id === tab;
         for (const [id, button] of this.tabButtons)
             button.checked = id === tab;
+        // Pages slide in from the side of the tab you moved towards.
+        if (changed)
+            slideIn(this.pageMap[tab], direction);
+        this._shownTab = tab;
+    }
+
+    // Everything on the current page pops in, one piece after another.
+    cascadeContent() {
+        const page = this.pageMap[this._shownTab ?? 'home'];
+        if (page)
+            cascade(page.get_children(), {delay: 30});
     }
 
     _control(iconName, size) {
-        return new St.Button({
+        return press(new St.Button({
             style_class: 'gnomac-island-control',
             child: new St.Icon({icon_name: iconName, icon_size: size}),
             can_focus: true,
-        });
+        }), {down: 0.82});
     }
 });
 
@@ -299,8 +315,8 @@ export class DynamicIsland {
         this.island.connect('destroy', () => (this._islandGone = true));
         Main.layoutManager.addTopChrome(this.island);
 
-        this._width = new Spring({stiffness: 360, damping: 26, value: SIZES.rest.width});
-        this._height = new Spring({stiffness: 360, damping: 26, value: SIZES.rest.height});
+        this._width = new Spring({stiffness: 330, damping: 21, value: SIZES.rest.width});
+        this._height = new Spring({stiffness: 300, damping: 20, value: SIZES.rest.height});
 
         this.island.connect('notify::hover', () => this._update());
         this.island.connect('button-release-event', (_a, event) => {
@@ -351,6 +367,9 @@ export class DynamicIsland {
         });
 
         this._clockId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 1, () => {
+            // At shell shutdown the island dies before disable() runs.
+            if (!this.island || this._islandGone)
+                return GLib.SOURCE_REMOVE;
             this._syncContent();
             if (this._mode === 'dashboard') {
                 if (this._hasMedia() && this._tab === 'home')
@@ -392,6 +411,17 @@ export class DynamicIsland {
             island.statsView.update();
         else if (this._tab === 'clipboard')
             island.clipboardView.refresh();
+    }
+
+    // A short squash-and-stretch: the notch "breathes" when something arrives.
+    _bounce() {
+        const island = this.island;
+        if (!island || this._islandGone)
+            return;
+        island.set_pivot_point(0.5, 0);
+        island.remove_all_transitions();
+        island.set_scale(1.06, 0.94);
+        island.ease({scale_x: 1, scale_y: 1, duration: 520, mode: Clutter.AnimationMode.EASE_OUT_ELASTIC});
     }
 
     handleDragOver() {
@@ -642,8 +672,15 @@ export class DynamicIsland {
             return;
         const mode = this._wantedMode();
         const changed = mode !== this._mode;
+        const previous = this._mode;
         this._mode = mode;
         this._syncContent();
+        // Opening the card: its content pops in one piece after another.
+        if (changed && mode === 'dashboard')
+            this.island.cascadeContent();
+        // A notification makes the whole notch bounce, like Dynamic Island.
+        if (changed && (mode === 'notice' || (previous === 'rest' && mode === 'hud')))
+            this._bounce();
         if (changed && mode === 'media')
             this._pollPosition();
         const busy = mode === 'rest' &&

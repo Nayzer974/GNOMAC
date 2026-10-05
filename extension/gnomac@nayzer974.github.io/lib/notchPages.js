@@ -10,6 +10,7 @@ import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {clearClipboard, clipboardItems, copyText, onClipboardChange} from './clipboardHistory.js';
+import {COLORS, colorChip, press} from './motion.js';
 import {t} from './i18n.js';
 
 // ---------------------------------------------------------------- helpers
@@ -131,7 +132,7 @@ export class StatsPage {
 
 const TOGGLES = [
     {
-        id: 'wifi', icon: 'network-wireless-symbolic', label: 'Wi-Fi',
+        id: 'wifi', icon: 'network-wireless-symbolic', label: 'Wi-Fi', color: COLORS.blue,
         get: async () => {
             const r = await run(['nmcli', '-t', '-f', 'WIFI', 'general']);
             return r.ok ? r.out.trim() === 'enabled' : null;
@@ -139,7 +140,7 @@ const TOGGLES = [
         set: on => run(['nmcli', 'radio', 'wifi', on ? 'on' : 'off']),
     },
     {
-        id: 'bluetooth', icon: 'bluetooth-symbolic', label: 'Bluetooth',
+        id: 'bluetooth', icon: 'bluetooth-symbolic', label: 'Bluetooth', color: COLORS.blue,
         get: async () => {
             const r = await run(['bluetoothctl', 'show']);
             return r.ok && r.out ? /Powered:\s+yes/.test(r.out) : null;
@@ -147,18 +148,18 @@ const TOGGLES = [
         set: on => run(['bluetoothctl', 'power', on ? 'on' : 'off']),
     },
     {
-        id: 'dnd', icon: 'notifications-disabled-symbolic', label: t('Do Not Disturb', 'Ne pas déranger'),
+        id: 'dnd', icon: 'notifications-disabled-symbolic', label: t('Do Not Disturb', 'Ne pas déranger'), color: COLORS.purple,
         settings: ['org.gnome.desktop.notifications', 'show-banners', true],
     },
     {
-        id: 'dark', icon: 'weather-clear-night-symbolic', label: t('Dark Mode', 'Mode sombre'),
+        id: 'dark', icon: 'weather-clear-night-symbolic', label: t('Dark Mode', 'Mode sombre'), color: COLORS.indigo,
         get: async () => new Gio.Settings({schema_id: 'org.gnome.desktop.interface'})
             .get_string('color-scheme') === 'prefer-dark',
         set: async on => new Gio.Settings({schema_id: 'org.gnome.desktop.interface'})
             .set_string('color-scheme', on ? 'prefer-dark' : 'default'),
     },
     {
-        id: 'night', icon: 'night-light-symbolic', label: t('Night Shift', 'Lumière nocturne'),
+        id: 'night', icon: 'night-light-symbolic', label: t('Night Shift', 'Lumière nocturne'), color: COLORS.orange,
         get: async () => new Gio.Settings({schema_id: 'org.gnome.settings-daemon.plugins.color'})
             .get_boolean('night-light-enabled'),
         set: async on => new Gio.Settings({schema_id: 'org.gnome.settings-daemon.plugins.color'})
@@ -176,12 +177,17 @@ const ACTIONS = [
 ];
 
 function chip(def) {
-    const column = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL, x_align: Clutter.ActorAlign.CENTER});
-    column.add_child(new St.Icon({icon_name: def.icon, icon_size: 18, x_align: Clutter.ActorAlign.CENTER}));
-    column.add_child(new St.Label({text: def.label, style_class: 'gnomac-notch-chip-label',
-        x_align: Clutter.ActorAlign.CENTER}));
-    return new St.Button({style_class: 'gnomac-notch-chip', child: column, toggle_mode: !!def.id && !def.run,
-        can_focus: false});
+    if (def.run) {
+        // Plain action: no state, just the press feel.
+        const column = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL,
+            x_align: Clutter.ActorAlign.CENTER});
+        column.add_child(new St.Icon({icon_name: def.icon, icon_size: 18, x_align: Clutter.ActorAlign.CENTER}));
+        column.add_child(new St.Label({text: def.label, style_class: 'gnomac-chip-label',
+            x_align: Clutter.ActorAlign.CENTER}));
+        const button = new St.Button({style_class: 'gnomac-chip', child: column, can_focus: false});
+        return press(button);
+    }
+    return colorChip({icon: def.icon, label: def.label, color: def.color ?? COLORS.blue});
 }
 
 export class ActionsPage {
@@ -202,6 +208,7 @@ export class ActionsPage {
             } else {
                 button.connect('clicked', async () => {
                     const on = button.checked;
+                    button.setActive(on);
                     try {
                         if (def.settings) {
                             const [schema, key, invert] = def.settings;
@@ -232,7 +239,7 @@ export class ActionsPage {
             }
             button.reactive = state !== null;
             button.opacity = state === null ? 90 : 255;
-            button.checked = !!state;
+            button.setActive(!!state, button.checked !== !!state);
         }
     }
 }
@@ -301,6 +308,7 @@ export class IdleHome {
             } else {
                 button.connect('clicked', () => {
                     const on = button.checked;
+                    button.setActive(on);
                     if (def.settings) {
                         const [schema, key, invert] = def.settings;
                         new Gio.Settings({schema_id: schema}).set_boolean(key, invert ? !on : on);
@@ -328,7 +336,7 @@ export class IdleHome {
             } else {
                 state = await def.get();
             }
-            button.checked = !!state;
+            button.setActive(!!state, button.checked !== !!state);
         }
     }
 }

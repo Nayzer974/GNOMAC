@@ -1,0 +1,131 @@
+// Apple-style micro-interactions shared by the island, widgets and menus.
+//
+// - press(): any button gets the iOS "press and spring back" feel: it
+//   squeezes on press and returns with a hint of overshoot,
+// - ColorChip: a toggle tile whose coloured layer fades in and out (CSS
+//   cannot transition colours in St, so the colour is a second actor whose
+//   opacity is animated), with a small pop on the icon,
+// - cascade(): children enter one after another (scale + fade), as the
+//   Dynamic Island does when its content changes.
+
+import Clutter from 'gi://Clutter';
+import St from 'gi://St';
+
+import {Spring, getTicker} from './spring.js';
+
+// macOS system colours.
+export const COLORS = {
+    blue: [0.039, 0.518, 1.0],
+    purple: [0.749, 0.353, 0.949],
+    orange: [1.0, 0.624, 0.039],
+    indigo: [0.369, 0.361, 0.902],
+    green: [0.188, 0.82, 0.345],
+    red: [1.0, 0.271, 0.227],
+    gray: [0.56, 0.56, 0.58],
+};
+
+export const css = ([r, g, b], alpha = 1) =>
+    `rgba(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)}, ${alpha})`;
+
+// ------------------------------------------------------------ press feel
+
+export function press(actor, {down = 0.93, stiffness = 520, damping = 17} = {}) {
+    const spring = new Spring({stiffness, damping, value: 1});
+    actor.set_pivot_point(0.5, 0.5);
+    let ticking = false;
+    const tick = dt => {
+        spring.step(dt);
+        if (actor.is_finalized?.())
+            return false;
+        actor.set_scale(spring.value, spring.value);
+        if (spring.settled) {
+            actor.set_scale(1, 1);
+            ticking = false;
+            return false;
+        }
+        return true;
+    };
+    const go = target => {
+        spring.setTarget(target);
+        if (!ticking) {
+            ticking = true;
+            getTicker().add(tick);
+        }
+    };
+    actor.connect('notify::pressed', () => go(actor.pressed ? down : 1));
+    actor.connect('leave-event', () => go(1));
+    actor.connect('destroy', () => getTicker().remove(tick));
+    return actor;
+}
+
+// ------------------------------------------------------------ colour chip
+
+export function colorChip({icon, label, color, onToggle}) {
+    const root = new St.Button({style_class: 'gnomac-chip', toggle_mode: true, can_focus: false,
+        layout_manager: new Clutter.BinLayout(), reactive: true});
+    const fill = new St.Widget({style_class: 'gnomac-chip-fill', x_expand: true, y_expand: true,
+        opacity: 0, style: `background-color: ${css(color)};`});
+    const column = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL,
+        x_align: Clutter.ActorAlign.CENTER, y_align: Clutter.ActorAlign.CENTER, x_expand: true, y_expand: true});
+    const image = new St.Icon({icon_name: icon, icon_size: 18, x_align: Clutter.ActorAlign.CENTER});
+    image.set_pivot_point(0.5, 0.5);
+    column.add_child(image);
+    column.add_child(new St.Label({text: label, style_class: 'gnomac-chip-label',
+        x_align: Clutter.ActorAlign.CENTER}));
+    root.add_child(fill);
+    root.add_child(column);
+
+    press(root);
+
+    root.setActive = (active, animate = true) => {
+        const target = active ? 255 : 0;
+        if (animate && root.mapped) {
+            fill.ease({opacity: target, duration: 220, mode: Clutter.AnimationMode.EASE_OUT_QUAD});
+            // The icon pops when the tile lights up.
+            image.set_scale(active ? 0.7 : 1.25, active ? 0.7 : 1.25);
+            image.ease({scale_x: 1, scale_y: 1, duration: 360,
+                mode: Clutter.AnimationMode.EASE_OUT_BACK});
+        } else {
+            fill.remove_all_transitions();
+            fill.opacity = target;
+        }
+        root.checked = active;
+        if (active)
+            root.add_style_pseudo_class('active');
+        else
+            root.remove_style_pseudo_class('active');
+    };
+    root.connect('clicked', () => onToggle?.(root.checked));
+    return root;
+}
+
+// ------------------------------------------------------------ cascade
+
+// Children appear one after another: a short stagger of scale + fade.
+export function cascade(actors, {delay = 28, duration = 260, from = 0.9} = {}) {
+    actors.forEach((actor, i) => {
+        if (!actor || actor.is_finalized?.())
+            return;
+        actor.remove_all_transitions();
+        actor.set_pivot_point(0.5, 0.5);
+        actor.set_scale(from, from);
+        actor.opacity = 0;
+        actor.ease({
+            scale_x: 1,
+            scale_y: 1,
+            opacity: 255,
+            delay: i * delay,
+            duration,
+            mode: Clutter.AnimationMode.EASE_OUT_BACK,
+        });
+    });
+}
+
+// A page slides in from the side it is "after", and fades.
+export function slideIn(actor, direction = 1, distance = 28) {
+    actor.remove_all_transitions();
+    actor.translation_x = direction * distance;
+    actor.opacity = 0;
+    actor.ease({translation_x: 0, opacity: 255, duration: 280,
+        mode: Clutter.AnimationMode.EASE_OUT_CUBIC});
+}
