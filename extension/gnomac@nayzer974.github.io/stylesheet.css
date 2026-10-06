@@ -2040,7 +2040,19 @@
 }
 
 .login-dialog .user-icon {
-    icon-size: 116px;
-    border-radius: 58px;
-    border-width: 3px;
+    icon-size: 104px;
+    border-radius: 52px;
+}
+
+/* A single user: "Not listed?" would only add noise (and overlap the tile). */
+.login-dialog .login-dialog-not-listed-button,
+.login-dialog .login-dialog-not-listed-label {
+    min-height: 0;
+    height: 0;
+    padding: 0;
+    margin: 0;
+    font-size: 1px;
+    color: transparent;
+    background-color: transparent;
+    border-color: transparent;
 }

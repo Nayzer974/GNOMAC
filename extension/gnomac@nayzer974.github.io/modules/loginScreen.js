@@ -16,10 +16,8 @@
 // failure leaves the stock login screen working.
 
 import Clutter from 'gi://Clutter';
-import GDesktopEnums from 'gi://GDesktopEnums';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
-import Meta from 'gi://Meta';
 import St from 'gi://St';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
@@ -103,31 +101,28 @@ export class LoginScreen {
 
     // ----------------------------------------------------------- wallpaper
 
+    // The wallpaper is a plain widget with a CSS background image, put at the
+    // bottom of the screen shield group: it then sits under the login dialog
+    // whatever GDM's theme paints, and needs no Meta.Background (whose actor
+    // stayed white or black on GDM's renderer).
     _addWallpaper() {
         const path = this._settings.get_string('login-wallpaper');
-        if (!path || !GLib.file_test(path, GLib.FileTest.EXISTS))
+        if (!path || !GLib.file_test(path, GLib.FileTest.EXISTS)) {
+            console.log(`GNOMAC: login wallpaper not found: ${path}`);
             return;
+        }
         try {
-            const file = Gio.File.new_for_path(path);
+            const parent = Main.layoutManager.screenShieldGroup ?? Main.layoutManager.uiGroup;
             for (const monitor of Main.layoutManager.monitors) {
-                const background = new Meta.Background({meta_display: global.display});
-                background.set_file(file, GDesktopEnums.BackgroundStyle.ZOOM);
-                // GNOME 50: the actor has no `background` property, its content has.
-                const actor = new Meta.BackgroundActor({
-                    meta_display: global.display,
-                    monitor: monitor.index,
-                });
-                // Slightly dimmed so the login box reads well. No blur, vignette or
-                // scaling: they left ghost images on GDM's renderer.
-                actor.content.set({background, vignette: false, brightness: 0.8});
-                actor.set_position(monitor.x, monitor.y);
-                actor.set_size(monitor.width, monitor.height);
-                Main.layoutManager._backgroundGroup.add_child(actor);
-                Main.layoutManager._backgroundGroup.set_child_above_sibling(actor, null);
+                const actor = new St.Widget({reactive: false, x: monitor.x, y: monitor.y,
+                    width: monitor.width, height: monitor.height, opacity: 0});
+                const uri = Gio.File.new_for_path(path).get_uri();
+                actor.set_style(`background-color: #101018; background-image: url("${uri}"); ` +
+                    'background-size: cover; background-position: center;');
+                parent.insert_child_at_index(actor, 0);
                 this._actors.push(actor);
-
-                actor.opacity = 0;
                 actor.ease({opacity: 255, duration: 1200, mode: Clutter.AnimationMode.EASE_OUT_CUBIC});
+                console.log(`GNOMAC: login wallpaper placed (${monitor.width}x${monitor.height})`);
             }
         } catch (e) {
             logError(e, 'GNOMAC login screen: wallpaper');
@@ -144,9 +139,7 @@ export class LoginScreen {
             x: monitor.x, y: monitor.y + Math.round(monitor.height * TOP), width: monitor.width});
         this._clock.add_child(this._date);
         this._clock.add_child(this._time);
-        // Above the wallpaper, below the login dialog.
         Main.layoutManager.uiGroup.add_child(this._clock);
-        Main.layoutManager.uiGroup.set_child_above_sibling(this._clock, Main.layoutManager._backgroundGroup);
         this._actors.push(this._clock);
 
         const tick = () => {
