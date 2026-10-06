@@ -37,7 +37,7 @@ FAILED=0
 
 check() {
   info "State of the GNOMAC login screen"
-  [[ -f "$DST/metadata.json" ]] && ok "extension copied: $DST" || bad "extension missing: $DST"
+  [[ -s "$DST/metadata.json" && -s "$DST/extension.js" ]] && ok "extension copied: $DST"     || bad "extension missing or EMPTY files in $DST (re-run the installer, then run: sync)"
   grep -q '"gdm"' "$DST/metadata.json" 2>/dev/null && ok "metadata lists the gdm session mode" \
     || bad "metadata.json has no \"gdm\" in session-modes"
   [[ -f "$DST/schemas/gschemas.compiled" ]] && ok "schema compiled" || bad "schema not compiled in $DST/schemas"
@@ -108,6 +108,9 @@ printf "[org/gnome/shell]\nenabled-extensions=['%s']\n" "$UUID" > "$DB"
 chmod a+r "$DB"
 dconf update
 
+# Write everything to disk now: a file still in the cache when the machine is
+# reset (typical for a virtual machine) comes back empty on btrfs.
+sync
 echo
 check
 echo
@@ -115,6 +118,7 @@ if (( FAILED )); then
   echo "!! Something above is marked ✗: send me this output."
   exit 1
 fi
-echo ":: Done. The new login screen shows at the next boot (or after: sudo systemctl restart gdm)."
+echo ":: Done. Restart the machine PROPERLY (menu › Restart, not a reset of the VM): files not yet written to disk come back empty."
+echo "   The new login screen shows at the next boot (or after: sudo systemctl restart gdm)."
 echo "   To see what GDM's shell says:  sudo journalctl -b | grep -i gnomac"
 echo "   To undo:  sudo $0 --remove"
