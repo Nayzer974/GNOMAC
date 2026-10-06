@@ -48,6 +48,8 @@ export default class GnomacPreferences extends ExtensionPreferences {
         toggle(modules, 'enable-app-menus', 'Menus d’app', 'Fichier, Édition, Présentation, Fenêtre, Aide pour l’app active');
         toggle(modules, 'enable-wallpaper-picker', 'Fonds d’écran', 'Super + W : carrousel et transition en cercle');
         toggle(modules, 'enable-boot-shutdown', 'Démarrage et extinction', 'Logo et barre de progression à l’ouverture de session, animation avant l’arrêt');
+        toggle(modules, 'enable-appearance', 'Section Apparence', 'Couleur d’accentuation, clair/sombre, verre et style des icônes dans le Centre de contrôle');
+        toggle(modules, 'enable-window-layout', 'Disposition des fenêtres', 'Super + Ctrl + flèches : moitiés ; Super + Ctrl + T : palette (quarts, tiers, centrer)');
         toggle(modules, 'enable-topbar', 'Barre de menus', 'Menu système, nom de l\'app active, horloge à droite');
 
         const dock = group('Dock');
@@ -102,6 +104,15 @@ export default class GnomacPreferences extends ExtensionPreferences {
 
         const boot = group('Démarrage et extinction');
         toggle(boot, 'enable-shutdown-animation', 'Animation d’arrêt', 'Avant l’arrêt, le redémarrage ou la fermeture de session');
+        const bootModes = ['auto', 'always', 'never'];
+        const bootRow = new Adw.ComboRow({
+            title: 'Logo au démarrage de la session',
+            subtitle: 'Automatique : désactivé si le thème Plymouth GNOMAC est installé (sinon le logo passerait deux fois)',
+            model: Gtk.StringList.new(['Automatique', 'Toujours', 'Jamais']),
+        });
+        bootRow.selected = Math.max(0, bootModes.indexOf(settings.get_string('boot-animation')));
+        bootRow.connect('notify::selected', () => settings.set_string('boot-animation', bootModes[bootRow.selected]));
+        boot.add(bootRow);
         spin(boot, 'boot-duration', 'Durée du démarrage (ms)', 600, 8000, 100);
         spin(boot, 'shutdown-duration', 'Durée de l’arrêt (ms)', 600, 6000, 100);
 

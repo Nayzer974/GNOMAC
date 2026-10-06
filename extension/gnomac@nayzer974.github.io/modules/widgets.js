@@ -229,11 +229,16 @@ export class Widgets {
     // -------------------------------------------------------------- layout
 
     _loadLayout() {
-        try {
-            const parsed = JSON.parse(this.settings.get_string('widgets-layout'));
-            if (Array.isArray(parsed) && parsed.length)
-                return parsed.filter(w => WIDGET_TYPES[w.type] && SIZE_SPANS[w.size]);
-        } catch {}
+        // '' means "never edited": start from the defaults. An empty list is a
+        // choice (the user removed everything) and must survive a reboot.
+        const raw = this.settings.get_string('widgets-layout');
+        if (raw !== '') {
+            try {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed))
+                    return parsed.filter(w => WIDGET_TYPES[w?.type] && SIZE_SPANS[w.size]);
+            } catch {}
+        }
         return defaultLayout();
     }
 

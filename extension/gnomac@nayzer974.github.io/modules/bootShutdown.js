@@ -108,7 +108,10 @@ export class BootShutdown {
     enable() {
         // The boot animation belongs to a real session start, never to a
         // later reload of the extension.
-        if (Main.layoutManager._startingUp && !Main.sessionMode.isLocked)
+        // When the Plymouth theme is installed, the logo already played
+        // before the login screen: a second one after the password would be
+        // the same animation twice.
+        if (Main.layoutManager._startingUp && !Main.sessionMode.isLocked && !this._plymouthActive())
             this._playBoot();
         this._wrapEndSession();
     }
@@ -122,6 +125,21 @@ export class BootShutdown {
     }
 
     // ------------------------------------------------------------ boot
+
+    _plymouthActive() {
+        const mode = this._settings.get_string('boot-animation');
+        if (mode === 'always')
+            return false;
+        if (mode === 'never')
+            return true;
+        // 'auto': skip it only if our Plymouth theme is the one in use.
+        try {
+            const [ok, bytes] = GLib.file_get_contents('/etc/plymouth/plymouthd.conf');
+            if (ok && /^\s*Theme\s*=\s*gnomac\s*$/m.test(new TextDecoder().decode(bytes)))
+                return true;
+        } catch {}
+        return false;
+    }
 
     _playBoot() {
         const duration = this._settings.get_int('boot-duration');

@@ -8,6 +8,7 @@ import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {AppMenus} from './modules/appMenus.js';
+import {Appearance} from './modules/appearance.js';
 import {BootShutdown} from './modules/bootShutdown.js';
 import {Dock} from './modules/dock.js';
 import {DynamicIsland} from './modules/dynamicIsland.js';
@@ -23,6 +24,7 @@ import {Vibrancy} from './modules/vibrancy.js';
 import {WallpaperPicker} from './modules/wallpaperPicker.js';
 import {Widgets} from './modules/widgets.js';
 import {WindowAnimations} from './modules/windowAnimations.js';
+import {WindowLayout} from './modules/windowLayout.js';
 import {destroyTicker} from './lib/spring.js';
 
 // Only modules flagged `locked` run while the screen is locked: the
@@ -46,6 +48,8 @@ const MODULES = [
     {key: 'enable-widgets', Module: Widgets},
     {key: 'enable-wallpaper-picker', Module: WallpaperPicker},
     {key: 'enable-menubar-icons', Module: MenuBarIcons},
+    {key: 'enable-appearance', Module: Appearance},
+    {key: 'enable-window-layout', Module: WindowLayout},
 ];
 
 export default class GnomacExtension extends Extension {

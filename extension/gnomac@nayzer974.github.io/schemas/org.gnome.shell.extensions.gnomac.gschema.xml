@@ -130,6 +130,51 @@
       <default>true</default>
       <summary>Play the shut-down animation before powering off, restarting or logging out</summary>
     </key>
+    <key name="enable-appearance" type="b">
+      <default>true</default>
+      <summary>Appearance section (accent colour, light/dark, glass, icon style) in the Control Center</summary>
+    </key>
+    <key name="enable-window-layout" type="b">
+      <default>true</default>
+      <summary>Window tiling shortcuts and layout palette</summary>
+    </key>
+    <key name="layout-shortcut" type="as">
+      <default><![CDATA[['<Super><Control>t']]]></default>
+      <summary>Open the window layout palette</summary>
+    </key>
+    <key name="tile-left" type="as">
+      <default><![CDATA[['<Super><Control>Left']]]></default>
+      <summary>Tile the focused window: left</summary>
+    </key>
+    <key name="tile-right" type="as">
+      <default><![CDATA[['<Super><Control>Right']]]></default>
+      <summary>Tile the focused window: right</summary>
+    </key>
+    <key name="tile-top" type="as">
+      <default><![CDATA[['<Super><Control>Up']]]></default>
+      <summary>Tile the focused window: top</summary>
+    </key>
+    <key name="tile-bottom" type="as">
+      <default><![CDATA[['<Super><Control>Down']]]></default>
+      <summary>Tile the focused window: bottom</summary>
+    </key>
+    <key name="tile-fill" type="as">
+      <default><![CDATA[['<Super><Control>Return']]]></default>
+      <summary>Tile the focused window: fill</summary>
+    </key>
+    <key name="tile-center" type="as">
+      <default><![CDATA[['<Super><Control>c']]]></default>
+      <summary>Tile the focused window: center</summary>
+    </key>
+    <key name="boot-animation" type="s">
+      <choices>
+        <choice value="auto"/>
+        <choice value="always"/>
+        <choice value="never"/>
+      </choices>
+      <default>'auto'</default>
+      <summary>In-session start-up logo: auto skips it when the GNOMAC Plymouth theme already played it</summary>
+    </key>
     <key name="boot-duration" type="i">
       <range min="600" max="8000"/>
       <default>2600</default>
