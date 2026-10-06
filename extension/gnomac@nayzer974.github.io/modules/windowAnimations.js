@@ -46,6 +46,10 @@ export class WindowAnimations {
         this._pendingRestore = new Set();
         this._genies = new Set();
         this._timelines = new Set();
+        // The last picture of each minimized window, taken while it was still
+        // on screen: a window that has just been un-minimized may not have
+        // painted its first frame yet, and would fly out of the dock blank.
+        this._snapshots = new WeakMap();
     }
 
     enable() {
@@ -118,9 +122,46 @@ export class WindowAnimations {
         }
     }
 
+    // A new window grows out of its dock icon: the window itself is scaled
+    // from the icon's position, so no snapshot is needed (a window that has
+    // just been mapped has not painted yet).
+    _openFromDock(actor) {
+        const target = this._target(actor);
+        const width = actor.width || 1;
+        const height = actor.height || 1;
+        actor.remove_all_transitions();
+        actor.set_pivot_point(Math.min(1, Math.max(0, (target.x - actor.x) / width)),
+            Math.min(1, Math.max(0, (target.y - actor.y) / height)));
+        actor.set_scale(0.06, 0.06);
+        actor.opacity = 0;
+        actor.ease({
+            scale_x: 1,
+            scale_y: 1,
+            opacity: 255,
+            duration: GENIE_MS,
+            mode: Clutter.AnimationMode.EASE_OUT_QUINT,
+            onStopped: () => {
+                actor.set_scale(1, 1);
+                actor.opacity = 255;
+                actor.set_pivot_point(0, 0);
+            },
+        });
+    }
+
     _afterMap(actor) {
         if (!this._pendingOpen.delete(actor))
             return;
+        if (this._settings.get_string('open-animation') === 'dock') {
+            try {
+                const [ok, rect] = actor.meta_window.get_icon_geometry();
+                if (ok && rect.width > 0) {
+                    this._openFromDock(actor);
+                    return;
+                }
+            } catch {
+                // No icon for this window: the usual pop below.
+            }
+        }
         // macOS: the window pops in from 90 % with a fast ease-out.
         actor.remove_all_transitions();
         actor.set_pivot_point(0.5, 0.5);
@@ -182,6 +223,7 @@ export class WindowAnimations {
         const content = this._content(actor);
         if (!content)
             return false;
+        this._snapshots.set(actor, {content, width: actor.width, height: actor.height});
         this._runGenie(actor, content, false, () => {});
         return true;
     }
@@ -197,7 +239,11 @@ export class WindowAnimations {
     _afterRestore(actor) {
         if (!this._pendingRestore.delete(actor))
             return;
-        const content = this._content(actor);
+        // The picture taken at minimize time, if the window kept its size;
+        // otherwise a fresh one.
+        const saved = this._snapshots.get(actor);
+        const sameSize = saved && saved.width === actor.width && saved.height === actor.height;
+        const content = sameSize ? saved.content : this._content(actor);
         if (!content)
             return;
         // The real window stays invisible until the genie has landed.

@@ -30,6 +30,7 @@ export class LoginScreen {
     }
 
     enable() {
+        console.log('GNOMAC: login screen module enabled in the GDM shell');
         this._addWallpaper();
         this._addClock();
         this._patchUserList().catch(e => logError(e, 'GNOMAC login screen: user tile'));

@@ -73,6 +73,13 @@ export default class GnomacPreferences extends ExtensionPreferences {
         toggle(dock, 'dock-show-running', 'Points sous les apps ouvertes');
         toggle(dock, 'dock-badges', 'Compteurs de notifications', 'Pastille rouge avec le nombre de notifications non lues sur l’icône de l’app')
 
+        const openModes = ['dock', 'pop'];
+        const openRow = new Adw.ComboRow({title: 'Ouverture d’une fenêtre',
+            subtitle: 'Elle sort de son icône du dock, ou apparaît en fondu depuis 90 %',
+            model: Gtk.StringList.new(['Depuis le dock', 'Fondu rapide'])});
+        openRow.selected = Math.max(0, openModes.indexOf(settings.get_string('open-animation')));
+        openRow.connect('notify::selected', () => settings.set_string('open-animation', openModes[openRow.selected]));
+        dock.add(openRow);
         const closeModes = ['genie', 'default'];
         const closeRow = new Adw.ComboRow({title: 'Fermeture d’une fenêtre',
             subtitle: 'Génie : la fenêtre est aspirée dans le dock, comme à la réduction',

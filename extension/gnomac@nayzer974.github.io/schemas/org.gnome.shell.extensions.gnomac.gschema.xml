@@ -305,6 +305,14 @@
       <default>18</default>
       <summary>Space between the widgets and the screen edge, in pixels</summary>
     </key>
+    <key name="open-animation" type="s">
+      <choices>
+        <choice value="dock"/>
+        <choice value="pop"/>
+      </choices>
+      <default>'dock'</default>
+      <summary>Opening a window: it grows out of its dock icon, or pops in from 90 percent</summary>
+    </key>
     <key name="close-animation" type="s">
       <choices>
         <choice value="genie"/>

@@ -200,7 +200,7 @@ Clic droit sur un widget : **couleur** (9 teintes macOS), **matière** (clair, d
 
 ### Fenêtres
 
-Ouverture façon macOS, **effet Génie** vers l'icône du dock à la réduction **et à la fermeture** (au choix dans les préférences), **disposition** en moitiés, quarts, tiers (palette ou raccourcis), **Stage Manager** simplifié, marge réglable autour des fenêtres, coins arrondis (avec l'extension complémentaire installée par `--extras`).
+**Effet Génie** vers l'icône du dock à la réduction et à la fermeture, et **la fenêtre ressort de son icône** à la restauration et à l'ouverture (chaque effet est réglable ou désactivable dans les préférences, Dock), **disposition** en moitiés, quarts, tiers (palette ou raccourcis), **Stage Manager** simplifié, marge réglable autour des fenêtres, coins arrondis (avec l'extension complémentaire installée par `--extras`).
 
 ### Recherche
 
@@ -287,8 +287,11 @@ CachyOS GNOME utilise GDM, dont l'écran de connexion est un shell GNOME : GNOMA
 ```bash
 sudo ./gdm/install-gdm.sh                      # utilise ton fond d'écran actuel
 sudo ./gdm/install-gdm.sh --wallpaper IMAGE    # ou une image au choix
+sudo ./gdm/install-gdm.sh --check              # affiche ce qui est installé (✓ / ✗), ne change rien
 sudo ./gdm/install-gdm.sh --remove             # revenir à l'écran d'origine
 ```
+
+Le script doit être lancé depuis une copie **complète** du dépôt (le dossier qui contient `extension/` à côté de `gdm/`). Il vérifie chaque étape à la fin et marque d'un ✗ ce qui manque.
 
 Le script copie l'extension dans `/usr/share/gnome-shell/extensions`, le fond dans `/usr/share/gnomac/login.jpg` et active l'extension pour GDM par `/etc/dconf/db/gdm.d/90-gnomac`. Rien d'autre n'est modifié. Relance-le après chaque mise à jour de GNOMAC. L'avatar se change dans Paramètres › Utilisateurs.
 
