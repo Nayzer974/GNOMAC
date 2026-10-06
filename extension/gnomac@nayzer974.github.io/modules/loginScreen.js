@@ -2,10 +2,13 @@
 // (session mode "gdm"), where this extension is loaded once it has been
 // installed system-wide (see gdm/install-gdm.sh).
 //
-//  - the wallpaper of the user, copied to /usr/share/gnomac/login.jpg,
-//  - a very large clock and the date at the top,
-//  - the user tile re-drawn: a big round avatar with the name below it,
-//    in glass (the styling is in stylesheet.css, `.login-dialog-*`),
+//  - the wallpaper of the user, copied to /usr/share/gnomac/login.jpg, softly
+//    blurred and vignetted, which fades in and settles with a slow zoom,
+//  - a very large clock and the date at the top, rising into place,
+//  - the user tile re-drawn: a big round avatar with the name below it, and a
+//    glass pill for the password (the styling is in stylesheet.css,
+//    `.login-dialog-*`),
+//  - Sleep / Restart / Shut Down as three glass buttons at the bottom,
 //  - the session gear (GNOME, Hyprland…) stays where it is.
 //
 // Authentication, PAM, the session list and the keyboard layout are GDM's:
@@ -17,9 +20,14 @@ import GDesktopEnums from 'gi://GDesktopEnums';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import Meta from 'gi://Meta';
+import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import {getLoginManager} from 'resource:///org/gnome/shell/misc/loginManager.js';
+
+import {press} from '../lib/motion.js';
+import {t} from '../lib/i18n.js';
 
 const TOP = 0.04;
 
@@ -52,8 +60,10 @@ export class LoginScreen {
                 group.set_style('background-color: transparent; background-image: none;');
             }
         }
+        this._hidePanelClock();
         this._addWallpaper();
         this._addClock();
+        this._addPowerButtons();
         this._patchUserList().catch(e => logError(e, 'GNOMAC login screen: user tile'));
     }
 
@@ -68,12 +78,29 @@ export class LoginScreen {
             } catch {}
         }
         this._groups = [];
+        if (this._dateMenuWasVisible) {
+            try {
+                Main.panel.statusArea.dateMenu.container.show();
+            } catch {}
+            this._dateMenuWasVisible = false;
+        }
         if (this._restoreInit)
             this._restoreInit();
         this._restoreInit = null;
         for (const actor of this._actors)
             actor.destroy();
         this._actors = [];
+    }
+
+    // The panel's own clock would repeat the big one.
+    _hidePanelClock() {
+        try {
+            const container = Main.panel.statusArea.dateMenu?.container;
+            if (container?.visible) {
+                this._dateMenuWasVisible = true;
+                container.hide();
+            }
+        } catch {}
     }
 
     // ----------------------------------------------------------- wallpaper
@@ -92,12 +119,21 @@ export class LoginScreen {
                     meta_display: global.display,
                     monitor: monitor.index,
                 });
-                actor.content.set({background, vignette: false, brightness: 1.0});
+                // Darker towards the corners: the login box reads better.
+                actor.content.set({background, vignette: true, vignette_sharpness: 0.45, brightness: 0.78});
                 actor.set_position(monitor.x, monitor.y);
                 actor.set_size(monitor.width, monitor.height);
+                actor.add_effect(new Shell.BlurEffect({mode: Shell.BlurMode.ACTOR, radius: 14, brightness: 1.0}));
                 Main.layoutManager._backgroundGroup.add_child(actor);
                 Main.layoutManager._backgroundGroup.set_child_above_sibling(actor, null);
                 this._actors.push(actor);
+
+                // It fades in and settles, like a lens coming into focus.
+                actor.set_pivot_point(0.5, 0.5);
+                actor.set_scale(1.05, 1.05);
+                actor.opacity = 0;
+                actor.ease({opacity: 255, scale_x: 1, scale_y: 1, duration: 1800, delay: 80,
+                    mode: Clutter.AnimationMode.EASE_OUT_CUBIC});
             }
         } catch (e) {
             logError(e, 'GNOMAC login screen: wallpaper');
@@ -127,6 +163,63 @@ export class LoginScreen {
         };
         tick();
         this._timeoutId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 1, tick);
+
+        // It rises into place a moment after the wallpaper.
+        this._clock.opacity = 0;
+        this._clock.translation_y = 16;
+        this._clock.ease({opacity: 255, translation_y: 0, duration: 1100, delay: 350,
+            mode: Clutter.AnimationMode.EASE_OUT_CUBIC});
+    }
+
+    // --------------------------------------------------------- power buttons
+
+    _addPowerButtons() {
+        let login = null;
+        try {
+            login = getLoginManager();
+        } catch (e) {
+            logError(e, 'GNOMAC login screen: login manager');
+            return;
+        }
+        const monitor = Main.layoutManager.primaryMonitor;
+        const row = new St.BoxLayout({style_class: 'gnomac-login-power-row', reactive: true});
+        const entries = [
+            ['weather-clear-night-symbolic', t('Sleep', 'Veille'), () => login.suspend()],
+            ['system-reboot-symbolic', t('Restart', 'Redémarrer'), () => login.reboot()],
+            ['system-shutdown-symbolic', t('Shut Down', 'Éteindre'), () => login.powerOff()],
+        ];
+        for (const [icon, name, action] of entries) {
+            const cell = new St.BoxLayout({vertical: true, style_class: 'gnomac-login-power-cell',
+                x_align: Clutter.ActorAlign.CENTER});
+            const button = new St.Button({style_class: 'gnomac-login-power', can_focus: true, reactive: true,
+                child: new St.Icon({icon_name: icon, icon_size: 20}), x_align: Clutter.ActorAlign.CENTER});
+            press(button, {down: 0.9});
+            button.connect('clicked', () => {
+                try {
+                    action();
+                } catch (e) {
+                    logError(e, 'GNOMAC login screen: power action');
+                }
+            });
+            const label = new St.Label({text: name, style_class: 'gnomac-login-power-label', opacity: 0,
+                x_align: Clutter.ActorAlign.CENTER});
+            button.connect('notify::hover', () => label.ease({opacity: button.hover ? 255 : 0, duration: 160}));
+            cell.add_child(button);
+            cell.add_child(label);
+            row.add_child(cell);
+        }
+        const holder = new St.Widget({reactive: false, x: monitor.x, y: monitor.y + Math.round(monitor.height * 0.855),
+            width: monitor.width, height: 120});
+        row.x_align = Clutter.ActorAlign.CENTER;
+        row.x_expand = true;
+        holder.set_layout_manager(new Clutter.BinLayout());
+        holder.add_child(row);
+        Main.layoutManager.uiGroup.add_child(holder);
+        this._actors.push(holder);
+        holder.opacity = 0;
+        holder.translation_y = 14;
+        holder.ease({opacity: 255, translation_y: 0, duration: 900, delay: 700,
+            mode: Clutter.AnimationMode.EASE_OUT_CUBIC});
     }
 
     // ------------------------------------------------------------ user tile

@@ -1,8 +1,49 @@
 import Adw from 'gi://Adw';
+import Gdk from 'gi://Gdk';
 import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
 import Gtk from 'gi://Gtk';
 
 import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
+
+
+// ---------------------------------------------------------------- profile photo
+
+// The photo lives in AccountsService, like the one of Settings › Users: GDM
+// and the lock screen read it from there.
+const ACCOUNTS = 'org.freedesktop.Accounts';
+
+function accountsCall(path, iface, method, parameters, replyType) {
+    return new Promise((resolve, reject) => {
+        Gio.DBus.system.call(ACCOUNTS, path, iface, method, parameters,
+            replyType ? new GLib.VariantType(replyType) : null, Gio.DBusCallFlags.NONE, -1, null,
+            (connection, result) => {
+                try {
+                    resolve(connection.call_finish(result));
+                } catch (e) {
+                    reject(e);
+                }
+            });
+    });
+}
+
+async function userPath() {
+    const reply = await accountsCall('/org/freedesktop/Accounts', ACCOUNTS, 'FindUserByName',
+        new GLib.Variant('(s)', [GLib.get_user_name()]), '(o)');
+    return reply.deepUnpack()[0];
+}
+
+async function currentIcon() {
+    const path = await userPath();
+    const reply = await accountsCall(path, 'org.freedesktop.DBus.Properties', 'Get',
+        new GLib.Variant('(ss)', [`${ACCOUNTS}.User`, 'IconFile']), '(v)');
+    return reply.deepUnpack()[0].deepUnpack();
+}
+
+async function setIcon(file) {
+    const path = await userPath();
+    await accountsCall(path, `${ACCOUNTS}.User`, 'SetIconFile', new GLib.Variant('(s)', [file]), null);
+}
 
 export default class GnomacPreferences extends ExtensionPreferences {
     fillPreferencesWindow(window) {
@@ -235,6 +276,55 @@ export default class GnomacPreferences extends ExtensionPreferences {
         logoRow.connect('notify::selected', () => settings.set_string('logo-style', logos[logoRow.selected]));
         misc.add(logoRow);
         toggle(misc, 'menubar-hide-extras', 'Masquer les icônes d’apps', 'Regroupées derrière une flèche « dans la barre de menus');
+
+        const profile = group('Profil', 'La photo affichée à l’écran de connexion et de verrouillage (la même que dans Paramètres › Utilisateurs)');
+        const avatar = new Adw.Avatar({size: 56, text: GLib.get_real_name() || GLib.get_user_name(), show_initials: true});
+        const photoRow = new Adw.ActionRow({title: 'Photo de profil', subtitle: 'Choisis une image, de préférence carrée'});
+        photoRow.add_prefix(avatar);
+        const toast = text => window.add_toast(new Adw.Toast({title: text, timeout: 4}));
+        const showIcon = file => {
+            try {
+                if (file && GLib.file_test(file, GLib.FileTest.EXISTS)) {
+                    avatar.set_custom_image(Gdk.Texture.new_from_filename(file));
+                    return;
+                }
+            } catch {}
+            avatar.set_custom_image(null);
+        };
+        currentIcon().then(showIcon).catch(() => {});
+
+        const removeButton = new Gtk.Button({label: 'Retirer', valign: Gtk.Align.CENTER});
+        removeButton.connect('clicked', () => {
+            setIcon('').then(() => {
+                showIcon(null);
+                toast('Photo retirée');
+            }).catch(e => toast(`Impossible : ${e.message}`));
+        });
+        const chooseButton = new Gtk.Button({label: 'Choisir…', valign: Gtk.Align.CENTER,
+            css_classes: ['suggested-action']});
+        chooseButton.connect('clicked', () => {
+            const dialog = new Gtk.FileDialog({title: 'Photo de profil'});
+            const filter = new Gtk.FileFilter({name: 'Images'});
+            filter.add_mime_type('image/*');
+            const filters = new Gio.ListStore({item_type: Gtk.FileFilter});
+            filters.append(filter);
+            dialog.set_filters(filters);
+            dialog.open(window, null, (self, result) => {
+                try {
+                    const picked = self.open_finish(result);
+                    const path = picked.get_path();
+                    setIcon(path).then(() => {
+                        showIcon(path);
+                        toast('Photo mise à jour : elle apparaît à la prochaine connexion');
+                    }).catch(e => toast(`Impossible : ${e.message}`));
+                } catch {
+                    // The dialog was closed without a choice.
+                }
+            });
+        });
+        photoRow.add_suffix(removeButton);
+        photoRow.add_suffix(chooseButton);
+        profile.add(photoRow);
 
         const motion = group('Animations', 'Ressorts : plus de raideur = plus vif, plus d\'amortissement = moins de rebond');
         spin(motion, 'spring-stiffness', 'Raideur', 40, 1000, 10);

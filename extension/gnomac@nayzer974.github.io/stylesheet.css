@@ -2002,3 +2002,52 @@
     box-shadow: none;
     border-color: rgba(255, 255, 255, 0.28);
 }
+
+/* ---------- GDM login: premium touches ---------- */
+
+.gnomac-login-power-row {
+    spacing: 26px;
+}
+
+.gnomac-login-power-cell {
+    spacing: 8px;
+    min-width: 64px;
+}
+
+.gnomac-login-power {
+    width: 48px;
+    height: 48px;
+    border-radius: 24px;
+    color: #ffffff;
+    background-color: rgba(255, 255, 255, 0.16);
+    border: 1px solid rgba(255, 255, 255, 0.26);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.20);
+}
+
+.gnomac-login-power:hover,
+.gnomac-login-power:focus {
+    background-color: rgba(255, 255, 255, 0.30);
+}
+
+.gnomac-login-power-label {
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 9.5pt;
+    font-weight: 600;
+    text-shadow: 0 1px 6px rgba(0, 0, 0, 0.5);
+}
+
+/* The only user needs no box: the avatar and the name are the tile. */
+.login-dialog .login-dialog-user-list-item,
+.login-dialog .login-dialog-user-list-item:focus {
+    background-color: transparent;
+}
+
+.login-dialog .login-dialog-user-list-item:hover {
+    background-color: rgba(255, 255, 255, 0.10);
+}
+
+.login-dialog .user-icon {
+    icon-size: 116px;
+    border-radius: 58px;
+    border-width: 3px;
+}

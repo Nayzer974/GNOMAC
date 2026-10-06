@@ -284,6 +284,8 @@ Il faut `plymouth` dans les `HOOKS` de `/etc/mkinitcpio.conf` et `quiet splash` 
 
 CachyOS GNOME utilise GDM, dont l'écran de connexion est un shell GNOME : GNOMAC peut s'y charger s'il est installé pour tout le système. Résultat : horloge géante, ton fond d'écran, **tuile de profil en verre** (grand avatar rond, nom dessous), champ de mot de passe en pilule. L'**engrenage** de choix de session (GNOME, Hyprland…) reste à sa place.
 
+L'écran est travaillé comme celui de macOS : le fond d'écran, légèrement flou et vignetté, apparaît en fondu avec un lent zoom ; la grande horloge monte en place ; trois boutons de verre **Veille, Redémarrer, Éteindre** sont au bas de l'écran. **Photo de profil** : préférences de GNOMAC › Profil › *Choisir…* (c'est la même photo que Paramètres › Utilisateurs, enregistrée par AccountsService) ; elle apparaît à la prochaine connexion.
+
 ```bash
 sudo ./gdm/install-gdm.sh                      # utilise ton fond d'écran actuel
 sudo ./gdm/install-gdm.sh --wallpaper IMAGE    # ou une image au choix
