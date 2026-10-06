@@ -10,7 +10,7 @@
 
 import Clutter from 'gi://Clutter';
 
-const STRIPS = 48;
+const STRIPS = 110;
 
 function smootherstep(u) {
     if (u <= 0)

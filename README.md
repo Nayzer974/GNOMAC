@@ -178,6 +178,67 @@ Préférences (`gnome-extensions prefs gnomac@nayzer974.github.io`) › **Dynami
 
 ### Dock
 
+Flotte au-dessus du bas de l'écran, **compteurs de notifications** (pastille rouge sur l'icône de l'app), **nuage de fumée** quand on retire une icône, **taille automatique** qui suit la hauteur de l'écran. Agrandissement en courbe gaussienne qui écarte les voisines, rebond au lancement, points sous les apps ouvertes, infobulles (« Tourne en arrière-plan »), glisser-déposer pour réorganiser, **pile Téléchargements** en éventail, **Corbeille** vide ou pleine. Une physique de ressorts commune garde toutes les animations naturelles.
+
+### Encoche (Dynamic Island)
+
+Pochette, égaliseur teinté par la musique, minuteur, notifications, volume et luminosité. Un **Pomodoro complet** (concentration, pauses courtes et longue, cycles, durées réglables). Une horloge et le calendrier quand rien ne joue. Un presse-papiers et une étagère de fichiers.
+
+### Bureau
+
+![Les widgets en couleurs](docs/screenshots/widgets.jpg)
+
+**Dix-sept types de widgets** : horloge, horloge analogique, horloge mondiale, batterie, calendrier, rappels, notes, météo, prévisions sur 3 jours, lecture en cours, système, activité (courbes processeur et mémoire en direct), minuteur, progression (jour, semaine, mois, année), compte à rebours, photo et raccourcis d'apps.
+
+Clic droit sur le bureau › **Modifier les widgets…** :
+
+- les tuiles frémissent au-dessus d'une **grille de points** ; le badge **−** retire, la poignée change la taille, la galerie ajoute ;
+- en glissant, un **contour pointillé montre où le widget va atterrir** ; lâché sur une place occupée, il va à la place libre la plus proche ;
+- **Ranger** réorganise tout le bureau, **Réinitialiser** remet la disposition d'origine.
+
+Clic droit sur un widget : **couleur** (9 teintes macOS), **matière** (clair, dépoli, teinté, couleur, sombre), **taille** (petit, moyen, haut, grand, bandeau, très grand) et les options propres à chaque type (ville, fuseaux horaires, évènement, photo). Dans les préférences : côté de départ (gauche ou droite), taille d'ensemble de 0,7 à 1,6 et marge avec le bord. **La disposition est mémorisée** : ce que tu retires reste retiré après un redémarrage.
+
+### Fenêtres : disposition et Stage Manager
+
+| Palette de disposition (`Super + Ctrl + T`) | Deux moitiés d'écran |
+|---|---|
+| ![Palette](docs/screenshots/layout-palette.jpg) | ![Fenêtres côte à côte](docs/screenshots/tiling.jpg) |
+| **Stage Manager** (`Super + Ctrl + M`) | **Barre de capture d'écran** |
+| ![Stage Manager](docs/screenshots/stage-manager.jpg) | ![Capture d'écran](docs/screenshots/screenshot-toolbar.jpg) |
+
+### Widgets éditables et guide intégré
+
+| Modifier les widgets | Guide (tape « guide » dans Spotlight) |
+|---|---|
+| ![Mode édition des widgets](docs/screenshots/widgets-edit.jpg) | ![Guide GNOMAC](docs/screenshots/guide.jpg) |
+
+---
+
+## Toutes les fonctions
+
+### Apparence
+
+| Élément | Détail |
+|---|---|
+| **Liquid Glass** | Vraie réfraction : un shader GLSL courbe une copie floutée de ce qui est derrière (fenêtres comprises) près des bords arrondis, avec dispersion chromatique, éclairage du bord et reflet en haut. La lueur suit le pointeur et une ombre interne adoucit les surfaces. |
+| **Liquid Glass réglable** | Curseur d'intensité, **transparent ou teinté** comme dans les Réglages de macOS 27, appliqués à tout le verre. |
+| **Section Apparence** | Dans le Centre de contrôle : couleur d'accentuation (9 couleurs, GNOME), Auto / Clair / Sombre, verre transparent ou teinté, style des icônes (défaut, sombre, transparent, teinté). |
+| **Menus en verre** | Tous les menus du shell (système, apps, dock, calendrier, Réglages rapides) reçoivent un fond Liquid Glass qui suit leur animation. Les Réglages rapides prennent l'allure du **Centre de contrôle** : tuiles arrondies, curseurs épais. |
+| **Boutons de fenêtre** | Les « feux tricolores » brillants de Golden Gate, en GTK 3 et GTK 4/libadwaita, à gauche. |
+| **Barre latérale Finder** | Dans Fichiers, un verre dépoli sous la barre latérale (la « vibrancy »), icônes teintées accent. Tout passe par un thème : aucun binaire injecté. |
+| **Sélecteur d'apps, capture d'écran, Mission Control** | Restylés en verre : `Super + Tab`, barre de capture, vue d'ensemble. |
+
+### Barre de menus
+
+| Élément | Détail |
+|---|---|
+| **Menu système et pomme** | À propos, Réglages, App Store, Forcer à quitter, Suspendre, Redémarrer…, logo pomme ou pont Golden Gate. |
+| **Menus de l'app active** | Nom de l'app en gras, puis Fichier, Édition, Présentation, Fenêtre, Aide. Les menus restent à l'écart de l'encoche. |
+| **Symboles à droite** | Wi-Fi en éventail selon le signal (ou `<···>` en filaire), batterie horizontale avec pourcentage (verte en charge, rouge sous 20 %), pastille de Concentration, Centre de contrôle. Les indicateurs de confidentialité restent visibles. |
+| **Icônes masquées** | Les icônes d'applications se replient derrière une flèche. |
+
+### Dock
+
 Flotte au-dessus du bas de l'écran, **taille automatique** qui suit la hauteur de l'écran. Agrandissement en courbe gaussienne qui écarte les voisines, rebond au lancement, points sous les apps ouvertes, infobulles (« Tourne en arrière-plan »), glisser-déposer pour réorganiser, **pile Téléchargements** en éventail, **Corbeille** vide ou pleine. Une physique de ressorts commune garde toutes les animations naturelles.
 
 ### Encoche (Dynamic Island)
@@ -190,7 +251,7 @@ Pochette, égaliseur teinté par la musique, minuteur, notifications, volume et 
 
 ### Fenêtres
 
-Ouverture façon macOS, **effet Génie** vers l'icône du dock à la réduction, **disposition** en moitiés, quarts, tiers (palette ou raccourcis), **Stage Manager** simplifié, marge réglable autour des fenêtres, coins arrondis (avec l'extension complémentaire installée par `--extras`).
+Ouverture façon macOS, **effet Génie** vers l'icône du dock à la réduction **et à la fermeture** (au choix dans les préférences), **disposition** en moitiés, quarts, tiers (palette ou raccourcis), **Stage Manager** simplifié, marge réglable autour des fenêtres, coins arrondis (avec l'extension complémentaire installée par `--extras`).
 
 ### Recherche
 
@@ -217,6 +278,7 @@ Le même guide est dans l'interface : tape **guide** dans Spotlight.
 | `Super + Ctrl + T` | Palette : moitiés, quarts, tiers, remplir, centrer |
 | `Super + Ctrl + M` | Stage Manager : la fenêtre active reste au centre, les autres vont dans une bande de cartes à gauche ; un clic sur une carte la ramène |
 | `Super + Tab` | Changer d'application (sélecteur en verre) |
+| `Super + Q` | Quitter l'application de la fenêtre active (toutes ses fenêtres) |
 
 Dans la palette, on choisit avec la souris, avec les flèches puis Entrée, ou avec un chiffre (1 à 9, 0). Échap ferme. Une ombre de verre glisse de l'ancienne position vers la nouvelle, puis la fenêtre s'y place. Les raccourcis se changent dans dconf (`org.gnome.shell.extensions.gnomac`, clés `tile-*`, `layout-shortcut`, `stage-manager-shortcut`).
 

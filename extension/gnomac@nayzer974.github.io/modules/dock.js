@@ -96,6 +96,11 @@ class DockItem extends St.Widget {
         this.dot = new St.Widget({style_class: 'gnomac-dock-dot', visible: false});
         this.add_child(this.dot);
 
+        // Unread notification counter (red bubble on the icon's corner).
+        this.badge = new St.Label({style_class: 'gnomac-dock-badge', visible: false});
+        this.add_child(this.badge);
+        this.badgeCount = 0;
+
         this.connect('button-release-event', (_actor, event) => this._onRelease(event));
         this.connect('notify::hover', () => dock.onItemHover(this));
         this.connect('destroy', () => {
@@ -137,6 +142,32 @@ class DockItem extends St.Widget {
         this.dot.visible = this.running && this.dock.showRunning;
         const [, dotWidth] = this.dot.get_preferred_width(-1);
         this.dot.set_position(Math.round((width - dotWidth) / 2), Math.round(dotY));
+        this._placeBadge(width, iconBottom, size, s);
+    }
+
+    setBadge(count) {
+        if (count === this.badgeCount)
+            return;
+        const appeared = count > 0 && this.badgeCount === 0;
+        this.badgeCount = count;
+        this.badge.visible = count > 0;
+        this.badge.text = count > 99 ? '99+' : String(count);
+        if (appeared) {
+            // The bubble pops in with a little overshoot.
+            this.badge.set_pivot_point(0.5, 0.5);
+            this.badge.set_scale(0.3, 0.3);
+            this.badge.ease({scale_x: 1, scale_y: 1, duration: 320, mode: Clutter.AnimationMode.EASE_OUT_BACK});
+        }
+    }
+
+    _placeBadge(width, iconBottom, size, scale) {
+        if (!this.badge.visible)
+            return;
+        const [, bw] = this.badge.get_preferred_width(-1);
+        const [, bh] = this.badge.get_preferred_height(-1);
+        const half = (size * scale) / 2;
+        this.badge.set_position(Math.round(width / 2 + half - bw * 0.7),
+            Math.round(iconBottom - size * scale - this.lift - bh * 0.3));
     }
 
     _onRelease(event) {
@@ -284,10 +315,16 @@ export class Dock {
         this._connect(Main.overview, 'hidden', () => this.actor.show());
 
         this._rebuild();
+        if (s.get_boolean('dock-badges'))
+            this._watchNotifications();
     }
 
     disable() {
         getTicker().remove(this._tick);
+        this._unwatchNotifications();
+        for (const puff of [...(this._poofs ?? [])])
+            puff.destroy();
+        this._poofs = null;
         if (this._dragMonitor) {
             DND.removeDragMonitor(this._dragMonitor);
             this._dragMonitor = null;
@@ -386,6 +423,8 @@ export class Dock {
         this._items = items;
         this._relayout();
         this._queuePublish();
+        if (this._watched)
+            this._updateBadges();
     }
 
     _queuePublish() {
@@ -532,6 +571,106 @@ export class Dock {
         this._kick();
     }
 
+    // ---- notification counters -----------------------------------------
+
+    _watchNotifications() {
+        const tray = Main.messageTray;
+        const watch = source => {
+            if (this._watched.has(source))
+                return;
+            const ids = [];
+            for (const name of ['notify::count', 'notification-added', 'notification-removed']) {
+                try {
+                    ids.push(source.connect(name, () => this._updateBadges()));
+                } catch {
+                    // That signal does not exist on this kind of source.
+                }
+            }
+            ids.push(source.connect('destroy', () => {
+                this._watched.delete(source);
+                this._updateBadges();
+            }));
+            this._watched.set(source, ids);
+        };
+        this._watched = new Map();
+        this._connect(tray, 'source-added', (_t, source) => {
+            watch(source);
+            this._updateBadges();
+        });
+        this._connect(tray, 'source-removed', () => this._updateBadges());
+        for (const source of tray.getSources?.() ?? [])
+            watch(source);
+        this._updateBadges();
+    }
+
+    _unwatchNotifications() {
+        for (const [source, ids] of this._watched ?? []) {
+            for (const id of ids) {
+                try {
+                    source.disconnect(id);
+                } catch {}
+            }
+        }
+        this._watched = null;
+    }
+
+    _updateBadges() {
+        if (!this.actor || this._actorGone || !this._settings.get_boolean('dock-badges'))
+            return;
+        const counts = new Map();
+        for (const source of Main.messageTray.getSources?.() ?? []) {
+            const id = source.app?.get_id?.() ?? source.policy?.id;
+            const count = source.count ?? source.unseenCount ?? 0;
+            if (id && count > 0)
+                counts.set(id, (counts.get(id) ?? 0) + count);
+        }
+        for (const item of this._items) {
+            if (!item.app)
+                continue;
+            const id = item.app.get_id();
+            item.setBadge(counts.get(id) ?? counts.get(id.replace(/\.desktop$/, '')) ?? 0);
+        }
+        this._relayout();
+    }
+
+    // ---- poof ------------------------------------------------------------
+
+    // The puff of smoke when an icon is dragged off the dock (or the trash is
+    // emptied): a few soft circles swell, drift apart and fade.
+    poof(x, y) {
+        const group = Main.layoutManager.uiGroup;
+        const puffs = [];
+        for (let i = 0; i < 7; i++) {
+            const size = 26 + Math.random() * 22;
+            const puff = new St.Widget({style_class: 'gnomac-dock-poof', reactive: false,
+                width: size, height: size});
+            puff.set_pivot_point(0.5, 0.5);
+            puff.set_position(Math.round(x - size / 2), Math.round(y - size / 2));
+            puff.set_scale(0.3, 0.3);
+            puff.opacity = 230;
+            group.add_child(puff);
+            puffs.push(puff);
+            this._poofs ??= new Set();
+            this._poofs.add(puff);
+            puff.connect('destroy', () => this._poofs?.delete(puff));
+            const angle = (i / 7) * 2 * Math.PI + Math.random() * 0.6;
+            const distance = 26 + Math.random() * 30;
+            puff.ease({
+                scale_x: 1.7 + Math.random() * 0.7,
+                scale_y: 1.7 + Math.random() * 0.7,
+                translation_x: Math.cos(angle) * distance,
+                translation_y: Math.sin(angle) * distance - 10,
+                opacity: 0,
+                duration: 520 + Math.random() * 160,
+                mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
+                onStopped: () => puff.destroy(),
+            });
+        }
+        try {
+            global.display.get_sound_player().play_from_theme('trash-empty', 'Poof', null);
+        } catch {}
+    }
+
     _onAppState(app) {
         const item = this._items.find(i => i.app && i.app.get_id() === app.get_id());
         if (item && app.state === Shell.AppState.RUNNING)
@@ -660,12 +799,15 @@ export class Dock {
         this._dragItem = null;
         this._dropIndex = -1;
         // Dragging a pinned app off the dock unpins it (macOS "Remove").
-        if (!accepted && wasFavorite && draggedAway)
+        if (!accepted && wasFavorite && draggedAway) {
             AppFavorites.getAppFavorites().removeFavorite(item.app.get_id());
+            this.poof(this._lastDragX ?? 0, this._lastDragY ?? 0);
+        }
         this._relayout();
     }
 
     _onDragMotion(event) {
+        this._lastDragX = event.x;
         this._lastDragY = event.y;
         if (this._dropIndex >= 0 && !this.actor.contains(event.targetActor)) {
             this._dropIndex = -1;

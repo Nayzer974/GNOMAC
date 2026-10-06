@@ -1892,3 +1892,97 @@
 .login-dialog .login-dialog-banner-view {
     color: rgba(255, 255, 255, 0.8);
 }
+
+/* ---------- Widgets: colour, new types, edit mode ---------- */
+
+.gnomac-widget.flush {
+    padding: 0;
+    spacing: 0;
+}
+
+.gnomac-widget-ghost {
+    border: 2px dashed rgba(255, 255, 255, 0.65);
+    border-radius: 22px;
+    background-color: rgba(255, 255, 255, 0.10);
+}
+
+.gnomac-gallery-tools {
+    spacing: 8px;
+    padding: 0 16px 6px 16px;
+}
+
+.gnomac-world-row {
+    spacing: 10px;
+    padding: 3px 0;
+}
+
+.gnomac-world-city {
+    font-size: 10.5pt;
+    font-weight: 700;
+    color: #ffffff;
+}
+
+.gnomac-world-time {
+    font-size: 15pt;
+    font-weight: 600;
+    color: #ffffff;
+    font-feature-settings: "tnum";
+}
+
+.gnomac-progress-row {
+    spacing: 8px;
+}
+
+.gnomac-progress-percent {
+    font-size: 10pt;
+    font-weight: 700;
+    color: #ffffff;
+    padding-top: 2px;
+    font-feature-settings: "tnum";
+}
+
+.gnomac-countdown-days {
+    font-size: 34pt;
+    font-weight: 800;
+    color: #ffffff;
+    font-feature-settings: "tnum";
+}
+
+.gnomac-graph-label {
+    font-size: 8.5pt;
+    font-weight: 700;
+}
+
+.gnomac-forecast-row {
+    spacing: 6px;
+}
+
+.gnomac-forecast-day {
+    spacing: 2px;
+    padding: 4px 0;
+}
+
+.gnomac-photo {
+    border-radius: 22px;
+}
+
+/* ---------- Dock: notification badge and poof ---------- */
+
+.gnomac-dock-badge {
+    background-color: #ff453a;
+    color: #ffffff;
+    font-size: 8.5pt;
+    font-weight: 800;
+    min-width: 14px;
+    padding: 1px 5px;
+    border-radius: 999px;
+    border: 1.5px solid rgba(255, 255, 255, 0.9);
+    text-align: center;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+.gnomac-dock-poof {
+    background-color: rgba(235, 235, 240, 0.85);
+    border-radius: 999px;
+    box-shadow: 0 0 14px rgba(255, 255, 255, 0.5);
+}

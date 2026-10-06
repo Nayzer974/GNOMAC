@@ -11,7 +11,8 @@
 //  - restore: same snapshot trick in reverse while the real window waits
 //    invisible, then it takes over,
 //  - open: the real window is shown, we animate it directly,
-//  - close: GNOME's own animation is kept.
+//  - close: the same Genie, on a snapshot taken as the window is destroyed
+//    (setting `close-animation`: genie, or GNOME's own fade).
 
 import Clutter from 'gi://Clutter';
 import Meta from 'gi://Meta';
@@ -21,7 +22,8 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {Genie} from '../lib/genie.js';
 
 const OPEN_MS = 260;
-const GENIE_MS = 520;
+const GENIE_MS = 560;
+const CLOSE_MS = 460;
 
 const ANIMATED_TYPES = [
     Meta.WindowType.NORMAL,
@@ -90,8 +92,6 @@ export class WindowAnimations {
     }
 
     // Returns true when we handle the animation (GNOME must skip its own).
-    // Closing is left to GNOME: its fade-and-shrink already matches macOS,
-    // and a closing window's buffer may be gone before we could copy it.
     _takeOver(caller, actor) {
         switch (caller) {
         case '_mapWindow':
@@ -102,6 +102,10 @@ export class WindowAnimations {
             return true;
         case '_minimizeWindow':
             return this._minimize(actor);
+        case '_destroyWindow':
+            // The snapshot is taken now, while the window still has its last
+            // frame; if it cannot be copied GNOME's own animation runs.
+            return this._settings.get_string('close-animation') === 'genie' && this._close(actor);
         }
         return false;
     }
@@ -140,22 +144,26 @@ export class WindowAnimations {
     // Meta.Window.set_icon_geometry), else the bottom centre of its monitor.
     _target(actor) {
         const window = actor.meta_window;
-        const [ok, rect] = window.get_icon_geometry();
-        if (ok && rect.width > 0)
-            return {x: rect.x + rect.width / 2, y: rect.y, half: rect.width / 2};
-        const monitor = Main.layoutManager.monitors[window.get_monitor()] ??
-            Main.layoutManager.primaryMonitor;
+        let monitor = Main.layoutManager.primaryMonitor;
+        try {
+            const [ok, rect] = window.get_icon_geometry();
+            if (ok && rect.width > 0)
+                return {x: rect.x + rect.width / 2, y: rect.y, half: rect.width / 2};
+            monitor = Main.layoutManager.monitors[window.get_monitor()] ?? monitor;
+        } catch {
+            // The window is already gone: fall back to the primary monitor.
+        }
         return {x: monitor.x + monitor.width / 2, y: monitor.y + monitor.height, half: 16};
     }
 
-    _runGenie(actor, content, reverse, onDone) {
+    _runGenie(actor, content, reverse, onDone, duration = GENIE_MS) {
         const rect = {x: actor.x, y: actor.y, width: actor.width, height: actor.height};
         const genie = new Genie(global.window_group, content, rect, this._target(actor));
         global.window_group.set_child_above_sibling(genie.actor, null);
         this._genies.add(genie);
         genie.setProgress(reverse ? 1 : 0);
 
-        const timeline = new Clutter.Timeline({actor: genie.actor, duration: GENIE_MS});
+        const timeline = new Clutter.Timeline({actor: genie.actor, duration});
         this._timelines.add(timeline);
         timeline.connect('new-frame', () => {
             const p = timeline.get_progress();
@@ -175,6 +183,14 @@ export class WindowAnimations {
         if (!content)
             return false;
         this._runGenie(actor, content, false, () => {});
+        return true;
+    }
+
+    _close(actor) {
+        const content = this._content(actor);
+        if (!content)
+            return false;
+        this._runGenie(actor, content, false, () => {}, CLOSE_MS);
         return true;
     }
 

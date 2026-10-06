@@ -60,6 +60,9 @@ export class WindowLayout {
         const mode = Shell.ActionMode.NORMAL;
         Main.wm.addKeybinding('layout-shortcut', this._settings, flags, mode, () => this.togglePalette());
         this._bound.push('layout-shortcut');
+        // Cmd+Q: quit the whole application, not just the window.
+        Main.wm.addKeybinding('quit-shortcut', this._settings, flags, mode, () => this._quitApp());
+        this._bound.push('quit-shortcut');
         for (const [key, id] of Object.entries(KEYS)) {
             Main.wm.addKeybinding(key, this._settings, flags, mode, () => this.tile(id));
             this._bound.push(key);
@@ -74,6 +77,17 @@ export class WindowLayout {
         for (const ghost of [...this._ghosts])
             ghost.destroy();
         this._ghosts.clear();
+    }
+
+    _quitApp() {
+        const window = global.display.focus_window;
+        if (!window)
+            return;
+        const app = Shell.WindowTracker.get_default().get_window_app(window);
+        if (app)
+            app.request_quit();
+        else
+            window.delete(global.get_current_time());
     }
 
     // ------------------------------------------------------------- tiling

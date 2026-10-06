@@ -18,6 +18,7 @@ import {StatsPage} from './notchPages.js';
 import {WeatherSource} from './weather.js';
 import {COLORS, css, press} from './motion.js';
 import {t} from './i18n.js';
+import {WIDGET_EXTRAS, titleLabel} from './widgetExtras.js';
 
 // One grid unit is CELL px; tiles span whole units and the gap is added
 // between units, like macOS widgets (small is a square, medium is twice as
@@ -29,8 +30,33 @@ export const CELL_GAP = 14;
 export const SIZE_SPANS = {
     small: [2, 2],
     medium: [4, 2],
+    tall: [2, 4],
     large: [4, 4],
+    wide: [6, 2],
     xxl: [6, 4],
+};
+
+export const SIZE_TITLES = {
+    small: t('Small', 'Petit'),
+    medium: t('Medium', 'Moyen'),
+    tall: t('Tall', 'Haut'),
+    large: t('Large', 'Grand'),
+    wide: t('Wide', 'Large bandeau'),
+    xxl: t('Extra Large', 'Très grand'),
+};
+
+// The accent colours of macOS (plus "auto": the widget keeps its own look).
+export const ACCENTS = {
+    auto: {title: t('Automatic', 'Automatique'), rgb: null},
+    blue: {title: t('Blue', 'Bleu'), rgb: [0.039, 0.518, 1.0]},
+    purple: {title: t('Purple', 'Violet'), rgb: [0.749, 0.353, 0.949]},
+    pink: {title: t('Pink', 'Rose'), rgb: [1.0, 0.216, 0.373]},
+    red: {title: t('Red', 'Rouge'), rgb: [1.0, 0.271, 0.227]},
+    orange: {title: t('Orange', 'Orange'), rgb: [1.0, 0.624, 0.039]},
+    yellow: {title: t('Yellow', 'Jaune'), rgb: [1.0, 0.84, 0.039]},
+    green: {title: t('Green', 'Vert'), rgb: [0.188, 0.82, 0.345]},
+    teal: {title: t('Teal', 'Turquoise'), rgb: [0.25, 0.78, 0.88]},
+    graphite: {title: t('Graphite', 'Graphite'), rgb: [0.6, 0.6, 0.64]},
 };
 
 const UPOWER = `<node><interface name="org.freedesktop.UPower.Device">
@@ -46,10 +72,12 @@ const column = () => new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL
 
 // ------------------------------------------------------------------ clock
 
-function buildClock() {
+function buildClock({accent}) {
     const box = column();
     const time = label('', 'gnomac-widget-clock');
     const date = label('', 'gnomac-widget-caption');
+    if (accent)
+        date.set_style(`color: ${css(accent, 0.95)};`);
     box.add_child(time);
     box.add_child(date);
     const update = () => {
@@ -63,7 +91,7 @@ function buildClock() {
 
 // ------------------------------------------------------------------ battery
 
-function buildBattery({size}) {
+function buildBattery({size, accent}) {
     const box = new St.BoxLayout({style_class: 'gnomac-widget-row', x_expand: true, y_expand: true});
     const ring = new St.DrawingArea({width: size === 'small' ? 50 : 64, height: size === 'small' ? 50 : 64,
         y_align: Clutter.ActorAlign.CENTER});
@@ -95,6 +123,8 @@ function buildBattery({size}) {
             cr.setSourceRGBA(...COLORS.green, 1);
         else if (value <= 0.2)
             cr.setSourceRGBA(...COLORS.red, 1);
+        else if (accent)
+            cr.setSourceRGBA(...accent, 1);
         else
             cr.setSourceRGBA(1, 1, 1, 0.95);
         cr.setLineCap(1);
@@ -137,9 +167,9 @@ function buildCalendar() {
 
 // ------------------------------------------------------------------ reminders
 
-function buildReminders({settings, options}) {
+function buildReminders({settings, accent}) {
     const box = column();
-    box.add_child(label(t('Reminders', 'Rappels'), 'gnomac-widget-title'));
+    box.add_child(titleLabel(t('Reminders', 'Rappels'), accent));
     const list = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL, style_class: 'gnomac-widget-list'});
     const entry = new St.Entry({style_class: 'gnomac-widget-entry', hint_text: t('New reminder', 'Nouveau rappel'),
         can_focus: true});
@@ -150,6 +180,8 @@ function buildReminders({settings, options}) {
         for (const text of settings.get_strv('widget-reminders').slice(-5)) {
             const row = new St.BoxLayout({style_class: 'gnomac-widget-reminder'});
             const done = press(new St.Button({style_class: 'gnomac-widget-check', can_focus: false}));
+            if (accent)
+                done.set_style(`border-color: ${css(accent)};`);
             done.connect('clicked', () => {
                 const all = settings.get_strv('widget-reminders');
                 const index = all.lastIndexOf(text);
@@ -177,9 +209,9 @@ function buildReminders({settings, options}) {
 
 // ------------------------------------------------------------------ notes
 
-function buildNotes({settings, instance}) {
+function buildNotes({instance, accent}) {
     const box = column();
-    box.add_child(label(t('Notes', 'Notes'), 'gnomac-widget-title'));
+    box.add_child(titleLabel(t('Notes', 'Notes'), accent));
     const entry = new St.Entry({style_class: 'gnomac-widget-notes', can_focus: true, x_expand: true, y_expand: true});
     entry.clutter_text.set_single_line_mode(false);
     entry.clutter_text.set_line_wrap(true);
@@ -196,9 +228,9 @@ function buildNotes({settings, instance}) {
 
 // ------------------------------------------------------------------ weather
 
-function buildWeather({settings, instance}) {
+function buildWeather({settings, instance, accent}) {
     const box = column();
-    box.add_child(label(t('Weather', 'Météo'), 'gnomac-widget-title'));
+    box.add_child(titleLabel(t('Weather', 'Météo'), accent));
     const row = new St.BoxLayout({style_class: 'gnomac-widget-row'});
     const icon = new St.Icon({icon_size: 34, y_align: Clutter.ActorAlign.CENTER});
     const text = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL, y_align: Clutter.ActorAlign.CENTER});
@@ -230,9 +262,9 @@ function buildWeather({settings, instance}) {
 
 // ------------------------------------------------------------------ music
 
-function buildMusic() {
+function buildMusic({accent}) {
     const box = column();
-    box.add_child(label(t('Now Playing', 'Lecture en cours'), 'gnomac-widget-title'));
+    box.add_child(titleLabel(t('Now Playing', 'Lecture en cours'), accent));
     const title = label('', 'gnomac-widget-music-title');
     const artist = label('', 'gnomac-widget-caption');
     const controls = new St.BoxLayout({style_class: 'gnomac-widget-music-controls'});
@@ -321,25 +353,27 @@ function buildShortcuts({instance}) {
 
 export const WIDGET_TYPES = {
     clock: {title: t('Clock', 'Horloge'), icon: 'preferences-system-time-symbolic',
-        sizes: ['medium', 'small'], build: buildClock},
+        sizes: ['medium', 'small', 'wide'], build: buildClock},
     battery: {title: t('Battery', 'Batterie'), icon: 'battery-symbolic',
         sizes: ['small', 'medium'], build: buildBattery},
     calendar: {title: t('Calendar', 'Calendrier'), icon: 'x-office-calendar-symbolic',
         sizes: ['large', 'xxl'], build: buildCalendar},
     reminders: {title: t('Reminders', 'Rappels'), icon: 'checkbox-checked-symbolic',
-        sizes: ['small', 'medium', 'large'], build: buildReminders},
+        sizes: ['small', 'medium', 'tall', 'large'], build: buildReminders},
     notes: {title: t('Notes', 'Notes'), icon: 'document-edit-symbolic',
-        sizes: ['medium', 'small', 'large'], build: buildNotes},
+        sizes: ['medium', 'small', 'tall', 'large'], build: buildNotes},
     weather: {title: t('Weather', 'Météo'), icon: 'weather-clear-symbolic',
-        sizes: ['small', 'medium'], build: buildWeather, options: ['city']},
+        sizes: ['small', 'medium', 'wide'], build: buildWeather,
+        prompts: [{key: 'city', label: t('City', 'Ville'), hint: 'Paris', parse: v => v.trim(), format: v => v ?? ''}]},
     music: {title: t('Now Playing', 'Lecture en cours'), icon: 'multimedia-player-symbolic',
-        sizes: ['medium', 'large'], build: buildMusic},
+        sizes: ['medium', 'wide', 'large'], build: buildMusic},
     stats: {title: t('System', 'Système'), icon: 'utilities-system-monitor-symbolic',
         sizes: ['large', 'xxl'], build: buildStats},
     timer: {title: t('Timer', 'Minuteur'), icon: 'alarm-symbolic',
         sizes: ['large', 'medium'], build: buildTimer},
     shortcuts: {title: t('Shortcuts', 'Raccourcis'), icon: 'view-app-grid-symbolic',
         sizes: ['medium', 'large'], build: buildShortcuts},
+    ...WIDGET_EXTRAS,
 };
 
 // Materials: how a tile's glass looks.
@@ -347,16 +381,23 @@ export const MATERIALS = {
     clear: {title: t('Clear', 'Clair'), tintAlpha: 0.05, blur: 40},
     frosted: {title: t('Frosted', 'Dépoli'), tintAlpha: 0.22, blur: 80},
     tinted: {title: t('Tinted', 'Teinté'), tintAlpha: 0.5, blur: 50, accent: true},
+    color: {title: t('Colour', 'Couleur'), tintAlpha: 0.62, blur: 40, accent: true},
+    dark: {title: t('Dark', 'Sombre'), tintAlpha: 0.7, blur: 60, base: [0.04, 0.04, 0.06]},
 };
 
-// The layout a fresh install starts from (the old fixed widgets).
+// The layout a fresh install starts from: a tidy first screen, each tile in
+// its own accent colour.
 export function defaultLayout() {
+    const w = (type, size, col, row, extra = {}) => ({id: `w-${type}`, type, size, col, row,
+        material: 'clear', color: 'auto', options: {}, ...extra});
     return [
-        {id: 'w-battery', type: 'battery', size: 'small', col: 0, row: 0, material: 'clear', options: {}},
-        {id: 'w-weather', type: 'weather', size: 'small', col: 2, row: 0, material: 'clear', options: {}},
-        {id: 'w-calendar', type: 'calendar', size: 'large', col: 4, row: 0, material: 'clear', options: {}},
-        {id: 'w-reminders', type: 'reminders', size: 'medium', col: 0, row: 2, material: 'clear', options: {}},
-        {id: 'w-music', type: 'music', size: 'medium', col: 0, row: 4, material: 'clear', options: {}},
+        w('analog', 'small', 0, 0, {color: 'orange'}),
+        w('battery', 'small', 2, 0, {color: 'green'}),
+        w('calendar', 'large', 4, 0),
+        w('weather', 'small', 8, 0, {color: 'blue'}),
+        w('reminders', 'medium', 0, 2, {color: 'orange'}),
+        w('music', 'medium', 0, 4, {color: 'pink'}),
+        w('progress', 'medium', 4, 4, {color: 'purple'}),
     ];
 }
 

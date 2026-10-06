@@ -72,6 +72,13 @@ export class WeatherSource {
                     high: Number(today.maxtempC),
                     low: Number(today.mintempC),
                     city: json.nearest_area?.[0]?.areaName?.[0]?.value ?? '',
+                    // Three days: noon icon, high and low, weekday name.
+                    forecast: json.weather.slice(0, 3).map(day => ({
+                        weekday: new Date(`${day.date}T12:00:00`).toLocaleDateString(undefined, {weekday: 'short'}),
+                        icon: iconFor(day.hourly?.[4]?.weatherCode ?? day.hourly?.[0]?.weatherCode ?? 113),
+                        high: Number(day.maxtempC),
+                        low: Number(day.mintempC),
+                    })),
                 };
             } catch {
                 // Offline or malformed: keep the last good reading.

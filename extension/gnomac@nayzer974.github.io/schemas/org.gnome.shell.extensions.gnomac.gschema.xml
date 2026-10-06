@@ -287,6 +287,40 @@
       <default><![CDATA[['home', 'stats', 'actions', 'clipboard', 'timer', 'shelf']]]></default>
       <summary>Tabs available in the dashboard</summary>
     </key>
+    <key name="widgets-anchor" type="s">
+      <choices>
+        <choice value="left"/>
+        <choice value="right"/>
+      </choices>
+      <default>'left'</default>
+      <summary>Side of the screen the widget grid starts from</summary>
+    </key>
+    <key name="widgets-scale" type="d">
+      <range min="0.7" max="1.6"/>
+      <default>1.0</default>
+      <summary>Size of the desktop widgets</summary>
+    </key>
+    <key name="widgets-margin" type="i">
+      <range min="0" max="120"/>
+      <default>18</default>
+      <summary>Space between the widgets and the screen edge, in pixels</summary>
+    </key>
+    <key name="close-animation" type="s">
+      <choices>
+        <choice value="genie"/>
+        <choice value="default"/>
+      </choices>
+      <default>'genie'</default>
+      <summary>Closing a window: Genie into the dock, or GNOME's own animation</summary>
+    </key>
+    <key name="dock-badges" type="b">
+      <default>true</default>
+      <summary>Red notification counters on the dock icons</summary>
+    </key>
+    <key name="quit-shortcut" type="as">
+      <default><![CDATA[['<Super>q']]]></default>
+      <summary>Quit the focused application (closes all its windows)</summary>
+    </key>
     <key name="boot-animation" type="s">
       <choices>
         <choice value="auto"/>

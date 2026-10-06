@@ -18,6 +18,7 @@ const SECTIONS = () => [
         ['⌃⌘ T  ·  1–9', t('Pick a layout by its number', 'Choisir une disposition par son numéro')],
         ['⌃⌘ M', t('Stage Manager: the active window on stage, the others in a strip', 'Stage Manager : la fenêtre active au centre, les autres en bande à gauche')],
         ['⌘ ⇥', t('Switch app', 'Changer d’application')],
+        ['⌘ Q', t('Quit the active app', 'Quitter l’app active')],
         ['Space', t('Quick Look in Files (needs the sushi package)', 'Aperçu rapide dans Fichiers (paquet sushi requis)')],
     ]],
     [t('Search', 'Recherche'), [

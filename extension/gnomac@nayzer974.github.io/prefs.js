@@ -71,6 +71,15 @@ export default class GnomacPreferences extends ExtensionPreferences {
             settings.set_string('dock-icon-style', iconStyles[iconRow.selected]));
         dock.add(iconRow);
         toggle(dock, 'dock-show-running', 'Points sous les apps ouvertes');
+        toggle(dock, 'dock-badges', 'Compteurs de notifications', 'Pastille rouge avec le nombre de notifications non lues sur l’icône de l’app')
+
+        const closeModes = ['genie', 'default'];
+        const closeRow = new Adw.ComboRow({title: 'Fermeture d’une fenêtre',
+            subtitle: 'Génie : la fenêtre est aspirée dans le dock, comme à la réduction',
+            model: Gtk.StringList.new(['Effet Génie', 'Animation GNOME'])});
+        closeRow.selected = Math.max(0, closeModes.indexOf(settings.get_string('close-animation')));
+        closeRow.connect('notify::selected', () => settings.set_string('close-animation', closeModes[closeRow.selected]));
+        dock.add(closeRow);
 
         const bar = group('Barre de menus');
         const styles = ['transparent', 'glass'];
@@ -177,6 +186,18 @@ export default class GnomacPreferences extends ExtensionPreferences {
         boot.add(bootRow);
         spin(boot, 'boot-duration', 'Durée du démarrage (ms)', 600, 8000, 100);
         spin(boot, 'shutdown-duration', 'Durée de l’arrêt (ms)', 600, 6000, 100);
+
+        const placement = group('Widgets du bureau', 'Placement et taille de l’ensemble ; le détail se règle sur le bureau (clic droit › Modifier les widgets)');
+        const sides = ['left', 'right'];
+        const sideRow = new Adw.ComboRow({title: 'Côté de départ',
+            subtitle: 'Les widgets se rangent depuis ce bord de l’écran',
+            model: Gtk.StringList.new(['Gauche', 'Droite'])});
+        sideRow.selected = Math.max(0, sides.indexOf(settings.get_string('widgets-anchor')));
+        sideRow.connect('notify::selected', () => settings.set_string('widgets-anchor', sides[sideRow.selected]));
+        placement.add(sideRow);
+        spin(placement, 'widgets-scale', 'Taille des widgets', 0.7, 1.6, 0.05, 2);
+        spin(placement, 'widgets-margin', 'Marge avec le bord de l’écran (px)', 0, 120, 2);
+        toggle(placement, 'enable-widgets', 'Afficher les widgets');
 
         const misc = group('Bureau et barre de menus');
         const editRow = new Adw.ActionRow({title: 'Modifier les widgets',
