@@ -166,6 +166,14 @@
       <default><![CDATA[['<Super><Control>c']]]></default>
       <summary>Tile the focused window: center</summary>
     </key>
+    <key name="enable-stage-manager" type="b">
+      <default>false</default>
+      <summary>Start with Stage Manager on (Super+Ctrl+M toggles it at any time)</summary>
+    </key>
+    <key name="stage-manager-shortcut" type="as">
+      <default><![CDATA[['<Super><Control>m']]]></default>
+      <summary>Toggle Stage Manager</summary>
+    </key>
     <key name="boot-animation" type="s">
       <choices>
         <choice value="auto"/>

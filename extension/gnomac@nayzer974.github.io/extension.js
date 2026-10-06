@@ -19,6 +19,7 @@ import {MenuBarIcons} from './modules/menuBarIcons.js';
 import {LockScreen} from './modules/lockScreen.js';
 import {Notifications} from './modules/notifications.js';
 import {Spotlight} from './modules/spotlight.js';
+import {StageManager} from './modules/stageManager.js';
 import {TopBar} from './modules/topbar.js';
 import {Vibrancy} from './modules/vibrancy.js';
 import {WallpaperPicker} from './modules/wallpaperPicker.js';
@@ -51,6 +52,7 @@ const MODULES = [
     {key: 'enable-menubar-icons', Module: MenuBarIcons},
     {key: 'enable-appearance', Module: Appearance},
     {key: 'enable-window-layout', Module: WindowLayout},
+    {key: 'enable-window-layout', Module: StageManager},
 ];
 
 export default class GnomacExtension extends Extension {

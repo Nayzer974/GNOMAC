@@ -16,7 +16,9 @@ const SECTIONS = () => [
         ['⌃⌘ C', t('Centre the window', 'Centrer la fenêtre')],
         ['⌃⌘ T', t('Layout palette: quarters, thirds, centre', 'Palette : quarts, tiers, centrage')],
         ['⌃⌘ T  ·  1–9', t('Pick a layout by its number', 'Choisir une disposition par son numéro')],
+        ['⌃⌘ M', t('Stage Manager: the active window on stage, the others in a strip', 'Stage Manager : la fenêtre active au centre, les autres en bande à gauche')],
         ['⌘ ⇥', t('Switch app', 'Changer d’application')],
+        ['Space', t('Quick Look in Files (needs the sushi package)', 'Aperçu rapide dans Fichiers (paquet sushi requis)')],
     ]],
     [t('Search', 'Recherche'), [
         ['⌘ Space', t('Spotlight: apps, files, actions, clipboard, menus', 'Spotlight : apps, fichiers, actions, presse-papiers, menus')],

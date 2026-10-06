@@ -44,6 +44,7 @@ Le même guide est dans l'interface : tape **guide** dans Spotlight (`Super + Es
 | `Super + Ctrl + Entrée` | Remplir l'écran |
 | `Super + Ctrl + C` | Centrer la fenêtre |
 | `Super + Ctrl + T` | Palette : moitiés, quarts, tiers, remplir, centrer |
+| `Super + Ctrl + M` | Stage Manager (version simplifiée) : la fenêtre active reste au centre, les autres vont dans une bande de cartes à gauche ; un clic sur une carte la ramène |
 
 Dans la palette, on choisit avec la souris, avec les flèches puis Entrée, ou avec un chiffre (1 à 9, 0). Échap ferme. Une ombre de verre glisse de l'ancienne position vers la nouvelle, puis la fenêtre s'y place. L'écart entre fenêtres suit le réglage « Marge autour des fenêtres ». Les raccourcis se changent dans dconf (`org.gnome.shell.extensions.gnomac`, clés `tile-*` et `layout-shortcut`).
 
@@ -60,6 +61,7 @@ Dans la palette, on choisit avec la souris, avec les flèches puis Entrée, ou a
 | Fonds d'écran | `Super + W` |
 | Capture | `Impr. écran` : barre de capture façon macOS |
 | Changer d'app | `Super + Tab` (sélecteur en verre) |
+| Aperçu rapide | `Espace` sur un fichier dans Fichiers (installer `sushi` : `sudo pacman -S sushi`) |
 
 ## Installation (CachyOS)
 

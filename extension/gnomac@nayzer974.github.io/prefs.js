@@ -50,6 +50,7 @@ export default class GnomacPreferences extends ExtensionPreferences {
         toggle(modules, 'enable-boot-shutdown', 'Démarrage et extinction', 'Logo et barre de progression à l’ouverture de session, animation avant l’arrêt');
         toggle(modules, 'enable-appearance', 'Section Apparence', 'Couleur d’accentuation, clair/sombre, verre et style des icônes dans le Centre de contrôle');
         toggle(modules, 'enable-window-layout', 'Disposition des fenêtres', 'Super + Ctrl + flèches : moitiés ; Super + Ctrl + T : palette (quarts, tiers, centrer)');
+        toggle(modules, 'enable-stage-manager', 'Stage Manager au démarrage', 'Ctrl + Super + M l’active ou le coupe à tout moment ; la fenêtre active reste au centre, les autres vont dans une bande à gauche');
         toggle(modules, 'enable-topbar', 'Barre de menus', 'Menu système, nom de l\'app active, horloge à droite');
 
         const dock = group('Dock');

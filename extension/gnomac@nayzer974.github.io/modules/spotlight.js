@@ -38,6 +38,8 @@ function systemActionEntries(extension) {
     return [
         entry(t('GNOMAC Guide', 'Guide GNOMAC'), ['guide', 'aide', 'help', 'raccourcis', 'shortcuts', 'tuto', 'gnomac', 'disposition', 'tiling'],
             'help-about-symbolic', () => showGuide()),
+        entry(t('Toggle Stage Manager', 'Activer le Stage Manager'), ['stage', 'manager', 'fenetres', 'fenêtres', 'windows'],
+            'view-dual-symbolic', () => extension?._modules?.find(m => m.constructor.name === 'StageManager')?.toggle()),
         entry(t('Edit Widgets…', 'Modifier les widgets…'), ['widget', 'widgets', 'bureau', 'desktop', 'edit'],
             'view-grid-symbolic', () => extension?.widgets?.startEditing()),
         entry(t('Lock Screen', 'Verrouiller l\'écran'), ['lock', 'verrouiller', 'verrou'],
