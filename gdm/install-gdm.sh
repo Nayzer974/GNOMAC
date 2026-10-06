@@ -119,7 +119,9 @@ file-db:/usr/share/gdm/greeter-dconf-defaults
 
 info "Enabling the extension for GDM"
 mkdir -p "$(dirname "$DB")"
-printf "[org/gnome/shell]\nenabled-extensions=['%s']\n" "$UUID" > "$DB"
+# The distribution logo under the login box (CachyOS) is hidden: the clock and
+# the wallpaper take its place.
+printf "[org/gnome/shell]\nenabled-extensions=['%s']\n\n[org/gnome/login-screen]\nlogo=''\n" "$UUID" > "$DB"
 chmod a+r "$DB"
 dconf update
 

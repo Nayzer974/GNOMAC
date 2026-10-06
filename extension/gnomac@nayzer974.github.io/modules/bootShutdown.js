@@ -1,5 +1,11 @@
 // Start-up and shut-down animations, after macOS 26/27.
 //
+// Start-up, "mist" style (the default): the screen is black while GNOME
+// starts, then the desktop appears through a very light haze, as if a thin
+// fog lifted: the wallpaper starts blurred and pale and comes into focus
+// while the veil fades, the menu bar fades in and the dock drifts up. About a
+// second, no logo.
+//
 // Start-up ("hello" style), in three acts:
 //   1. black screen, the logo is traced by a thin line, fills with glass and a
 //      sheen sweeps across it; a hair-thin progress bar fills underneath,
@@ -8,7 +14,7 @@
 //   3. greetings are written in glass script, one stroke at a time, in the
 //      user's language first ("bonjour", "hello", "hola"…),
 //   then the overlay dissolves, the menu bar fades in and the dock rises.
-// Styles: "hello" (all of it), "logo" (act 1 only), "classic" (the former
+// Styles: "mist", "hello" (all of it), "logo" (act 1 only), "classic" (the former
 // logo and bar). Clicking the overlay skips to the desktop.
 //
 // Shut down / restart / log out: GNOME's confirmation dialog is wrapped: once
@@ -166,7 +172,9 @@ export class BootShutdown {
             // With the Plymouth theme the logo has already played before the
             // login screen: only the greetings, which are new, are shown.
             if (mode !== 'never') {
-                if (style === 'hello')
+                if (style === 'mist')
+                    this._playBoot({mist: true});
+                else if (style === 'hello')
                     this._playBoot({logo: !plymouth || mode === 'always', hello: true});
                 else if (!plymouth || mode === 'always')
                     this._playBoot({logo: true, hello: false, classic: style === 'classic'});
@@ -248,10 +256,10 @@ export class BootShutdown {
     // opts: {logo, hello, classic}. Waits for GNOME to finish starting unless
     // a test passes `immediate`.
     _playBoot(opts = {}) {
-        const {logo = true, hello = true, classic = false, immediate = false} = opts;
+        const {logo = true, hello = true, classic = false, immediate = false, mist = false} = opts;
         this._stopAll();
         this._boot?.destroy();
-        const overlay = new Overlay(this._extension, {withPlate: hello});
+        const overlay = new Overlay(this._extension, {withPlate: hello || mist});
         this._boot = overlay;
         this._skipped = false;
         // The cover is up before GNOME draws anything.
@@ -286,11 +294,19 @@ export class BootShutdown {
         const next = () => {
             if (this._boot !== overlay || this._skipped)
                 return;
-            if (hello)
+            if (mist)
+                this._mist(overlay);
+            else if (hello)
                 this._hello(overlay);
             else
                 this._reveal(overlay, classic);
         };
+
+        if (mist) {
+            // Black until GNOME is ready, then the haze lifts.
+            whenReady(next);
+            return;
+        }
 
         if (!logo) {
             whenReady(next);
@@ -347,6 +363,47 @@ export class BootShutdown {
         this._skipped = true;
         this._stopAll();
         this._reveal(overlay, false);
+    }
+
+    // The desktop through a thin haze: the black cover gives way to a pale,
+    // blurred wallpaper, which comes into focus while its veil fades; the
+    // menu bar and the dock arrive softly with it.
+    _mist(overlay) {
+        const slow = this._slow;
+        const plate = overlay.plate;
+        // A light, slightly cold veil on the blurred wallpaper.
+        plate?.setGlass({tint: [0.92, 0.95, 1.0, 0.26]});
+        plate?.setBlur(60);
+        plate?.ease({opacity: 255, duration: 380 * slow, mode: Clutter.AnimationMode.EASE_OUT_QUAD});
+        overlay.base.ease({opacity: 0, duration: 380 * slow, mode: Clutter.AnimationMode.EASE_OUT_QUAD});
+
+        const panel = Main.panel;
+        const dock = this._dockActor();
+        this._after(260, () => {
+            if (this._boot !== overlay || this._skipped)
+                return;
+            if (this._chromeHidden) {
+                panel.ease({opacity: 255, duration: 1000 * slow, mode: Clutter.AnimationMode.EASE_OUT_QUAD});
+                if (dock) {
+                    dock.translation_y = 26;
+                    dock.ease({translation_y: 0, opacity: 255, duration: 1100 * slow,
+                        mode: Clutter.AnimationMode.EASE_OUT_CUBIC});
+                }
+            }
+            this._tween(overlay.actor, 1150, p => {
+                if (!plate)
+                    return;
+                plate.setBlur(Math.max(1, Math.round(60 * (1 - easeOut(p)))));
+                plate.opacity = Math.round(255 * (1 - p) ** 1.4);
+            }, () => {
+                if (this._boot === overlay) {
+                    this._stopAll();
+                    overlay.destroy();
+                    this._boot = null;
+                    this._restoreChrome();
+                }
+            });
+        });
     }
 
     // Acts 2 and 3: the logo melts into a blurred wallpaper that comes into

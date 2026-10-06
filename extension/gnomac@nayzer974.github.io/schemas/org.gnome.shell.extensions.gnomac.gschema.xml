@@ -335,12 +335,13 @@
     </key>
     <key name="boot-style" type="s">
       <choices>
+        <choice value="mist"/>
         <choice value="hello"/>
         <choice value="logo"/>
         <choice value="classic"/>
       </choices>
-      <default>'hello'</default>
-      <summary>Start-up: logo traced then greetings written (hello), the traced logo only, or the former logo and bar</summary>
+      <default>'mist'</default>
+      <summary>Start-up: the desktop through a light haze (mist), logo traced then greetings written (hello), the traced logo only, or the former logo and bar</summary>
     </key>
     <key name="boot-hello-words" type="i">
       <range min="1" max="8"/>

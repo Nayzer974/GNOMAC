@@ -60,11 +60,14 @@ export class LoginScreen {
             for (const monitor of Main.layoutManager.monitors) {
                 const background = new Meta.Background({meta_display: global.display});
                 background.set_file(file, GDesktopEnums.BackgroundStyle.ZOOM);
+                // GNOME 50: the actor has no `background` property, its content has.
                 const actor = new Meta.BackgroundActor({
                     meta_display: global.display,
                     monitor: monitor.index,
-                    background,
                 });
+                actor.content.set({background, vignette: false, brightness: 1.0});
+                actor.set_position(monitor.x, monitor.y);
+                actor.set_size(monitor.width, monitor.height);
                 Main.layoutManager._backgroundGroup.add_child(actor);
                 Main.layoutManager._backgroundGroup.set_child_above_sibling(actor, null);
                 this._actors.push(actor);
@@ -84,8 +87,9 @@ export class LoginScreen {
             x: monitor.x, y: monitor.y + Math.round(monitor.height * TOP), width: monitor.width});
         this._clock.add_child(this._date);
         this._clock.add_child(this._time);
+        // Above the wallpaper, below the login dialog.
         Main.layoutManager.uiGroup.add_child(this._clock);
-        Main.layoutManager.uiGroup.set_child_below_sibling(this._clock, null);
+        Main.layoutManager.uiGroup.set_child_above_sibling(this._clock, Main.layoutManager._backgroundGroup);
         this._actors.push(this._clock);
 
         const tick = () => {
