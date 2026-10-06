@@ -1782,14 +1782,12 @@
     color: rgba(255, 255, 255, 0.92);
     font-size: 18pt;
     font-weight: 600;
-    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
 }
 
 .gnomac-login-time {
     color: rgba(255, 255, 255, 0.92);
     font-size: 78pt;
     font-weight: 700;
-    text-shadow: 0 6px 30px rgba(0, 0, 0, 0.35);
 }
 
 .login-dialog .login-dialog-user-list-item {
@@ -1816,7 +1814,6 @@
     border-radius: 52px;
     border: 3px solid rgba(255, 255, 255, 0.40);
     background-color: rgba(255, 255, 255, 0.18);
-    box-shadow: 0 10px 34px rgba(0, 0, 0, 0.40);
     color: rgba(255, 255, 255, 0.85);
 }
 
@@ -1824,7 +1821,6 @@
     color: #ffffff;
     font-size: 15pt;
     font-weight: 700;
-    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
 }
 
 .login-dialog .login-dialog-prompt-layout {
@@ -1853,7 +1849,6 @@
 .login-dialog .login-dialog-message,
 .login-dialog .login-dialog-not-listed-label {
     color: rgba(255, 255, 255, 0.85);
-    text-shadow: 0 1px 6px rgba(0, 0, 0, 0.45);
 }
 
 .login-dialog .login-dialog-message-warning {
@@ -2019,21 +2014,19 @@
     height: 48px;
     border-radius: 24px;
     color: #ffffff;
-    background-color: rgba(255, 255, 255, 0.16);
-    border: 1px solid rgba(255, 255, 255, 0.26);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.20);
+    background-color: rgba(60, 60, 68, 0.62);
+    border: 1px solid rgba(255, 255, 255, 0.28);
 }
 
 .gnomac-login-power:hover,
 .gnomac-login-power:focus {
-    background-color: rgba(255, 255, 255, 0.30);
+    background-color: rgba(110, 110, 120, 0.72);
 }
 
 .gnomac-login-power-label {
     color: rgba(255, 255, 255, 0.85);
     font-size: 9.5pt;
     font-weight: 600;
-    text-shadow: 0 1px 6px rgba(0, 0, 0, 0.5);
 }
 
 /* The only user needs no box: the avatar and the name are the tile. */

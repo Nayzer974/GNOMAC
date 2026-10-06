@@ -20,13 +20,11 @@ import GDesktopEnums from 'gi://GDesktopEnums';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import Meta from 'gi://Meta';
-import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {getLoginManager} from 'resource:///org/gnome/shell/misc/loginManager.js';
 
-import {press} from '../lib/motion.js';
 import {t} from '../lib/i18n.js';
 
 const TOP = 0.04;
@@ -119,21 +117,17 @@ export class LoginScreen {
                     meta_display: global.display,
                     monitor: monitor.index,
                 });
-                // Darker towards the corners: the login box reads better.
-                actor.content.set({background, vignette: true, vignette_sharpness: 0.45, brightness: 0.78});
+                // Slightly dimmed so the login box reads well. No blur, vignette or
+                // scaling: they left ghost images on GDM's renderer.
+                actor.content.set({background, vignette: false, brightness: 0.8});
                 actor.set_position(monitor.x, monitor.y);
                 actor.set_size(monitor.width, monitor.height);
-                actor.add_effect(new Shell.BlurEffect({mode: Shell.BlurMode.ACTOR, radius: 14, brightness: 1.0}));
                 Main.layoutManager._backgroundGroup.add_child(actor);
                 Main.layoutManager._backgroundGroup.set_child_above_sibling(actor, null);
                 this._actors.push(actor);
 
-                // It fades in and settles, like a lens coming into focus.
-                actor.set_pivot_point(0.5, 0.5);
-                actor.set_scale(1.05, 1.05);
                 actor.opacity = 0;
-                actor.ease({opacity: 255, scale_x: 1, scale_y: 1, duration: 1800, delay: 80,
-                    mode: Clutter.AnimationMode.EASE_OUT_CUBIC});
+                actor.ease({opacity: 255, duration: 1200, mode: Clutter.AnimationMode.EASE_OUT_CUBIC});
             }
         } catch (e) {
             logError(e, 'GNOMAC login screen: wallpaper');
@@ -166,9 +160,7 @@ export class LoginScreen {
 
         // It rises into place a moment after the wallpaper.
         this._clock.opacity = 0;
-        this._clock.translation_y = 16;
-        this._clock.ease({opacity: 255, translation_y: 0, duration: 1100, delay: 350,
-            mode: Clutter.AnimationMode.EASE_OUT_CUBIC});
+        this._clock.ease({opacity: 255, duration: 900, delay: 300, mode: Clutter.AnimationMode.EASE_OUT_CUBIC});
     }
 
     // --------------------------------------------------------- power buttons
@@ -193,7 +185,6 @@ export class LoginScreen {
                 x_align: Clutter.ActorAlign.CENTER});
             const button = new St.Button({style_class: 'gnomac-login-power', can_focus: true, reactive: true,
                 child: new St.Icon({icon_name: icon, icon_size: 20}), x_align: Clutter.ActorAlign.CENTER});
-            press(button, {down: 0.9});
             button.connect('clicked', () => {
                 try {
                     action();
@@ -217,9 +208,7 @@ export class LoginScreen {
         Main.layoutManager.uiGroup.add_child(holder);
         this._actors.push(holder);
         holder.opacity = 0;
-        holder.translation_y = 14;
-        holder.ease({opacity: 255, translation_y: 0, duration: 900, delay: 700,
-            mode: Clutter.AnimationMode.EASE_OUT_CUBIC});
+        holder.ease({opacity: 255, duration: 800, delay: 600, mode: Clutter.AnimationMode.EASE_OUT_CUBIC});
     }
 
     // ------------------------------------------------------------ user tile
