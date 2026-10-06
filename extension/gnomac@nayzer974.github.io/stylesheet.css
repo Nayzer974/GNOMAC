@@ -1986,3 +1986,13 @@
     border-radius: 999px;
     box-shadow: 0 0 14px rgba(255, 255, 255, 0.5);
 }
+
+/* ---------- Start-up v2 ---------- */
+
+.gnomac-boot-base {
+    background-color: #000000;
+}
+
+.gnomac-boot-fill {
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.55);
+}

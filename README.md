@@ -208,7 +208,7 @@ Clic droit sur un widget : **couleur** (9 teintes macOS), **matière** (clair, d
 
 ### Session
 
-**Écran de verrouillage** : date et très grande heure en haut, avatar et pilule de verre en bas, fond net au repos qui se floute. **Démarrage et extinction animés** : logo, barre de progression, zoom et fondu ; avant l'arrêt, le redémarrage ou la fermeture de session, l'écran s'assombrit avec « Arrêt en cours… » puis le signal part vraiment. **Thème Plymouth** et **écran de connexion GDM** (optionnels).
+**Écran de verrouillage** : date et très grande heure en haut, avatar et pilule de verre en bas, fond net au repos qui se floute. **Démarrage « Hello » à la macOS 26/27** : le logo se **dessine d'un trait fin**, se remplit de verre et un reflet le balaye pendant qu'une barre très fine se remplit ; il fond dans le fond d'écran, flou, qui revient net ; des **mots d'accueil s'écrivent à la main** en lettres de verre (« bonjour », « hello », « hola »… ta langue d'abord) ; puis la barre de menus apparaît en fondu et le dock monte avec un petit rebond. Un clic saute au bureau ; style, nombre de mots et durée sont réglables. **Extinction animée** : avant l'arrêt, le redémarrage ou la fermeture de session, l'écran s'assombrit avec « Arrêt en cours… » puis le signal part vraiment. **Thème Plymouth** et **écran de connexion GDM** (optionnels).
 
 ---
 
@@ -356,4 +356,5 @@ L'extension est découpée en modules indépendants (`modules/dock.js`, `dynamic
 
 - Inspiré de [RevoShell](https://github.com/vzbc/revo-shell) (Hyprland / Quickshell) pour l'allure et de [Gnomintosh](https://github.com/jothi-prasath/gnomintosh) pour l'idée. L'analyse complète est dans [docs/ANALYSIS.md](docs/ANALYSIS.md) : GNOMAC ne dépend ni de Hyprland ni de Quickshell, et son installeur ne laisse aucun mot de passe sur le disque.
 - **GNOMAC n'est pas affilié à Apple.** « macOS », « Golden Gate », « Spotlight », « Launchpad », « Dynamic Island » et « Stage Manager » sont des marques d'Apple Inc., utilisées ici à titre descriptif. GNOMAC n'inclut ni la police SF Pro, ni les icônes, ni les fonds d'écran d'Apple : leur licence interdit de les redistribuer. L'installeur utilise la police **Inter**. Le logo pomme inclus est un simple symbole vectoriel ; remplace-le par le pont Golden Gate dans les préférences si tu préfères ne pas l'afficher.
+- Les mots d'accueil du démarrage sont tracés d'après la police script **Sacramento** (Astigmatic), sous licence **SIL Open Font License 1.1**, convertie en dessins vectoriels par `tools/make_hello.py`.
 - Licence : **GPL-3.0-or-later**, comme GNOME Shell dont l'extension dérive. Voir [LICENSE](LICENSE).

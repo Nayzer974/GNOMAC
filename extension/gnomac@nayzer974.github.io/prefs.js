@@ -183,6 +183,14 @@ export default class GnomacPreferences extends ExtensionPreferences {
 
         const boot = group('Démarrage et extinction');
         toggle(boot, 'enable-shutdown-animation', 'Animation d’arrêt', 'Avant l’arrêt, le redémarrage ou la fermeture de session');
+        const bootStyles = ['hello', 'logo', 'classic'];
+        const styleRow2 = new Adw.ComboRow({title: 'Style du démarrage',
+            subtitle: 'Hello : le logo se dessine, puis des mots d’accueil s’écrivent en verre ; Logo : le logo seul ; Classique : logo et barre',
+            model: Gtk.StringList.new(['Hello (dessiné)', 'Logo dessiné', 'Classique'])});
+        styleRow2.selected = Math.max(0, bootStyles.indexOf(settings.get_string('boot-style')));
+        styleRow2.connect('notify::selected', () => settings.set_string('boot-style', bootStyles[styleRow2.selected]));
+        boot.add(styleRow2);
+        spin(boot, 'boot-hello-words', 'Nombre de mots d’accueil', 1, 8, 1);
         const bootModes = ['auto', 'always', 'never'];
         const bootRow = new Adw.ComboRow({
             title: 'Logo au démarrage de la session',

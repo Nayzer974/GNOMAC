@@ -1,15 +1,25 @@
-// Start-up and shut-down animations, as in macOS.
+// Start-up and shut-down animations, after macOS 26/27.
 //
-//  - start: a black screen with the logo that fades in, a thin progress bar
-//    that fills, then the whole thing zooms and dissolves into the desktop,
-//  - shut down / restart / log out: GNOME's confirmation dialog is wrapped:
-//    once the user confirms, the screen dims to black, the logo appears with
-//    "Shutting down…" and a bar, and only then is the real
-//    ConfirmedShutdown/Reboot/Logout signal sent to gnome-session.
+// Start-up ("hello" style), in three acts:
+//   1. black screen, the logo is traced by a thin line, fills with glass and a
+//      sheen sweeps across it; a hair-thin progress bar fills underneath,
+//   2. the logo melts away into the wallpaper, heavily blurred, which comes
+//      into focus,
+//   3. greetings are written in glass script, one stroke at a time, in the
+//      user's language first ("bonjour", "hello", "hola"…),
+//   then the overlay dissolves, the menu bar fades in and the dock rises.
+// Styles: "hello" (all of it), "logo" (act 1 only), "classic" (the former
+// logo and bar). Clicking the overlay skips to the desktop.
+//
+// Shut down / restart / log out: GNOME's confirmation dialog is wrapped: once
+// the user confirms, the screen dims to black, the logo appears with
+// "Shutting down…" and a bar, and only then is the real
+// ConfirmedShutdown/Reboot/Logout signal sent to gnome-session.
 //
 // The shutdown overlay is only shown for real: tests set
 // `globalThis.GNOMAC_DRY_RUN` and the original `_confirm` is then replaced
 // by a no-op after the animation, so nothing is ever powered off.
+// `globalThis.GNOMAC_BOOT_SPEED` (2 = twice as slow) lets a test catch frames.
 
 import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
@@ -19,6 +29,8 @@ import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {EndSessionDialog} from 'resource:///org/gnome/shell/ui/endSessionDialog.js';
 
+import {GlassSurface, glassParamsFromSettings} from '../lib/glass.js';
+import {easeInOut, easeOut, greetingOrder, paintLogo, paintWord} from '../lib/bootArt.js';
 import {t} from '../lib/i18n.js';
 
 const MESSAGES = {
@@ -27,39 +39,82 @@ const MESSAGES = {
     ConfirmedLogout: ['Logging out…', 'Fermeture de la session…'],
 };
 
-function logoIcon(extension, size) {
-    const settings = extension.getSettings();
-    const file = settings.get_string('logo-style') === 'bridge' ? 'gnomac-logo' : 'apple';
-    return new St.Icon({
-        gicon: Gio.icon_new_for_string(`${extension.path}/icons/${file}.svg`),
-        icon_size: size,
-        style_class: 'gnomac-boot-logo',
-    });
-}
-
-// One full-screen overlay: logo, optional caption, progress bar.
+// One full-screen overlay: logo, optional wallpaper plate, greetings, caption
+// and a progress bar. Every drawn part is a Cairo area repainted from a few
+// numbers (this.logo, this.word) that the sequence animates.
 class Overlay {
-    constructor(extension, {caption = '', black = true} = {}) {
+    constructor(extension, {caption = '', withPlate = false} = {}) {
+        this._settings = extension.getSettings();
         const monitor = Main.layoutManager.primaryMonitor;
+        this._monitor = monitor;
         this.actor = new St.Widget({
             style_class: 'gnomac-boot',
             reactive: true,
             x: monitor.x, y: monitor.y, width: monitor.width, height: monitor.height,
             opacity: 0,
         });
-        this.actor.set_style(`background-color: ${black ? '#000000' : 'rgba(0,0,0,0.0)'};`);
-        const size = Math.round(Math.max(56, monitor.height * 0.11));
-        this.logo = logoIcon(extension, size);
-        this.logo.set_pivot_point(0.5, 0.5);
-        this.logo.set_position(Math.round((monitor.width - size) / 2), Math.round(monitor.height * 0.42 - size / 2));
-        this.actor.add_child(this.logo);
+
+        // The wallpaper, blurred, for the greetings (below the black cover).
+        this.plate = null;
+        if (withPlate) {
+            this.plate = new GlassSurface({
+                backdrop: 'wallpaper',
+                blur: 70,
+                glass: {...glassParamsFromSettings(this._settings, 0), tint: [0.02, 0.03, 0.06, 0.28],
+                    refraction: 0, chroma: 0, rim: 0, sheen: 0, depthShade: 0},
+            });
+            this.plate.set_size(monitor.width, monitor.height);
+            this.plate.opacity = 0;
+            this.actor.add_child(this.plate);
+        }
+
+        this.base = new St.Widget({style_class: 'gnomac-boot-base', x: 0, y: 0,
+            width: monitor.width, height: monitor.height});
+        this.actor.add_child(this.base);
+
+        // The logo, drawn.
+        this.logo = {stroke: 0, fill: 0, sheen: -1};
+        const size = Math.round(Math.max(120, monitor.height * 0.25));
+        this.logoSize = size;
+        this.logoArea = new St.DrawingArea({width: size, height: size, reactive: false,
+            x: Math.round((monitor.width - size) / 2), y: Math.round(monitor.height * 0.42 - size / 2)});
+        this.logoArea.set_pivot_point(0.5, 0.5);
+        this.logoArea.connect('repaint', area => {
+            const cr = area.get_context();
+            const [w, h] = area.get_surface_size();
+            try {
+                paintLogo(cr, w, h, this.logo);
+            } finally {
+                cr.$dispose();
+            }
+        });
+        this.actor.add_child(this.logoArea);
+
+        // The greetings, written.
+        this.word = {key: null, write: 0, fill: 0, alpha: 1};
+        const wordWidth = Math.round(monitor.width * 0.7);
+        const wordHeight = Math.round(monitor.height * 0.55);
+        this.wordArea = new St.DrawingArea({width: wordWidth, height: wordHeight, reactive: false,
+            x: Math.round((monitor.width - wordWidth) / 2), y: Math.round(monitor.height * 0.18)});
+        this.wordArea.connect('repaint', area => {
+            if (!this.word.key)
+                return;
+            const cr = area.get_context();
+            const [w, h] = area.get_surface_size();
+            try {
+                paintWord(cr, w, h, this.word.key, this.word);
+            } finally {
+                cr.$dispose();
+            }
+        });
+        this.actor.add_child(this.wordArea);
 
         this.caption = new St.Label({text: caption, style_class: 'gnomac-boot-caption', opacity: 0});
         this.actor.add_child(this.caption);
 
         const barWidth = Math.round(Math.max(150, monitor.width * 0.13));
         this.track = new St.Widget({style_class: 'gnomac-boot-track', width: barWidth, height: 4,
-            x: Math.round((monitor.width - barWidth) / 2), y: Math.round(monitor.height * 0.42 + size * 0.9),
+            x: Math.round((monitor.width - barWidth) / 2), y: Math.round(monitor.height * 0.42 + size * 0.78),
             opacity: 0});
         this.fill = new St.Widget({style_class: 'gnomac-boot-fill', width: 0, height: 4});
         this.track.add_child(this.fill);
@@ -68,33 +123,28 @@ class Overlay {
 
         Main.layoutManager.uiGroup.add_child(this.actor);
         Main.layoutManager.uiGroup.set_child_above_sibling(this.actor, null);
+        this.plate?.setStageOrigin(monitor.x, monitor.y);
         // Text is measured only once the actor is on stage.
-        this._centerCaption(monitor);
+        this._centerCaption();
     }
 
-    _centerCaption(monitor) {
+    _centerCaption() {
         if (!this.actor.get_stage())
             return;
         const [, w] = this.caption.get_preferred_width(-1);
-        this.caption.set_position(Math.round((monitor.width - w) / 2),
-            Math.round(monitor.height * 0.42 + monitor.height * 0.11 * 0.9 + 24));
+        this.caption.set_position(Math.round((this._monitor.width - w) / 2),
+            Math.round(this._monitor.height * 0.42 + this.logoSize * 0.78 + 28));
     }
 
-    // Fill the bar over `ms`, with the ease of a real loading bar.
-    progress(ms, onDone) {
-        this.fill.set_width(0);
-        const timeline = new Clutter.Timeline({actor: this.actor, duration: ms});
-        timeline.connect('new-frame', () => {
-            const p = timeline.get_progress();
-            this.fill.set_width(Math.round(this.barWidth * (1 - (1 - p) ** 2)));
-        });
-        timeline.connect('completed', () => onDone?.());
-        timeline.start();
-        this._timeline = timeline;
+    repaintLogo() {
+        this.logoArea.queue_repaint();
+    }
+
+    repaintWord() {
+        this.wordArea.queue_repaint();
     }
 
     destroy() {
-        this._timeline?.stop();
         this.actor.destroy();
     }
 }
@@ -103,28 +153,47 @@ export class BootShutdown {
     constructor(extension) {
         this._extension = extension;
         this._settings = extension.getSettings();
+        this._timelines = new Set();
     }
 
     enable() {
         // The boot animation belongs to a real session start, never to a
         // later reload of the extension.
-        // When the Plymouth theme is installed, the logo already played
-        // before the login screen: a second one after the password would be
-        // the same animation twice.
-        if (Main.layoutManager._startingUp && !Main.sessionMode.isLocked && !this._plymouthActive())
-            this._playBoot();
+        if (Main.layoutManager._startingUp && !Main.sessionMode.isLocked) {
+            const plymouth = this._plymouthActive();
+            const style = this._settings.get_string('boot-style');
+            const mode = this._settings.get_string('boot-animation');
+            // With the Plymouth theme the logo has already played before the
+            // login screen: only the greetings, which are new, are shown.
+            if (mode !== 'never') {
+                if (style === 'hello')
+                    this._playBoot({logo: !plymouth || mode === 'always', hello: true});
+                else if (!plymouth || mode === 'always')
+                    this._playBoot({logo: true, hello: false, classic: style === 'classic'});
+            }
+        }
         this._wrapEndSession();
     }
 
     disable() {
         this._unwrapEndSession();
+        this._stopAll();
+        this._restoreChrome();
         this._boot?.destroy();
         this._boot = null;
         this._shutdown?.destroy();
         this._shutdown = null;
+        if (this._startupId) {
+            Main.layoutManager.disconnect(this._startupId);
+            this._startupId = 0;
+        }
     }
 
-    // ------------------------------------------------------------ boot
+    // ------------------------------------------------------------ helpers
+
+    get _slow() {
+        return Number(globalThis.GNOMAC_BOOT_SPEED) || 1;
+    }
 
     _plymouthActive() {
         const mode = this._settings.get_string('boot-animation');
@@ -132,7 +201,7 @@ export class BootShutdown {
             return false;
         if (mode === 'never')
             return true;
-        // 'auto': skip it only if our Plymouth theme is the one in use.
+        // 'auto': the logo is skipped only if our Plymouth theme is in use.
         try {
             const [ok, bytes] = GLib.file_get_contents('/etc/plymouth/plymouthd.conf');
             if (ok && /^\s*Theme\s*=\s*gnomac\s*$/m.test(new TextDecoder().decode(bytes)))
@@ -141,48 +210,247 @@ export class BootShutdown {
         return false;
     }
 
-    _playBoot() {
-        const duration = this._settings.get_int('boot-duration');
-        this._boot = new Overlay(this._extension);
-        const overlay = this._boot;
+    // Runs update(0..1) over `ms`, then done().
+    _tween(owner, ms, update, done) {
+        const timeline = new Clutter.Timeline({actor: owner, duration: Math.max(1, Math.round(ms * this._slow))});
+        this._timelines.add(timeline);
+        timeline.connect('new-frame', () => update(timeline.get_progress()));
+        timeline.connect('completed', () => {
+            this._timelines.delete(timeline);
+            update(1);
+            done?.();
+        });
+        timeline.connect('stopped', () => this._timelines.delete(timeline));
+        timeline.start();
+        return timeline;
+    }
+
+    _after(ms, callback) {
+        const id = GLib.timeout_add(GLib.PRIORITY_DEFAULT, Math.round(ms * this._slow), () => {
+            this._timers?.delete(id);
+            callback();
+            return GLib.SOURCE_REMOVE;
+        });
+        (this._timers ??= new Set()).add(id);
+    }
+
+    _stopAll() {
+        for (const timeline of [...this._timelines])
+            timeline.stop();
+        this._timelines.clear();
+        for (const id of this._timers ?? [])
+            GLib.source_remove(id);
+        this._timers = null;
+    }
+
+    // ------------------------------------------------------------ boot
+
+    // opts: {logo, hello, classic}. Waits for GNOME to finish starting unless
+    // a test passes `immediate`.
+    _playBoot(opts = {}) {
+        const {logo = true, hello = true, classic = false, immediate = false} = opts;
+        this._stopAll();
+        this._boot?.destroy();
+        const overlay = new Overlay(this._extension, {withPlate: hello});
+        this._boot = overlay;
+        this._skipped = false;
         // The cover is up before GNOME draws anything.
         overlay.actor.opacity = 255;
-        overlay.logo.opacity = 0;
-        overlay.logo.set_scale(0.9, 0.9);
-        overlay.track.opacity = 0;
+        overlay.actor.connect('button-press-event', () => {
+            this._skipBoot(overlay);
+            return Clutter.EVENT_STOP;
+        });
 
-        overlay.logo.ease({opacity: 255, scale_x: 1, scale_y: 1, duration: 700, delay: 150,
-            mode: Clutter.AnimationMode.EASE_OUT_CUBIC});
-        overlay.track.ease({opacity: 255, duration: 400, delay: 450});
+        // Chrome stays hidden under the cover so it can come in at the end.
+        this._hideChrome();
 
-        const finish = () => {
-            if (this._boot !== overlay)
-                return;
-            // Fill, then zoom and dissolve into the desktop.
-            overlay.progress(duration, () => {
-                overlay.logo.ease({opacity: 0, scale_x: 1.35, scale_y: 1.35, duration: 520,
-                    mode: Clutter.AnimationMode.EASE_IN_CUBIC});
-                overlay.track.ease({opacity: 0, duration: 280});
-                overlay.actor.ease({opacity: 0, duration: 650, delay: 180,
-                    mode: Clutter.AnimationMode.EASE_IN_OUT_QUAD,
-                    onStopped: () => {
-                        if (this._boot === overlay) {
-                            overlay.destroy();
-                            this._boot = null;
-                        }
-                    }});
-            });
+        const duration = this._settings.get_int('boot-duration');
+        let started = !Main.layoutManager._startingUp || immediate;
+        let proceed = null;
+        const whenReady = callback => {
+            if (started)
+                callback();
+            else
+                proceed = callback;
         };
-        // Play the bar at least until GNOME is done starting, never less
-        // than the configured time.
-        if (Main.layoutManager._startingUp) {
+        if (!started) {
             const id = Main.layoutManager.connect('startup-complete', () => {
                 Main.layoutManager.disconnect(id);
-                finish();
+                this._startupId = 0;
+                started = true;
+                proceed?.();
             });
             this._startupId = id;
+        }
+
+        const next = () => {
+            if (this._boot !== overlay || this._skipped)
+                return;
+            if (hello)
+                this._hello(overlay);
+            else
+                this._reveal(overlay, classic);
+        };
+
+        if (!logo) {
+            whenReady(next);
+            return;
+        }
+
+        if (classic) {
+            // The former look: the finished logo fades in with a bar.
+            overlay.logo.stroke = 0;
+            overlay.logo.fill = 1;
+            overlay.repaintLogo();
+            overlay.logoArea.opacity = 0;
+            overlay.logoArea.set_scale(0.9, 0.9);
+            overlay.logoArea.ease({opacity: 255, scale_x: 1, scale_y: 1, duration: 700 * this._slow, delay: 150,
+                mode: Clutter.AnimationMode.EASE_OUT_CUBIC});
         } else {
-            finish();
+            // Act 1: the line, then the glass, then the sheen.
+            this._tween(overlay.actor, 1150, p => {
+                overlay.logo.stroke = easeInOut(p);
+                overlay.repaintLogo();
+            }, () => {
+                this._tween(overlay.actor, 700, p => {
+                    overlay.logo.fill = easeOut(p);
+                    overlay.logo.stroke = 1;
+                    overlay.repaintLogo();
+                });
+                this._after(350, () => {
+                    this._tween(overlay.actor, 1100, p => {
+                        overlay.logo.sheen = p;
+                        overlay.repaintLogo();
+                    }, () => {
+                        overlay.logo.sheen = -1;
+                        overlay.repaintLogo();
+                    });
+                });
+            });
+        }
+
+        // The hair-thin bar appears under the logo and fills while GNOME starts.
+        this._after(classic ? 450 : 1250, () => {
+            if (this._boot !== overlay)
+                return;
+            overlay.track.ease({opacity: 255, duration: 400 * this._slow});
+            overlay.fill.set_width(0);
+            this._tween(overlay.actor, duration, p => {
+                overlay.fill.set_width(Math.round(overlay.barWidth * (1 - (1 - p) ** 2)));
+            }, () => whenReady(next));
+        });
+    }
+
+    _skipBoot(overlay) {
+        if (this._boot !== overlay || this._skipped)
+            return;
+        this._skipped = true;
+        this._stopAll();
+        this._reveal(overlay, false);
+    }
+
+    // Acts 2 and 3: the logo melts into a blurred wallpaper that comes into
+    // focus while greetings are written over it.
+    _hello(overlay) {
+        const keys = greetingOrder(this._settings.get_int('boot-hello-words'));
+        overlay.logoArea.ease({opacity: 0, scale_x: 0.88, scale_y: 0.88, duration: 450 * this._slow,
+            mode: Clutter.AnimationMode.EASE_IN_QUAD});
+        overlay.track.ease({opacity: 0, duration: 300 * this._slow});
+
+        // The wallpaper fades in under the black, which fades away.
+        overlay.plate?.ease({opacity: 255, duration: 800 * this._slow, delay: 200 * this._slow});
+        overlay.base.ease({opacity: 0, duration: 800 * this._slow, delay: 200 * this._slow,
+            mode: Clutter.AnimationMode.EASE_IN_OUT_QUAD});
+
+        // Out of focus to sharp over the whole greeting.
+        const total = 600 + keys.length * 1500;
+        this._tween(overlay.actor, total, p => overlay.plate?.setBlur(Math.round(70 - 64 * easeOut(p))));
+
+        let index = 0;
+        const write = () => {
+            if (this._boot !== overlay || this._skipped)
+                return;
+            if (index >= keys.length) {
+                this._after(500, () => this._reveal(overlay, false));
+                return;
+            }
+            overlay.word.key = keys[index++];
+            overlay.word.write = 0;
+            overlay.word.fill = 0;
+            overlay.word.alpha = 1;
+            this._tween(overlay.actor, 850, p => {
+                overlay.word.write = easeInOut(p);
+                overlay.repaintWord();
+            }, () => {
+                // The glass fills in the strokes, then the word clears.
+                this._tween(overlay.actor, 380, p => {
+                    overlay.word.fill = easeOut(p);
+                    overlay.repaintWord();
+                }, () => this._after(380, () => {
+                    this._tween(overlay.actor, 260, p => {
+                        overlay.word.alpha = 1 - p;
+                        overlay.repaintWord();
+                    }, write);
+                }));
+            });
+        };
+        this._after(900, write);
+    }
+
+    // The cover dissolves; the menu bar fades in and the dock rises.
+    _reveal(overlay, quick) {
+        if (this._boot !== overlay)
+            return;
+        const slow = this._slow;
+        const panel = Main.panel;
+        const dock = this._dockActor();
+        if (this._chromeHidden) {
+            panel.ease({opacity: 255, duration: 650 * slow, delay: 250 * slow});
+            if (dock) {
+                dock.ease({translation_y: 0, opacity: 255, duration: 850 * slow, delay: 300 * slow,
+                    mode: Clutter.AnimationMode.EASE_OUT_BACK});
+            }
+        }
+        const fade = quick ? 500 : 750;
+        overlay.logoArea.ease({opacity: 0, scale_x: 1.35, scale_y: 1.35, duration: 520 * slow,
+            mode: Clutter.AnimationMode.EASE_IN_CUBIC});
+        overlay.actor.ease({opacity: 0, duration: fade * slow, delay: 160 * slow,
+            mode: Clutter.AnimationMode.EASE_IN_OUT_QUAD,
+            onStopped: () => {
+                if (this._boot === overlay) {
+                    this._stopAll();
+                    overlay.destroy();
+                    this._boot = null;
+                    this._restoreChrome();
+                }
+            }});
+    }
+
+    _dockActor() {
+        return this._extension._modules?.find(m => m.constructor.name === 'Dock')?.actor ?? null;
+    }
+
+    _hideChrome() {
+        const dock = this._dockActor();
+        Main.panel.opacity = 0;
+        if (dock) {
+            dock.opacity = 0;
+            dock.translation_y = 90;
+        }
+        this._chromeHidden = true;
+    }
+
+    _restoreChrome() {
+        if (!this._chromeHidden)
+            return;
+        this._chromeHidden = false;
+        Main.panel.remove_all_transitions();
+        Main.panel.opacity = 255;
+        const dock = this._dockActor();
+        if (dock) {
+            dock.remove_all_transitions();
+            dock.opacity = 255;
+            dock.translation_y = 0;
         }
     }
 
@@ -215,20 +483,27 @@ export class BootShutdown {
         }
     }
 
+    // Everything dims, the logo (already drawn) breathes once, a bar fills.
     _playShutdown(signal) {
         return new Promise(resolve => {
             const [en, fr] = MESSAGES[signal];
             const overlay = new Overlay(this._extension, {caption: t(en, fr)});
             this._shutdown = overlay;
             const ms = this._settings.get_int('shutdown-duration');
-            overlay.logo.set_scale(1.0, 1.0);
+            overlay.logo.stroke = 1;
+            overlay.logo.fill = 1;
+            overlay.repaintLogo();
             overlay.actor.ease({opacity: 255, duration: 520, mode: Clutter.AnimationMode.EASE_OUT_QUAD});
             overlay.caption.ease({opacity: 255, duration: 450, delay: 350});
             overlay.track.ease({opacity: 255, duration: 350, delay: 350});
-            // A last breath: the logo shrinks slightly while the bar fills.
-            overlay.logo.ease({scale_x: 0.94, scale_y: 0.94, duration: ms, delay: 300,
+            // A last breath: the logo shrinks slightly and a sheen passes.
+            overlay.logoArea.ease({scale_x: 0.94, scale_y: 0.94, duration: ms, delay: 300,
                 mode: Clutter.AnimationMode.EASE_IN_OUT_QUAD});
-            overlay.progress(ms, () => resolve());
+            this._tween(overlay.actor, ms, p => {
+                overlay.fill.set_width(Math.round(overlay.barWidth * (1 - (1 - p) ** 2)));
+                overlay.logo.sheen = p * 1.1 - 0.05;
+                overlay.repaintLogo();
+            }, () => resolve());
         });
     }
 }
