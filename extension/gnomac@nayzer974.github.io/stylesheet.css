@@ -1780,14 +1780,14 @@
 
 .gnomac-login-date {
     color: rgba(255, 255, 255, 0.92);
-    font-size: 22pt;
+    font-size: 18pt;
     font-weight: 600;
     text-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
 }
 
 .gnomac-login-time {
     color: rgba(255, 255, 255, 0.92);
-    font-size: 108pt;
+    font-size: 78pt;
     font-weight: 700;
     text-shadow: 0 6px 30px rgba(0, 0, 0, 0.35);
 }
@@ -1995,4 +1995,10 @@
 
 .gnomac-boot-fill {
     box-shadow: 0 0 10px rgba(255, 255, 255, 0.55);
+}
+
+/* The focused user tile: a quiet ring instead of GNOME's blue one. */
+.login-dialog .login-dialog-user-list-item:focus {
+    box-shadow: none;
+    border-color: rgba(255, 255, 255, 0.28);
 }

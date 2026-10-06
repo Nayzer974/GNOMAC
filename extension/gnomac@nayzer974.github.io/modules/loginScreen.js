@@ -21,7 +21,18 @@ import St from 'gi://St';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
-const TOP = 0.075;
+const TOP = 0.04;
+
+function findByName(actor, name) {
+    if (actor.get_name?.() === name)
+        return actor;
+    for (const child of actor.get_children?.() ?? []) {
+        const found = findByName(child, name);
+        if (found)
+            return found;
+    }
+    return null;
+}
 
 export class LoginScreen {
     constructor(extension) {
@@ -31,6 +42,16 @@ export class LoginScreen {
 
     enable() {
         console.log('GNOMAC: login screen module enabled in the GDM shell');
+        // GDM's theme paints an opaque grey over everything behind the login
+        // dialog (#lockDialogGroup): clear it so the wallpaper shows.
+        this._groups = [];
+        for (const group of [Main.screenShield?._lockDialogGroup, findByName(global.stage, 'lockDialogGroup'),
+            Main.layoutManager.screenShieldGroup]) {
+            if (group && !this._groups.some(g => g.actor === group)) {
+                this._groups.push({actor: group, style: group.get_style()});
+                group.set_style('background-color: transparent; background-image: none;');
+            }
+        }
         this._addWallpaper();
         this._addClock();
         this._patchUserList().catch(e => logError(e, 'GNOMAC login screen: user tile'));
@@ -41,6 +62,12 @@ export class LoginScreen {
             GLib.source_remove(this._timeoutId);
             this._timeoutId = 0;
         }
+        for (const {actor, style} of this._groups ?? []) {
+            try {
+                actor.set_style(style);
+            } catch {}
+        }
+        this._groups = [];
         if (this._restoreInit)
             this._restoreInit();
         this._restoreInit = null;
@@ -116,6 +143,8 @@ export class LoginScreen {
                 const widget = this._userWidget;
                 widget.orientation = Clutter.Orientation.VERTICAL;
                 widget.x_align = Clutter.ActorAlign.CENTER;
+                widget._label.x_align = Clutter.ActorAlign.CENTER;
+                widget._label.x_expand = true;
                 widget.add_style_class_name('gnomac-login-user');
             } catch (e) {
                 logError(e, 'GNOMAC login screen: user widget');
