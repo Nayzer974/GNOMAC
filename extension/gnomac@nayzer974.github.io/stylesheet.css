@@ -2141,3 +2141,10 @@
     spacing: 10px;
     padding-top: 10px;
 }
+
+/* The haze of the "mist" start-up: pale at the top, clear below. */
+.gnomac-boot-haze {
+    background-gradient-direction: vertical;
+    background-gradient-start: rgba(225, 232, 250, 0.42);
+    background-gradient-end: rgba(225, 232, 250, 0);
+}

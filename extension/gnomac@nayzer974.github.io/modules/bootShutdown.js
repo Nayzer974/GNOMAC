@@ -373,27 +373,47 @@ export class BootShutdown {
         const plate = overlay.plate;
         // A light, slightly cold veil on the blurred wallpaper.
         plate?.setGlass({tint: [0.92, 0.95, 1.0, 0.26]});
-        plate?.setBlur(60);
-        plate?.ease({opacity: 255, duration: 380 * slow, mode: Clutter.AnimationMode.EASE_OUT_QUAD});
-        overlay.base.ease({opacity: 0, duration: 380 * slow, mode: Clutter.AnimationMode.EASE_OUT_QUAD});
+        plate?.setBlur(64);
+        plate?.ease({opacity: 255, duration: 420 * slow, mode: Clutter.AnimationMode.EASE_OUT_QUAD});
+        overlay.base.ease({opacity: 0, duration: 420 * slow, mode: Clutter.AnimationMode.EASE_OUT_QUAD});
+
+        // A pale haze that hangs from the top and drifts up as it thins, like
+        // fog lifting off the desktop.
+        const monitor = Main.layoutManager.primaryMonitor;
+        const haze = new St.Widget({reactive: false, x: 0, y: 0, width: monitor.width,
+            height: Math.round(monitor.height * 0.75), opacity: 0, style_class: 'gnomac-boot-haze'});
+        overlay.actor.add_child(haze);
+        haze.ease({opacity: 255, duration: 500 * slow, mode: Clutter.AnimationMode.EASE_OUT_QUAD});
 
         const panel = Main.panel;
         const dock = this._dockActor();
-        this._after(260, () => {
+        const items = this._dockItems();
+        this._after(300, () => {
             if (this._boot !== overlay || this._skipped)
                 return;
+            haze.ease({translation_y: -70, opacity: 0, duration: 1500 * slow,
+                mode: Clutter.AnimationMode.EASE_IN_OUT_QUAD});
             if (this._chromeHidden) {
-                panel.ease({opacity: 255, duration: 1000 * slow, mode: Clutter.AnimationMode.EASE_OUT_QUAD});
+                // The menu bar settles down from just above its place.
+                panel.translation_y = -10;
+                panel.ease({opacity: 255, translation_y: 0, duration: 950 * slow,
+                    mode: Clutter.AnimationMode.EASE_OUT_CUBIC});
                 if (dock) {
-                    dock.translation_y = 26;
-                    dock.ease({translation_y: 0, opacity: 255, duration: 1100 * slow,
-                        mode: Clutter.AnimationMode.EASE_OUT_CUBIC});
+                    // The dock rises from below the screen with a soft overshoot...
+                    dock.ease({translation_y: 0, opacity: 255, duration: 1050 * slow, delay: 250 * slow,
+                        mode: Clutter.AnimationMode.EASE_OUT_BACK});
+                    // ...and its icons pop in one after another, left to right.
+                    items.forEach((item, i) => {
+                        item.set_pivot_point(0.5, 1);
+                        item.ease({opacity: 255, scale_x: 1, scale_y: 1, translation_y: 0, duration: 520 * slow,
+                            delay: (520 + i * 45) * slow, mode: Clutter.AnimationMode.EASE_OUT_BACK});
+                    });
                 }
             }
-            this._tween(overlay.actor, 1150, p => {
+            this._tween(overlay.actor, 1250, p => {
                 if (!plate)
                     return;
-                plate.setBlur(Math.max(1, Math.round(60 * (1 - easeOut(p)))));
+                plate.setBlur(Math.max(1, Math.round(64 * (1 - easeOut(p)))));
                 plate.opacity = Math.round(255 * (1 - p) ** 1.4);
             }, () => {
                 if (this._boot === overlay) {
@@ -466,6 +486,11 @@ export class BootShutdown {
             if (dock) {
                 dock.ease({translation_y: 0, opacity: 255, duration: 850 * slow, delay: 300 * slow,
                     mode: Clutter.AnimationMode.EASE_OUT_BACK});
+                this._dockItems().forEach((item, i) => {
+                    item.set_pivot_point(0.5, 1);
+                    item.ease({opacity: 255, scale_x: 1, scale_y: 1, translation_y: 0, duration: 500 * slow,
+                        delay: (550 + i * 45) * slow, mode: Clutter.AnimationMode.EASE_OUT_BACK});
+                });
             }
         }
         const fade = quick ? 500 : 750;
@@ -487,12 +512,23 @@ export class BootShutdown {
         return this._extension._modules?.find(m => m.constructor.name === 'Dock')?.actor ?? null;
     }
 
+    _dockItems() {
+        const dock = this._extension._modules?.find(m => m.constructor.name === 'Dock');
+        return (dock?._items ?? []).filter(item => item && !item.is_finalized?.());
+    }
+
     _hideChrome() {
         const dock = this._dockActor();
         Main.panel.opacity = 0;
         if (dock) {
             dock.opacity = 0;
-            dock.translation_y = 90;
+            // Below the bottom edge: the dock "rises" into view.
+            dock.translation_y = Math.max(120, dock.height + 40);
+        }
+        for (const item of this._dockItems()) {
+            item.opacity = 0;
+            item.set_scale(0.55, 0.55);
+            item.translation_y = 16;
         }
         this._chromeHidden = true;
     }
@@ -503,11 +539,18 @@ export class BootShutdown {
         this._chromeHidden = false;
         Main.panel.remove_all_transitions();
         Main.panel.opacity = 255;
+        Main.panel.translation_y = 0;
         const dock = this._dockActor();
         if (dock) {
             dock.remove_all_transitions();
             dock.opacity = 255;
             dock.translation_y = 0;
+        }
+        for (const item of this._dockItems()) {
+            item.remove_all_transitions();
+            item.opacity = 255;
+            item.set_scale(1, 1);
+            item.translation_y = 0;
         }
     }
 
