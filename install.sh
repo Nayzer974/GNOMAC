@@ -63,6 +63,13 @@ if (( WITH_DEPS )); then
   fi
 fi
 
+# Remember today's settings so ./uninstall.sh can give GNOME its old look back.
+if command -v dconf >/dev/null; then
+  python3 "$ROOT/scripts/state.py" save
+else
+  warn "dconf not found: uninstall.sh will reset the settings to GNOME's defaults instead of your previous values."
+fi
+
 command -v glib-compile-schemas >/dev/null || die "glib-compile-schemas missing (package glib2)."
 
 # ---------------------------------------------------------------- extension
@@ -101,6 +108,7 @@ for other in dash-to-dock@micxgx.gmail.com ubuntu-dock@ubuntu.com dash2dock-lite
   if gnome-extensions list --enabled 2>/dev/null | grep -qx "$other"; then
     warn "Disabling $other (conflicts with the GNOMAC dock)"
     gnome-extensions disable "$other" || true
+    command -v dconf >/dev/null && python3 "$ROOT/scripts/state.py" disabled "$other"
   fi
 done
 
