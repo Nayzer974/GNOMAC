@@ -7,6 +7,7 @@
 #   ./install.sh --icons    also install the MacTahoe icon theme
 #   ./install.sh --cursors  also install macOS-style cursors (WhiteSur)
 #   ./install.sh --plymouth prepare the macOS-style boot splash (prints the sudo commands, never runs them)
+#   ./install.sh --gdm      prepare the macOS-style login screen (prints the sudo command, never runs it)
 #   ./install.sh --all      everything above
 #
 # Never stores or pipes your password: sudo prompts you directly.
@@ -24,7 +25,7 @@ CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}"
 # Genie and app menus, so Magic Lamp / Global Menu would now conflict.
 EXTRA_EXTENSIONS=(7048 615)
 
-WITH_DEPS=0 WITH_EXTRAS=0 WITH_ICONS=0 WITH_CURSORS=0 WITH_PLYMOUTH=0
+WITH_DEPS=0 WITH_EXTRAS=0 WITH_ICONS=0 WITH_CURSORS=0 WITH_PLYMOUTH=0 WITH_GDM=0
 for arg in "$@"; do
   case "$arg" in
     --deps) WITH_DEPS=1 ;;
@@ -32,8 +33,9 @@ for arg in "$@"; do
     --icons) WITH_ICONS=1 ;;
     --cursors) WITH_CURSORS=1 ;;
     --plymouth) WITH_PLYMOUTH=1 ;;
+    --gdm) WITH_GDM=1 ;;
     --all) WITH_DEPS=1 WITH_EXTRAS=1 WITH_ICONS=1 WITH_CURSORS=1 ;;
-    -h|--help) sed -n '2,13p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,14p' "$0"; exit 0 ;;
     *) echo "Unknown option: $arg" >&2; exit 1 ;;
   esac
 done
@@ -177,6 +179,19 @@ if (( WITH_PLYMOUTH )); then
     sudo plymouth-set-default-theme -R cachyos
 
 PLY
+fi
+
+if (( WITH_GDM )); then
+  info "Login screen (GDM): needs root, so this command is for you to run:"
+  cat <<GDM
+
+    sudo "$ROOT/gdm/install-gdm.sh"                      # uses your current wallpaper
+    sudo "$ROOT/gdm/install-gdm.sh" --wallpaper IMAGE    # or pick the image
+    sudo "$ROOT/gdm/install-gdm.sh" --remove             # to go back
+
+  Run it again after updating GNOMAC, so GDM gets the new version.
+
+GDM
 fi
 
 echo

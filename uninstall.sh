@@ -29,4 +29,8 @@ if [[ -d /usr/share/plymouth/themes/gnomac ]]; then
   echo "A GNOMAC boot theme is installed. To remove it (needs root):"
   echo "  sudo plymouth-set-default-theme -R cachyos && sudo rm -rf /usr/share/plymouth/themes/gnomac"
 fi
+if [[ -d /usr/share/gnomac || -f /etc/dconf/db/gdm.d/90-gnomac ]]; then
+  echo "The GNOMAC login screen is installed. To remove it (needs root):"
+  echo "  sudo ./gdm/install-gdm.sh --remove"
+fi
 echo "GNOMAC removed. Log out and back in to finish."

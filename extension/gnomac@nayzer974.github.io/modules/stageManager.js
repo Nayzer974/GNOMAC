@@ -52,9 +52,9 @@ export class StageManager {
             this._stop();
         else
             this._start();
-        Main.osdWindowManager?.show?.(-1, Gio.ThemedIcon.new('view-dual-symbolic'), this._active
+        Main.osdWindowManager?.showAll?.(Gio.ThemedIcon.new('view-dual-symbolic'), this._active
             ? t('Stage Manager on', 'Stage Manager activé')
-            : t('Stage Manager off', 'Stage Manager désactivé'), null);
+            : t('Stage Manager off', 'Stage Manager désactivé'));
     }
 
     // ------------------------------------------------------------ lifecycle

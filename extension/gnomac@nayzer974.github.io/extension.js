@@ -17,6 +17,7 @@ import {GlassMenus} from './modules/glassMenus.js';
 import {Launchpad} from './modules/launchpad.js';
 import {MenuBarIcons} from './modules/menuBarIcons.js';
 import {LockScreen} from './modules/lockScreen.js';
+import {LoginScreen} from './modules/loginScreen.js';
 import {Notifications} from './modules/notifications.js';
 import {Spotlight} from './modules/spotlight.js';
 import {StageManager} from './modules/stageManager.js';
@@ -36,6 +37,8 @@ const MODULES = [
     // First, so the boot cover is up before the other modules build the UI.
     {key: 'enable-boot-shutdown', Module: BootShutdown},
     {key: 'enable-lock-screen', Module: LockScreen, locked: true},
+    // GDM's own shell (login screen): the only module that runs there.
+    {key: 'enable-login-screen', Module: LoginScreen, greeter: true},
     {key: 'enable-launchpad', Module: Launchpad},
     {key: 'enable-topbar', Module: TopBar},
     {key: 'enable-app-menus', Module: AppMenus},
@@ -104,8 +107,12 @@ export default class GnomacExtension extends Extension {
     _start() {
         this._forceAnimations();
         const locked = Main.sessionMode.isLocked;
-        for (const {key, Module, locked: allowedLocked} of MODULES) {
+        const greeter = Main.sessionMode.currentMode === 'gdm';
+        for (const {key, Module, locked: allowedLocked, greeter: forGreeter} of MODULES) {
             if (!this._settings.get_boolean(key) || (locked && !allowedLocked))
+                continue;
+            // The login screen runs the login module alone, a session never runs it.
+            if (greeter !== !!forGreeter)
                 continue;
             const module = new Module(this);
             try {

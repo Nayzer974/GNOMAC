@@ -63,6 +63,18 @@ Dans la palette, on choisit avec la souris, avec les flèches puis Entrée, ou a
 | Changer d'app | `Super + Tab` (sélecteur en verre) |
 | Aperçu rapide | `Espace` sur un fichier dans Fichiers (installer `sushi` : `sudo pacman -S sushi`) |
 
+## Écran de connexion (GDM)
+
+CachyOS GNOME utilise GDM. L'écran de connexion est le shell GNOME de l'utilisateur `gdm` : GNOMAC peut s'y charger s'il est installé pour tout le système. Cela donne une horloge géante, ton fond d'écran, une tuile de profil en verre (grand avatar rond, nom dessous) et un champ de mot de passe en pilule. L'**engrenage** de choix de session (GNOME, Hyprland…) reste à sa place.
+
+```bash
+sudo ./gdm/install-gdm.sh                      # utilise ton fond d'écran actuel
+sudo ./gdm/install-gdm.sh --wallpaper IMAGE    # ou une image au choix
+sudo ./gdm/install-gdm.sh --remove             # revenir à l'écran d'origine
+```
+
+Le script copie l'extension dans `/usr/share/gnome-shell/extensions`, le fond dans `/usr/share/gnomac/login.jpg` et active l'extension pour GDM par `/etc/dconf/db/gdm.d/90-gnomac`. Rien d'autre n'est modifié. Relance-le après chaque mise à jour de GNOMAC. L'avatar se change dans Paramètres › Utilisateurs (ou avec `~/.face`).
+
 ## Installation (CachyOS)
 
 ```bash
