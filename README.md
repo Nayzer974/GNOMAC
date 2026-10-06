@@ -198,57 +198,6 @@ Clic droit sur le bureau › **Modifier les widgets…** :
 
 Clic droit sur un widget : **couleur** (9 teintes macOS), **matière** (clair, dépoli, teinté, couleur, sombre), **taille** (petit, moyen, haut, grand, bandeau, très grand) et les options propres à chaque type (ville, fuseaux horaires, évènement, photo). Dans les préférences : côté de départ (gauche ou droite), taille d'ensemble de 0,7 à 1,6 et marge avec le bord. **La disposition est mémorisée** : ce que tu retires reste retiré après un redémarrage.
 
-### Fenêtres : disposition et Stage Manager
-
-| Palette de disposition (`Super + Ctrl + T`) | Deux moitiés d'écran |
-|---|---|
-| ![Palette](docs/screenshots/layout-palette.jpg) | ![Fenêtres côte à côte](docs/screenshots/tiling.jpg) |
-| **Stage Manager** (`Super + Ctrl + M`) | **Barre de capture d'écran** |
-| ![Stage Manager](docs/screenshots/stage-manager.jpg) | ![Capture d'écran](docs/screenshots/screenshot-toolbar.jpg) |
-
-### Widgets éditables et guide intégré
-
-| Modifier les widgets | Guide (tape « guide » dans Spotlight) |
-|---|---|
-| ![Mode édition des widgets](docs/screenshots/widgets-edit.jpg) | ![Guide GNOMAC](docs/screenshots/guide.jpg) |
-
----
-
-## Toutes les fonctions
-
-### Apparence
-
-| Élément | Détail |
-|---|---|
-| **Liquid Glass** | Vraie réfraction : un shader GLSL courbe une copie floutée de ce qui est derrière (fenêtres comprises) près des bords arrondis, avec dispersion chromatique, éclairage du bord et reflet en haut. La lueur suit le pointeur et une ombre interne adoucit les surfaces. |
-| **Liquid Glass réglable** | Curseur d'intensité, **transparent ou teinté** comme dans les Réglages de macOS 27, appliqués à tout le verre. |
-| **Section Apparence** | Dans le Centre de contrôle : couleur d'accentuation (9 couleurs, GNOME), Auto / Clair / Sombre, verre transparent ou teinté, style des icônes (défaut, sombre, transparent, teinté). |
-| **Menus en verre** | Tous les menus du shell (système, apps, dock, calendrier, Réglages rapides) reçoivent un fond Liquid Glass qui suit leur animation. Les Réglages rapides prennent l'allure du **Centre de contrôle** : tuiles arrondies, curseurs épais. |
-| **Boutons de fenêtre** | Les « feux tricolores » brillants de Golden Gate, en GTK 3 et GTK 4/libadwaita, à gauche. |
-| **Barre latérale Finder** | Dans Fichiers, un verre dépoli sous la barre latérale (la « vibrancy »), icônes teintées accent. Tout passe par un thème : aucun binaire injecté. |
-| **Sélecteur d'apps, capture d'écran, Mission Control** | Restylés en verre : `Super + Tab`, barre de capture, vue d'ensemble. |
-
-### Barre de menus
-
-| Élément | Détail |
-|---|---|
-| **Menu système et pomme** | À propos, Réglages, App Store, Forcer à quitter, Suspendre, Redémarrer…, logo pomme ou pont Golden Gate. |
-| **Menus de l'app active** | Nom de l'app en gras, puis Fichier, Édition, Présentation, Fenêtre, Aide. Les menus restent à l'écart de l'encoche. |
-| **Symboles à droite** | Wi-Fi en éventail selon le signal (ou `<···>` en filaire), batterie horizontale avec pourcentage (verte en charge, rouge sous 20 %), pastille de Concentration, Centre de contrôle. Les indicateurs de confidentialité restent visibles. |
-| **Icônes masquées** | Les icônes d'applications se replient derrière une flèche. |
-
-### Dock
-
-Flotte au-dessus du bas de l'écran, **taille automatique** qui suit la hauteur de l'écran. Agrandissement en courbe gaussienne qui écarte les voisines, rebond au lancement, points sous les apps ouvertes, infobulles (« Tourne en arrière-plan »), glisser-déposer pour réorganiser, **pile Téléchargements** en éventail, **Corbeille** vide ou pleine. Une physique de ressorts commune garde toutes les animations naturelles.
-
-### Encoche (Dynamic Island)
-
-Pochette, égaliseur teinté par la musique, minuteur, notifications, volume et luminosité. Un **Pomodoro complet** (concentration, pauses courtes et longue, cycles, durées réglables). Une horloge et le calendrier quand rien ne joue. Un presse-papiers et une étagère de fichiers.
-
-### Bureau
-
-**Dix types de widgets** : horloge, batterie, calendrier, rappels, notes, météo ([wttr.in](https://wttr.in), ville au choix), lecture en cours, système, minuteur, raccourcis d'apps. Clic droit sur le bureau › **Modifier les widgets…** : les tuiles frémissent, le badge **−** retire, glisser-déposer déplace sur une grille avec accroche, la poignée change la taille (petit, moyen, grand, XXL), la galerie ajoute. Chaque widget a sa matière (clair, dépoli, teinté). **La disposition est mémorisée** : ce que tu retires reste retiré après un redémarrage.
-
 ### Fenêtres
 
 Ouverture façon macOS, **effet Génie** vers l'icône du dock à la réduction **et à la fermeture** (au choix dans les préférences), **disposition** en moitiés, quarts, tiers (palette ou raccourcis), **Stage Manager** simplifié, marge réglable autour des fenêtres, coins arrondis (avec l'extension complémentaire installée par `--extras`).
