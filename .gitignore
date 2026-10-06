@@ -2,3 +2,4 @@ dist/
 *.zip
 gschemas.compiled
 node_modules/
+.vm/

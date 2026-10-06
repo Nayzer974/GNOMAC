@@ -25,6 +25,7 @@ import {WallpaperPicker} from './modules/wallpaperPicker.js';
 import {Widgets} from './modules/widgets.js';
 import {WindowAnimations} from './modules/windowAnimations.js';
 import {WindowLayout} from './modules/windowLayout.js';
+import {closeGuide} from './lib/guide.js';
 import {destroyTicker} from './lib/spring.js';
 
 // Only modules flagged `locked` run while the screen is locked: the
@@ -93,6 +94,7 @@ export default class GnomacExtension extends Extension {
         this._settings.disconnect(this._settingsId);
         Main.sessionMode.disconnect(this._sessionId);
         this._stop();
+        closeGuide(true);
         destroyTicker();
         this._settings = null;
     }

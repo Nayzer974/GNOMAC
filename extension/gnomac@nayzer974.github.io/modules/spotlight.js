@@ -21,6 +21,7 @@ import {menuEntries} from './appMenus.js';
 import {Spring, getTicker} from '../lib/spring.js';
 import {evaluate, format, looksLikeMath} from '../lib/calculator.js';
 import * as Session from '../lib/session.js';
+import {showGuide} from '../lib/guide.js';
 import {t} from '../lib/i18n.js';
 
 const WIDTH = 680;
@@ -35,6 +36,8 @@ const decimalComma = (GLib.get_language_names()[0] ?? '').startsWith('fr');
 function systemActionEntries(extension) {
     const entry = (name, keywords, icon, run) => ({name, keywords, icon, run});
     return [
+        entry(t('GNOMAC Guide', 'Guide GNOMAC'), ['guide', 'aide', 'help', 'raccourcis', 'shortcuts', 'tuto', 'gnomac', 'disposition', 'tiling'],
+            'help-about-symbolic', () => showGuide()),
         entry(t('Edit Widgets…', 'Modifier les widgets…'), ['widget', 'widgets', 'bureau', 'desktop', 'edit'],
             'view-grid-symbolic', () => extension?.widgets?.startEditing()),
         entry(t('Lock Screen', 'Verrouiller l\'écran'), ['lock', 'verrouiller', 'verrou'],

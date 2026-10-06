@@ -31,6 +31,36 @@ GNOMAC est une extension GNOME Shell unique et cohérente, au lieu d'un empileme
 | **Boutons de fenêtre** | Les « feux tricolores » brillants de Golden Gate (gel saturé, reflet en haut, symboles visibles au survol), en GTK 3 et GTK 4/libadwaita, placés à gauche. |
 | **Réglages** | Fenêtre libadwaita : taille du dock, agrandissement, flou, réfraction, dispersion, teinte, raideur et amortissement des ressorts. |
 
+## Guide : raccourcis et gestes
+
+Le même guide est dans l'interface : tape **guide** dans Spotlight (`Super + Espace`).
+
+### Disposition des fenêtres
+
+| Raccourci | Effet |
+|---|---|
+| `Super + Ctrl + ←` / `→` | Moitié gauche / droite de l'écran |
+| `Super + Ctrl + ↑` / `↓` | Moitié haute / basse |
+| `Super + Ctrl + Entrée` | Remplir l'écran |
+| `Super + Ctrl + C` | Centrer la fenêtre |
+| `Super + Ctrl + T` | Palette : moitiés, quarts, tiers, remplir, centrer |
+
+Dans la palette, on choisit avec la souris, avec les flèches puis Entrée, ou avec un chiffre (1 à 9, 0). Échap ferme. Une ombre de verre glisse de l'ancienne position vers la nouvelle, puis la fenêtre s'y place. L'écart entre fenêtres suit le réglage « Marge autour des fenêtres ». Les raccourcis se changent dans dconf (`org.gnome.shell.extensions.gnomac`, clés `tile-*` et `layout-shortcut`).
+
+### Le reste
+
+| Où | Geste |
+|---|---|
+| Spotlight | `Super + Espace` ; `Ctrl + 1…5` change de mode ; `9+9` calcule ; `guide` ouvre ce guide |
+| Bureau | Clic droit › **Modifier les widgets…** : glisser pour déplacer, poignée pour la taille, − pour retirer, galerie pour ajouter |
+| Widget | Clic droit : matière (clair, dépoli, teinté), taille, ville de la météo, retirer |
+| Centre de contrôle | Section **Apparence** : couleur d'accentuation, clair/sombre, Liquid Glass transparent ou teinté, style des icônes |
+| Dock | Clic droit pour les options ; glisser un fichier sur une icône pour l'ouvrir avec cette app |
+| Encoche | Survol : tableau de bord (accueil, système, actions, presse-papiers, minuteur, étagère) |
+| Fonds d'écran | `Super + W` |
+| Capture | `Impr. écran` : barre de capture façon macOS |
+| Changer d'app | `Super + Tab` (sélecteur en verre) |
+
 ## Installation (CachyOS)
 
 ```bash
