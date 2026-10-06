@@ -35,7 +35,7 @@ const SECTIONS = () => [
         [t('Control Center', 'Centre de contrôle'), t('Wi-Fi, Bluetooth, volume, Appearance (accent, glass, icons)',
             'Wi-Fi, Bluetooth, volume, Apparence (accent, verre, icônes)')],
         [t('App name', 'Nom de l’app'), t('Its menus: File, Edit, View, Window, Help', 'Ses menus : Fichier, Édition, Présentation, Fenêtre, Aide')],
-        ['', t('Hover the notch for the dashboard', 'Survoler l’encoche : tableau de bord')],
+        [t('Notch', 'Encoche'), t('Hover it for the dashboard', 'Survol : tableau de bord')],
     ]],
     [t('Dock', 'Dock'), [
         [t('Click', 'Clic'), t('Open or bring to front', 'Ouvrir ou passer devant')],
@@ -73,7 +73,7 @@ export function showGuide() {
         layout_manager: new Clutter.BinLayout(), opacity: 0});
 
     const width = Math.min(980, Math.round(monitor.width * 0.82));
-    const height = Math.min(640, Math.round(monitor.height * 0.78));
+    const height = Math.min(700, Math.round(monitor.height * 0.86));
     const panel = new St.BoxLayout({style_class: 'gnomac-guide', vertical: true, width, height,
         x_align: Clutter.ActorAlign.CENTER, y_align: Clutter.ActorAlign.CENTER});
     panel.add_child(new St.Label({style_class: 'gnomac-guide-title', text: t('GNOMAC Guide', 'Guide GNOMAC')}));
