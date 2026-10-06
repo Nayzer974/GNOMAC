@@ -171,7 +171,7 @@ Préférences (`gnome-extensions prefs gnomac@nayzer974.github.io`) › **Dynami
 
 | Élément | Détail |
 |---|---|
-| **Menu système et pomme** | À propos, Réglages, App Store, Forcer à quitter, Suspendre, Redémarrer…, logo pomme ou pont Golden Gate. |
+| **Menu système et pomme** | **À propos de ce Mac** refait façon macOS 26 : machine dessinée, modèle, trois onglets (**Aperçu** : puce et cœurs, mémoire, graphismes, numéro de série, système, noyau, durée d'activité, batterie ; **Écrans** : résolution et échelle ; **Stockage** : barre d'espace utilisé), boutons *Plus d'infos…* (la page « À propos » de GNOME, pas les Réglages), *Mise à jour…* et *Signaler un bug…*. Puis Réglages, App Store, Forcer à quitter, Suspendre, Redémarrer…, logo pomme ou pont Golden Gate. |
 | **Menus de l'app active** | Nom de l'app en gras, puis Fichier, Édition, Présentation, Fenêtre, Aide. Les menus restent à l'écart de l'encoche. |
 | **Symboles à droite** | Wi-Fi en éventail selon le signal (ou `<···>` en filaire), batterie horizontale avec pourcentage (verte en charge, rouge sous 20 %), pastille de Concentration, Centre de contrôle. Les indicateurs de confidentialité restent visibles. |
 | **Icônes masquées** | Les icônes d'applications se replient derrière une flèche. |

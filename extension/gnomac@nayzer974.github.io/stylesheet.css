@@ -2056,3 +2056,88 @@
     background-color: transparent;
     border-color: transparent;
 }
+
+/* ---------- About This Mac (v2) ---------- */
+
+.gnomac-about2-box {
+    padding: 26px 30px 18px 30px;
+    spacing: 4px;
+}
+
+.gnomac-about2-model {
+    color: #ffffff;
+    font-size: 20pt;
+    font-weight: 800;
+    padding-top: 6px;
+}
+
+.gnomac-about2-kind {
+    color: rgba(255, 255, 255, 0.58);
+    font-size: 10.5pt;
+    padding-bottom: 12px;
+}
+
+.gnomac-about2-tabs {
+    background-color: rgba(255, 255, 255, 0.10);
+    border-radius: 11px;
+    padding: 2px;
+    spacing: 2px;
+}
+
+.gnomac-about2-tab {
+    border-radius: 9px;
+    padding: 5px 16px;
+    font-size: 9.5pt;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.82);
+}
+
+.gnomac-about2-tab:hover {
+    background-color: rgba(255, 255, 255, 0.10);
+}
+
+.gnomac-about2-tab:checked {
+    background-color: rgba(255, 255, 255, 0.28);
+    color: #ffffff;
+}
+
+.gnomac-about2-page {
+    spacing: 2px;
+    padding-top: 12px;
+}
+
+.gnomac-about2-row {
+    spacing: 18px;
+    padding: 6px 4px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.gnomac-about2-key {
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 10pt;
+    font-weight: 500;
+    min-width: 120px;
+}
+
+.gnomac-about2-value {
+    color: #ffffff;
+    font-size: 10pt;
+    font-weight: 600;
+    text-align: right;
+}
+
+.gnomac-about2-bar {
+    background-color: rgba(255, 255, 255, 0.14);
+    border-radius: 6px;
+    margin: 10px 4px 6px 4px;
+}
+
+.gnomac-about2-bar-used {
+    background-color: #0a84ff;
+    border-radius: 6px;
+}
+
+.gnomac-about2-buttons {
+    spacing: 10px;
+    padding-top: 10px;
+}
