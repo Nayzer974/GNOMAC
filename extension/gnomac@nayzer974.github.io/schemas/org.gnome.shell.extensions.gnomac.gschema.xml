@@ -313,6 +313,10 @@
       <default>'dock'</default>
       <summary>Opening a window: it grows out of its dock icon, or pops in from 90 percent</summary>
     </key>
+    <key name="dock-click-minimize" type="b">
+      <default>true</default>
+      <summary>Clicking the dock icon of the active app hides it (like the Windows taskbar)</summary>
+    </key>
     <key name="close-animation" type="s">
       <choices>
         <choice value="genie"/>

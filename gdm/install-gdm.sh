@@ -43,7 +43,10 @@ check() {
   [[ -f "$DST/schemas/gschemas.compiled" ]] && ok "schema compiled" || bad "schema not compiled in $DST/schemas"
   [[ -f "$SHARE/login.jpg" ]] && ok "wallpaper: $SHARE/login.jpg" || bad "no wallpaper at $SHARE/login.jpg (GNOME's background stays)"
   if [[ -s "$DB" ]] && grep -q "$UUID" "$DB"; then ok "GDM enables the extension: $DB"; else bad "$DB is missing or empty"; fi
-  if [[ -f "$PROFILE" || -f /usr/share/dconf/profile/gdm ]]; then ok "dconf profile for GDM present"; else bad "no dconf profile for GDM"; fi
+  # /etc/dconf/profile wins over /usr/share/dconf/profile; the one in use must read the gdm database.
+  local profile="$PROFILE"; [[ -f "$profile" ]] || profile=/usr/share/dconf/profile/gdm
+  if grep -qs '^system-db:gdm' "$profile"; then ok "dconf profile reads the gdm database ($profile)"
+  else bad "the dconf profile for GDM ($profile) does not read system-db:gdm: GDM ignores the extension list"; fi
   if [[ -f /etc/dconf/db/gdm ]] && strings /etc/dconf/db/gdm 2>/dev/null | grep -q "$UUID"; then
     ok "dconf database for GDM contains the extension"
   else
@@ -57,6 +60,10 @@ case "${1:-}" in
   --check) check; exit $FAILED ;;
   --remove)
     rm -rf "$DST" "$SHARE" "$DB"
+    if grep -qs 'GNOMAC' "$PROFILE"; then
+      rm -f "$PROFILE"
+      [[ -f "$PROFILE.gnomac-backup" ]] && mv "$PROFILE.gnomac-backup" "$PROFILE"
+    fi
     dconf update
     echo ":: Stock login screen restored (takes effect at the next boot)."
     exit 0 ;;
@@ -96,11 +103,19 @@ else
   echo "!! No wallpaper found: pass one with --wallpaper IMAGE (the login screen keeps GNOME's background)."
 fi
 
-if [[ ! -f "$PROFILE" && ! -f /usr/share/dconf/profile/gdm ]]; then
-  info "Creating $PROFILE"
-  mkdir -p "$(dirname "$PROFILE")"
-  printf 'user-db:user\nsystem-db:gdm\nfile-db:/usr/share/gdm/greeter-dconf-defaults\n' > "$PROFILE"
+# The profile shipped by Arch's gdm package has no system-db:gdm line, so the
+# list of extensions written below would never be read. /etc wins over
+# /usr/share: write ours (the GNOMAC marker lets --remove delete only ours).
+info "Writing $PROFILE (GDM must read the gdm database)"
+mkdir -p "$(dirname "$PROFILE")"
+if [[ -f "$PROFILE" ]] && ! grep -q 'GNOMAC' "$PROFILE"; then
+  cp "$PROFILE" "$PROFILE.gnomac-backup"
 fi
+printf '# GNOMAC: lets GDM read /etc/dconf/db/gdm.d (the login screen extension)
+user-db:user
+system-db:gdm
+file-db:/usr/share/gdm/greeter-dconf-defaults
+' > "$PROFILE"
 
 info "Enabling the extension for GDM"
 mkdir -p "$(dirname "$DB")"

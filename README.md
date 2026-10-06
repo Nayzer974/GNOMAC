@@ -178,7 +178,7 @@ Préférences (`gnome-extensions prefs gnomac@nayzer974.github.io`) › **Dynami
 
 ### Dock
 
-Flotte au-dessus du bas de l'écran, **compteurs de notifications** (pastille rouge sur l'icône de l'app), **nuage de fumée** quand on retire une icône, **taille automatique** qui suit la hauteur de l'écran. Agrandissement en courbe gaussienne qui écarte les voisines, rebond au lancement, points sous les apps ouvertes, infobulles (« Tourne en arrière-plan »), glisser-déposer pour réorganiser, **pile Téléchargements** en éventail, **Corbeille** vide ou pleine. Une physique de ressorts commune garde toutes les animations naturelles.
+Flotte au-dessus du bas de l'écran, **un clic sur l'icône de l'app active la cache** (comme la barre des tâches de Windows ; un deuxième clic la ramène), **compteurs de notifications** (pastille rouge sur l'icône de l'app), **nuage de fumée** quand on retire une icône, **taille automatique** qui suit la hauteur de l'écran. Agrandissement en courbe gaussienne qui écarte les voisines, rebond au lancement, points sous les apps ouvertes, infobulles (« Tourne en arrière-plan »), glisser-déposer pour réorganiser, **pile Téléchargements** en éventail, **Corbeille** vide ou pleine. Une physique de ressorts commune garde toutes les animations naturelles.
 
 ### Encoche (Dynamic Island)
 

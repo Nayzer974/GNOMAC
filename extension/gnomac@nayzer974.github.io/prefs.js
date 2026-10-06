@@ -71,6 +71,7 @@ export default class GnomacPreferences extends ExtensionPreferences {
             settings.set_string('dock-icon-style', iconStyles[iconRow.selected]));
         dock.add(iconRow);
         toggle(dock, 'dock-show-running', 'Points sous les apps ouvertes');
+        toggle(dock, 'dock-click-minimize', 'Recliquer sur l’icône cache l’app', 'Un clic sur l’icône de l’app active réduit ses fenêtres, comme sur la barre des tâches de Windows')
         toggle(dock, 'dock-badges', 'Compteurs de notifications', 'Pastille rouge avec le nombre de notifications non lues sur l’icône de l’app')
 
         const openModes = ['dock', 'pop'];

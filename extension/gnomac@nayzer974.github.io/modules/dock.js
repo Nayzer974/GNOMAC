@@ -194,6 +194,16 @@ class DockItem extends St.Widget {
             this.dock.bounce(this);
             this.app.open_new_window(-1);
         } else if (button === Clutter.BUTTON_PRIMARY) {
+            // Like the Windows taskbar: a click on the icon of the app you are
+            // working in hides it (its windows are minimized, Genie included).
+            if (this.dock.hideActive(this.app))
+                return Clutter.EVENT_STOP;
+            // Everything minimized: bring the latest window back (Genie included).
+            const windows = this.app?.get_windows() ?? [];
+            if (windows.length && windows.every(w => w.minimized)) {
+                Main.activateWindow(windows[0]);
+                return Clutter.EVENT_STOP;
+            }
             if (!this.running)
                 this.dock.bounce(this);
             this.app.activate();
@@ -569,6 +579,23 @@ export class Dock {
             this._hover.setTarget(0);
         }
         this._kick();
+    }
+
+    // True when the click was used to hide the app: it is running, one of its
+    // windows has the focus and the setting is on.
+    hideActive(app) {
+        if (!this._settings.get_boolean('dock-click-minimize') || Main.overview.visible)
+            return false;
+        const focus = global.display.focus_window;
+        if (!focus || focus.minimized || Shell.WindowTracker.get_default().get_window_app(focus) !== app)
+            return false;
+        const workspace = global.workspace_manager.get_active_workspace();
+        const windows = app.get_windows().filter(w => !w.minimized && w.located_on_workspace?.(workspace) !== false);
+        if (!windows.length)
+            return false;
+        for (const window of windows)
+            window.minimize();
+        return true;
     }
 
     // ---- notification counters -----------------------------------------
