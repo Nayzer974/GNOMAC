@@ -22,6 +22,7 @@ GNOMAC est **une seule extension GNOME Shell cohérente**, au lieu d'un empileme
 
 ## Sommaire
 
+- [Installation express](#installation-express-recommandée)
 - [Installation en une ligne](#installation-en-une-ligne)
 - [Désinstallation](#désinstallation)
 - [Aperçu](#aperçu)
@@ -36,6 +37,16 @@ GNOMAC est **une seule extension GNOME Shell cohérente**, au lieu d'un empileme
 - [Crédits et licence](#crédits-et-licence)
 
 ---
+
+## Installation express (recommandée)
+
+Une commande, quelques questions (Entrée = oui pour les parties sûres), et tout est en place : l'extension, le démarrage animé (Plymouth) et l'écran de connexion. Les parties qui demandent les droits administrateur utilisent `sudo`, qui te demande **ton** mot de passe lui-même : le script ne le lit ni ne le garde.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Nayzer974/GNOMAC/main/get.sh | bash -s -- --ez
+```
+
+Sans question (extension, démarrage et écran de connexion) : ajoute `--yes` après `--ez`. Seulement l'extension : `--minimal`. Depuis un clone : `./ez-install.sh` ou `make ez`.
 
 ## Installation en une ligne
 
@@ -300,6 +311,16 @@ Le script copie l'extension dans `/usr/share/gnome-shell/extensions`, le fond da
 > Cette partie n'a pas pu être vérifiée visuellement (elle ne se teste qu'avec un vrai GDM). Si l'écran paraît mal composé, ouvre une *issue* avec une capture.
 
 ---
+
+## Personnaliser le thème
+
+Trois niveaux, tous **sans se déconnecter** (guide complet : [docs/THEMING.md](docs/THEMING.md)) :
+
+1. **Préférences › Thème** : couleur d'accentuation, style des angles, ombres, taille du texte, police, densité des listes.
+2. **`~/.config/gnomac/user.css`** : ton propre CSS, créé au premier lancement avec des exemples ; il s'applique **dès que tu enregistres**, gagne toujours sur le thème d'origine, et une faute de syntaxe est ignorée avec une notification. Ouvre-le par Spotlight (« thème ») ou le bouton des préférences.
+3. **Le code** : `stylesheet.css`, `modules/`, `lib/` dans le dossier de l'extension, ou dans un clone du dépôt pour garder tes changements après une mise à jour.
+
+L'écran de connexion a ses fichiers : `/etc/gnomac/login.conf` (horloge, boutons, fond, taille de l'avatar, couleur…) et `/etc/gnomac/login.css`, créés par `install-gdm.sh` et jamais écrasés. La liste des 230 classes de style est dans le guide.
 
 ## Réglages
 

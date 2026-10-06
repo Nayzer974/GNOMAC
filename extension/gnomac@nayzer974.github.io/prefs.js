@@ -326,6 +326,76 @@ export default class GnomacPreferences extends ExtensionPreferences {
         photoRow.add_suffix(chooseButton);
         profile.add(photoRow);
 
+        const theme = group('Thème', 'Réglages visuels de GNOMAC (appliqués tout de suite) et accès au code du thème');
+        toggle(theme, 'enable-theme-custom', 'Personnalisation du thème', 'Active les réglages ci-dessous et votre fichier user.css');
+        const accentRow = new Adw.ActionRow({title: 'Couleur d’accentuation', subtitle: 'Onglets, barres, surbrillances et titres de GNOMAC'});
+        const accentButton = new Gtk.ColorDialogButton({dialog: new Gtk.ColorDialog({with_alpha: false}), valign: Gtk.Align.CENTER});
+        const accentRgba = new Gdk.RGBA();
+        accentRgba.parse(settings.get_string('theme-accent'));
+        accentButton.set_rgba(accentRgba);
+        accentButton.connect('notify::rgba', () => {
+            const c = accentButton.get_rgba();
+            const h = v => Math.round(v * 255).toString(16).padStart(2, '0');
+            settings.set_string('theme-accent', `#${h(c.red)}${h(c.green)}${h(c.blue)}`);
+        });
+        accentRow.add_suffix(accentButton);
+        theme.add(accentRow);
+        const cornerKeys = ['square', 'round', 'rounder'];
+        const cornerRow = new Adw.ComboRow({title: 'Style des angles',
+            model: Gtk.StringList.new(['Carrés', 'Arrondis', 'Très arrondis'])});
+        cornerRow.selected = Math.max(0, cornerKeys.indexOf(settings.get_string('theme-corners')));
+        cornerRow.connect('notify::selected', () => settings.set_string('theme-corners', cornerKeys[cornerRow.selected]));
+        theme.add(cornerRow);
+        const shadowKeys = ['none', 'soft', 'strong'];
+        const shadowRow = new Adw.ComboRow({title: 'Ombre des panneaux',
+            model: Gtk.StringList.new(['Aucune', 'Douce', 'Marquée'])});
+        shadowRow.selected = Math.max(0, shadowKeys.indexOf(settings.get_string('theme-shadow')));
+        shadowRow.connect('notify::selected', () => settings.set_string('theme-shadow', shadowKeys[shadowRow.selected]));
+        theme.add(shadowRow);
+        spin(theme, 'theme-text-scale', 'Taille du texte', 0.8, 1.4, 0.05, 2);
+        spin(theme, 'theme-density', 'Densité des listes (plus petit = plus compact)', 0.6, 1.6, 0.05, 2);
+        const fontRow = new Adw.EntryRow({title: 'Police de l’interface (vide = celle du système)'});
+        settings.bind('theme-font', fontRow, 'text', Gio.SettingsBindFlags.DEFAULT);
+        theme.add(fontRow);
+
+        const configDir = GLib.build_filenamev([GLib.get_user_config_dir(), 'gnomac']);
+        const open = path => {
+            try {
+                Gio.AppInfo.launch_default_for_uri(Gio.File.new_for_path(path).get_uri(), null);
+            } catch (e) {
+                window.add_toast(new Adw.Toast({title: `Impossible d’ouvrir ${path}`, timeout: 4}));
+            }
+        };
+        const codeRow = new Adw.ActionRow({title: 'Mon code CSS (user.css)',
+            subtitle: 'Modifie ce fichier avec un éditeur de texte : le changement s’affiche aussitôt. Guide : docs/THEMING.md'});
+        const editButton = new Gtk.Button({label: 'Ouvrir', valign: Gtk.Align.CENTER, css_classes: ['suggested-action']});
+        editButton.connect('clicked', () => open(GLib.build_filenamev([configDir, 'user.css'])));
+        const folderButton = new Gtk.Button({label: 'Dossier', valign: Gtk.Align.CENTER});
+        folderButton.connect('clicked', () => open(configDir));
+        codeRow.add_suffix(folderButton);
+        codeRow.add_suffix(editButton);
+        theme.add(codeRow);
+        const sourceRow = new Adw.ActionRow({title: 'Code complet du thème',
+            subtitle: `${this.path}/stylesheet.css : modifiable aussi (une mise à jour de GNOMAC le remplacera, préfère user.css)`});
+        const sourceButton = new Gtk.Button({label: 'Ouvrir le dossier', valign: Gtk.Align.CENTER});
+        sourceButton.connect('clicked', () => open(this.path));
+        sourceRow.add_suffix(sourceButton);
+        theme.add(sourceRow);
+        const themeResetRow = new Adw.ActionRow({title: 'Réinitialiser les réglages du thème'});
+        const resetTheme = new Gtk.Button({label: 'Réinitialiser', valign: Gtk.Align.CENTER});
+        resetTheme.connect('clicked', () => {
+            for (const key of ['theme-accent', 'theme-corners', 'theme-shadow', 'theme-text-scale', 'theme-density', 'theme-font'])
+                settings.reset(key);
+            const fresh = new Gdk.RGBA();
+            fresh.parse('#0a84ff');
+            accentButton.set_rgba(fresh);
+            cornerRow.selected = 1;
+            shadowRow.selected = 1;
+            window.add_toast(new Adw.Toast({title: 'Réglages du thème réinitialisés', timeout: 3}));
+        });
+        themeResetRow.add_suffix(resetTheme);
+        theme.add(themeResetRow);
+
         const motion = group('Animations', 'Ressorts : plus de raideur = plus vif, plus d\'amortissement = moins de rebond');
         spin(motion, 'spring-stiffness', 'Raideur', 40, 1000, 10);
         spin(motion, 'spring-damping', 'Amortissement', 5, 80, 1);

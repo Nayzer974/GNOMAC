@@ -26,6 +26,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SRC="$ROOT/extension/$UUID"
 DST="/usr/share/gnome-shell/extensions/$UUID"
 SHARE="/usr/share/gnomac"
+ETC="/etc/gnomac"
 DB="/etc/dconf/db/gdm.d/90-gnomac"
 PROFILE="/etc/dconf/profile/gdm"
 
@@ -41,6 +42,7 @@ check() {
   grep -q '"gdm"' "$DST/metadata.json" 2>/dev/null && ok "metadata lists the gdm session mode" \
     || bad "metadata.json has no \"gdm\" in session-modes"
   [[ -f "$DST/schemas/gschemas.compiled" ]] && ok "schema compiled" || bad "schema not compiled in $DST/schemas"
+  [[ -f "$ETC/login.conf" ]] && ok "settings: $ETC/login.conf" || bad "no $ETC/login.conf (defaults are used)"
   [[ -f "$SHARE/login.jpg" ]] && ok "wallpaper: $SHARE/login.jpg" || bad "no wallpaper at $SHARE/login.jpg (GNOME's background stays)"
   if [[ -s "$DB" ]] && grep -q "$UUID" "$DB"; then ok "GDM enables the extension: $DB"; else bad "$DB is missing or empty"; fi
   # /etc/dconf/profile wins over /usr/share/dconf/profile; the one in use must read the gdm database.
@@ -60,6 +62,7 @@ case "${1:-}" in
   --check) check; exit $FAILED ;;
   --remove)
     rm -rf "$DST" "$SHARE" "$DB"
+    echo ":: Your settings in $ETC (login.conf, login.css) were kept; delete the folder to remove them."
     if grep -qs 'GNOMAC' "$PROFILE"; then
       rm -f "$PROFILE"
       [[ -f "$PROFILE.gnomac-backup" ]] && mv "$PROFILE.gnomac-backup" "$PROFILE"
@@ -116,6 +119,16 @@ user-db:user
 system-db:gdm
 file-db:/usr/share/gdm/greeter-dconf-defaults
 ' > "$PROFILE"
+
+# Settings and CSS the administrator can edit after the install: never overwritten.
+mkdir -p "$ETC"
+for f in login.conf login.css; do
+  if [[ ! -f "$ETC/$f" ]]; then
+    cp "$ROOT/gdm/$f" "$ETC/$f"
+    echo ":: Created $ETC/$f (edit it to customise the login screen)"
+  fi
+done
+chmod -R a+rX "$ETC"
 
 info "Enabling the extension for GDM"
 mkdir -p "$(dirname "$DB")"

@@ -45,6 +45,11 @@ const SECTIONS = () => [
         [t('Right-click', 'Clic droit'), t('Options, keep in Dock, quit', 'Options, garder dans le Dock, quitter')],
         [t('Drag a file onto an icon', 'Glisser un fichier sur une icône'), t('Open it with that app', 'L’ouvrir avec cette app')],
     ]],
+    [t('Theme', 'Thème'), [
+        ['~/.config/gnomac/user.css', t('Your own CSS, applied as soon as you save', 'Ton CSS, appliqué dès l’enregistrement')],
+        ['Prefs › Thème', t('Accent colour, corners, shadows, text size, font', 'Couleur, angles, ombres, taille du texte, police')],
+        ['guide thème', t('docs/THEMING.md: every class you can restyle', 'docs/THEMING.md : toutes les classes à restyler')],
+    ]],
     [t('Screenshots', 'Captures'), [
         ['⇧⌘ 5', t('Screenshot toolbar (Print Screen)', 'Barre de capture (Impr. écran)')],
     ]],

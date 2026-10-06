@@ -8,6 +8,9 @@
 #
 #   curl -fsSL .../get.sh | bash -s -- --deps --plymouth
 #
+# Express (a few questions, boot splash and login screen included):
+#   curl -fsSL .../get.sh | bash -s -- --ez
+#
 # Nothing here uses sudo; install.sh only runs it for --deps, and asks for your
 # password itself.
 
@@ -32,4 +35,9 @@ else
   curl -fsSL "https://github.com/$REPO/archive/refs/heads/main.tar.gz" | tar -xz --strip-components=1 -C "$DEST"
 fi
 
+# `--ez` runs the express installer (asks a few questions, sets everything up).
+if [[ "${1:-}" == "--ez" ]]; then
+  shift
+  exec "$DEST/ez-install.sh" "$@"
+fi
 exec "$DEST/install.sh" "$@"

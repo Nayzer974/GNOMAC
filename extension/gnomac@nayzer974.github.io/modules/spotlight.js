@@ -36,6 +36,12 @@ const decimalComma = (GLib.get_language_names()[0] ?? '').startsWith('fr');
 function systemActionEntries(extension) {
     const entry = (name, keywords, icon, run) => ({name, keywords, icon, run});
     return [
+        entry(t('Customise the Theme (user.css)', 'Personnaliser le thème (user.css)'),
+            ['theme', 'thème', 'theme', 'css', 'couleur', 'style', 'personnaliser', 'customise'],
+            'applications-graphics-symbolic', () => {
+                const path = GLib.build_filenamev([GLib.get_user_config_dir(), 'gnomac', 'user.css']);
+                Gio.AppInfo.launch_default_for_uri(Gio.File.new_for_path(path).get_uri(), null);
+            }),
         entry(t('GNOMAC Guide', 'Guide GNOMAC'), ['guide', 'aide', 'help', 'raccourcis', 'shortcuts', 'tuto', 'gnomac', 'disposition', 'tiling'],
             'help-about-symbolic', () => showGuide()),
         entry(t('Preview Start-up Animation', 'Aperçu de l’animation de démarrage'),

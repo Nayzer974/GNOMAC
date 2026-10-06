@@ -1,0 +1,54 @@
+/* GNOMAC: your own theme code.
+ *
+ * Save this file and the change shows at once: no reload, no log-out.
+ * It is loaded AFTER everything else, so your rules win. A mistake in it is
+ * ignored (a notification tells you); delete the file to start again, a fresh
+ * copy is made the next time GNOMAC starts.
+ *
+ * The full list of class names to restyle is in docs/THEMING.md
+ * (https://github.com/Nayzer974/GNOMAC/blob/main/docs/THEMING.md).
+ * To try a block, delete the comment markers on the lines just above and
+ * just below it.
+ */
+
+/* ---- The menu bar ------------------------------------------------------ */
+/*
+#panel.gnomac-panel {
+    font-weight: 600;
+    background-color: rgba(0, 0, 0, 0.25);
+}
+#panel.gnomac-panel .panel-button:hover {
+    background-color: rgba(255, 255, 255, 0.25);
+}
+*/
+
+/* ---- The dock ---------------------------------------------------------- */
+/*
+.gnomac-dock-dot { background-color: #30d158; }
+.gnomac-dock-badge { background-color: #ff9f0a; }
+.gnomac-dock-tooltip { font-size: 12pt; border-radius: 14px; }
+*/
+
+/* ---- The Dynamic Island ------------------------------------------------ */
+/*
+.gnomac-notch-clock { font-size: 11pt; font-weight: 800; }
+.gnomac-notch-tab:checked { background-color: rgba(191, 90, 242, 0.6); }
+*/
+
+/* ---- Widgets ----------------------------------------------------------- */
+/*
+.gnomac-widget-clock { font-size: 38pt; }
+.gnomac-widget-title { font-size: 10pt; color: #ffffff; }
+.gnomac-widget-handle { background-color: #ff453a; }
+*/
+
+/* ---- Spotlight, Guide, About ------------------------------------------- */
+/*
+.gnomac-guide { background-color: rgba(20, 20, 28, 0.95); }
+.gnomac-about2-model { font-size: 26pt; }
+*/
+
+/* ---- Window layout palette --------------------------------------------- */
+/*
+.gnomac-layout-region { background-color: #30d158; }
+*/

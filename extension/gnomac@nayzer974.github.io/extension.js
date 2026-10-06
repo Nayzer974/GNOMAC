@@ -21,6 +21,7 @@ import {LoginScreen} from './modules/loginScreen.js';
 import {Notifications} from './modules/notifications.js';
 import {Spotlight} from './modules/spotlight.js';
 import {StageManager} from './modules/stageManager.js';
+import {ThemeCustom} from './modules/themeCustom.js';
 import {TopBar} from './modules/topbar.js';
 import {Vibrancy} from './modules/vibrancy.js';
 import {WallpaperPicker} from './modules/wallpaperPicker.js';
@@ -35,6 +36,7 @@ import {destroyTicker} from './lib/spring.js';
 // screen, and everything else is stopped until the session is unlocked.
 const MODULES = [
     // First, so the boot cover is up before the other modules build the UI.
+    {key: 'enable-theme-custom', Module: ThemeCustom},
     {key: 'enable-boot-shutdown', Module: BootShutdown},
     {key: 'enable-lock-screen', Module: LockScreen, locked: true},
     // GDM's own shell (login screen): the only module that runs there.
@@ -80,7 +82,7 @@ export default class GnomacExtension extends Extension {
         // Runtime state (Pomodoro timings, reminders) is read live by its
         // module: changing it must not rebuild the whole shell UI.
         this._settingsId = this._settings.connect('changed', (_s, key) => {
-            if (key.startsWith('pomodoro-') || key === 'widget-reminders' || key === 'widgets-layout')
+            if (key.startsWith('pomodoro-') || key.startsWith('theme-') || key === 'widget-reminders' || key === 'widgets-layout')
                 return;
             this._scheduleReload();
         });

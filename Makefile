@@ -1,10 +1,13 @@
 UUID := gnomac@nayzer974.github.io
 SRC := extension/$(UUID)
 
-.PHONY: install uninstall schemas zip nested logs
+.PHONY: install ez uninstall schemas zip nested logs
 
 install:
 	./install.sh
+
+ez:
+	./ez-install.sh
 
 uninstall:
 	./uninstall.sh

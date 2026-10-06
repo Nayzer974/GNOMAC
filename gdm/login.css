@@ -1,0 +1,14 @@
+/* GNOMAC login screen: your own CSS.
+ *
+ * Edit this file as root (sudo nano /etc/gnomac/login.css), then restart the
+ * machine. It is loaded after GNOMAC's own login styles, so your rules win.
+ * See docs/THEMING.md for the class names. A mistake in it is ignored.
+ *
+ * Examples (delete the comment markers just above and below a block):
+ */
+/*
+.gnomac-login-time { font-size: 96pt; color: #ffd60a; }
+.login-dialog .user-widget-label { font-size: 18pt; }
+.login-dialog .login-dialog-prompt-entry { min-width: 300px; }
+.gnomac-login-power { background-color: rgba(255, 69, 58, 0.5); }
+*/

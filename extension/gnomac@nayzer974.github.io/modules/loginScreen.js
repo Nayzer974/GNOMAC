@@ -26,6 +26,41 @@ import {getLoginManager} from 'resource:///org/gnome/shell/misc/loginManager.js'
 import {t} from '../lib/i18n.js';
 
 const TOP = 0.04;
+const CONF = '/etc/gnomac/login.conf';
+const USER_CSS = '/etc/gnomac/login.css';
+
+// /etc/gnomac/login.conf (see gdm/login.conf): every key is optional.
+function readConf() {
+    const out = {clock: 'big', powerButtons: true, dim: 0.8, date: true, wallpaper: null, fade: 1.2,
+        avatar: 104, accent: null};
+    try {
+        const keys = new GLib.KeyFile();
+        keys.load_from_file(CONF, GLib.KeyFileFlags.NONE);
+        const get = (name, fallback, type = 'string') => {
+            try {
+                if (type === 'bool')
+                    return keys.get_boolean('login', name);
+                if (type === 'number')
+                    return keys.get_double('login', name);
+                return keys.get_string('login', name);
+            } catch {
+                return fallback;
+            }
+        };
+        out.clock = get('clock', out.clock);
+        out.powerButtons = get('power-buttons', out.powerButtons, 'bool');
+        out.dim = Math.min(1, Math.max(0.2, get('dim', out.dim, 'number')));
+        out.date = get('date', out.date, 'bool');
+        out.wallpaper = get('wallpaper', out.wallpaper);
+        out.fade = Math.max(0, get('fade', out.fade, 'number'));
+        out.avatar = Math.min(160, Math.max(64, get('avatar-size', out.avatar, 'number')));
+        const accent = get('accent', out.accent);
+        out.accent = /^#[0-9a-fA-F]{6}$/.test(accent ?? '') ? accent : null;
+    } catch {
+        // No file: the defaults.
+    }
+    return out;
+}
 
 function findByName(actor, name) {
     if (actor.get_name?.() === name)
@@ -56,14 +91,60 @@ export class LoginScreen {
                 group.set_style('background-color: transparent; background-image: none;');
             }
         }
+        this._conf = readConf();
+        this._loadStyles();
         this._hidePanelClock();
         this._addWallpaper();
-        this._addClock();
-        this._addPowerButtons();
+        if (this._conf.clock !== 'none')
+            this._addClock();
+        if (this._conf.powerButtons)
+            this._addPowerButtons();
         this._patchUserList().catch(e => logError(e, 'GNOMAC login screen: user tile'));
     }
 
+    // The conf-driven overrides and the administrator's own CSS, on top of
+    // GNOMAC's login styles.
+    _loadStyles() {
+        this._sheets = [];
+        const conf = this._conf;
+        const lines = [`.login-dialog .user-icon { icon-size: ${conf.avatar}px; border-radius: ${Math.round(conf.avatar / 2)}px; }`];
+        if (conf.clock === 'small') {
+            lines.push('.gnomac-login-time { font-size: 40pt; }');
+            lines.push('.gnomac-login-date { font-size: 13pt; }');
+        }
+        if (conf.accent) {
+            lines.push(`.login-dialog .login-dialog-prompt-entry:focus, .login-dialog StEntry:focus { border-color: ${conf.accent}; }`);
+            lines.push(`.login-dialog .user-icon { border-color: ${conf.accent}; }`);
+        }
+        const theme = St.ThemeContext.get_for_stage(global.stage).get_theme();
+        try {
+            const generated = GLib.build_filenamev([GLib.get_tmp_dir(), 'gnomac-login-generated.css']);
+            GLib.file_set_contents(generated, lines.join(String.fromCharCode(10)));
+            const file = Gio.File.new_for_path(generated);
+            theme.load_stylesheet(file);
+            this._sheets.push(file);
+        } catch (e) {
+            logError(e, 'GNOMAC login screen: generated styles');
+        }
+        if (GLib.file_test(USER_CSS, GLib.FileTest.EXISTS)) {
+            const file = Gio.File.new_for_path(USER_CSS);
+            try {
+                theme.load_stylesheet(file);
+                this._sheets.push(file);
+            } catch (e) {
+                logError(e, 'GNOMAC login screen: /etc/gnomac/login.css ignored');
+            }
+        }
+    }
+
     disable() {
+        const theme = St.ThemeContext.get_for_stage(global.stage).get_theme();
+        for (const file of this._sheets ?? []) {
+            try {
+                theme.unload_stylesheet(file);
+            } catch {}
+        }
+        this._sheets = [];
         if (this._timeoutId) {
             GLib.source_remove(this._timeoutId);
             this._timeoutId = 0;
@@ -106,7 +187,7 @@ export class LoginScreen {
     // whatever GDM's theme paints, and needs no Meta.Background (whose actor
     // stayed white or black on GDM's renderer).
     _addWallpaper() {
-        const path = this._settings.get_string('login-wallpaper');
+        const path = this._conf?.wallpaper || this._settings.get_string('login-wallpaper');
         if (!path || !GLib.file_test(path, GLib.FileTest.EXISTS)) {
             console.log(`GNOMAC: login wallpaper not found: ${path}`);
             return;
@@ -119,9 +200,16 @@ export class LoginScreen {
                 const uri = Gio.File.new_for_path(path).get_uri();
                 actor.set_style(`background-color: #101018; background-image: url("${uri}"); ` +
                     'background-size: cover; background-position: center;');
+                // Dimmed by a black veil of the opposite strength.
+                const veil = new St.Widget({reactive: false, width: monitor.width, height: monitor.height,
+                    style: `background-color: rgba(0, 0, 0, ${(1 - this._conf.dim).toFixed(2)});`});
+                actor.add_child(veil);
                 parent.insert_child_at_index(actor, 0);
                 this._actors.push(actor);
-                actor.ease({opacity: 255, duration: 1200, mode: Clutter.AnimationMode.EASE_OUT_CUBIC});
+                if (this._conf.fade > 0)
+                    actor.ease({opacity: 255, duration: Math.round(this._conf.fade * 1000), mode: Clutter.AnimationMode.EASE_OUT_CUBIC});
+                else
+                    actor.opacity = 255;
                 console.log(`GNOMAC: login wallpaper placed (${monitor.width}x${monitor.height})`);
             }
         } catch (e) {
@@ -144,7 +232,7 @@ export class LoginScreen {
 
         const tick = () => {
             const now = GLib.DateTime.new_now_local();
-            this._date.text = now.format('%A %e %B');
+            this._date.text = this._conf.date ? now.format('%A %e %B') : '';
             this._time.text = now.format('%R');
             return GLib.SOURCE_CONTINUE;
         };

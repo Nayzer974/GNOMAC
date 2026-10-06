@@ -64,4 +64,8 @@ if [[ -d /usr/share/gnomac || -f /etc/dconf/db/gdm.d/90-gnomac ]]; then
 fi
 
 echo
+if [[ -f "$CONFIG/gnomac/user.css" ]]; then
+  echo
+  echo "Your own theme file was kept: $CONFIG/gnomac/user.css (delete the folder $CONFIG/gnomac to remove it)."
+fi
 info "GNOMAC removed. Log out and back in to finish: Wayland cannot unload the shell."
