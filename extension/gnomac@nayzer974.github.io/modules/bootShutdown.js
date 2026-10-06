@@ -83,7 +83,7 @@ class Overlay {
         const size = Math.round(Math.max(120, monitor.height * 0.25));
         this.logoSize = size;
         this.logoArea = new St.DrawingArea({width: size, height: size, reactive: false,
-            x: Math.round((monitor.width - size) / 2), y: Math.round(monitor.height * 0.42 - size / 2)});
+            x: Math.round((monitor.width - size) / 2), y: Math.round(monitor.height * 0.40 - size / 2)});
         this.logoArea.set_pivot_point(0.5, 0.5);
         this.logoArea.connect('repaint', area => {
             const cr = area.get_context();
@@ -120,7 +120,7 @@ class Overlay {
 
         const barWidth = Math.round(Math.max(150, monitor.width * 0.13));
         this.track = new St.Widget({style_class: 'gnomac-boot-track', width: barWidth, height: 4,
-            x: Math.round((monitor.width - barWidth) / 2), y: Math.round(monitor.height * 0.42 + size * 0.78),
+            x: Math.round((monitor.width - barWidth) / 2), y: Math.round(monitor.height * 0.40 + size * 0.62),
             opacity: 0});
         this.fill = new St.Widget({style_class: 'gnomac-boot-fill', width: 0, height: 4});
         this.track.add_child(this.fill);
@@ -139,7 +139,7 @@ class Overlay {
             return;
         const [, w] = this.caption.get_preferred_width(-1);
         this.caption.set_position(Math.round((this._monitor.width - w) / 2),
-            Math.round(this._monitor.height * 0.42 + this.logoSize * 0.78 + 28));
+            Math.round(this._monitor.height * 0.40 + this.logoSize * 0.62 + 28));
     }
 
     repaintLogo() {
