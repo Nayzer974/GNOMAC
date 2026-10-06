@@ -112,6 +112,23 @@ Une encoche noire collée au bord haut, avec raccords concaves, qui s'élargit s
 | **Actions rapides** | **Minuteur Pomodoro** |
 | ![Actions rapides](docs/screenshots/island-actions.jpg) | ![Minuteur](docs/screenshots/island-timer.jpg) |
 
+### Personnaliser l'encoche
+
+Préférences (`gnome-extensions prefs gnomac@nayzer974.github.io`) › **Dynamic Island**, avec une douzaine de réglages en direct :
+
+| Réglage | Choix |
+|---|---|
+| **Ouverture du tableau de bord** | survol et clic, survol seul, clic seul, ou jamais (l'encoche ne sert alors qu'aux notifications, au volume et au minuteur) |
+| **Encoche repliée** | toujours visible, visible seulement s'il se passe quelque chose, ou **invisible** jusqu'au survol ou au clic |
+| **Taille** | de 0,9 à 1,5 |
+| **Délais** | avant l'ouverture au survol, avant la fermeture, fermeture automatique après un clic |
+| **Contenu replié** | heure (24 h ou 12 h), pochette et égaliseur, anneau du minuteur, pastille de notifications |
+| **Volume et luminosité** | dans l'encoche ou l'affichage d'origine de GNOME, durée réglable |
+| **Notifications** | dans l'encoche ou non, durée de 1 à 20 s |
+| **Onglets** | chacun des six peut être retiré, onglet d'ouverture au choix, retour au dernier onglet utilisé |
+| **Animations** | rebond à l'arrivée d'une notification, apparition du contenu élément par élément |
+| **Plein écran** | masquer l'encoche devant une fenêtre en plein écran |
+
 ### Spotlight, Centre de contrôle, Launchpad
 
 | Spotlight (`Super + Espace`) | Centre de contrôle et section **Apparence** |

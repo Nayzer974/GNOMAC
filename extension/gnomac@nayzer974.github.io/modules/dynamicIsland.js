@@ -40,8 +40,6 @@ const SIZES = {
     notice: {width: 400, height: 78},
     hud: {width: 300, height: 34},
 };
-const HUD_MS = 1500;
-const NOTICE_MS = 4000;
 const WORKSPACE_MS = 1400;
 const BARS = 4;
 
@@ -247,6 +245,7 @@ const Island = GObject.registerClass({
             this.pages.add_child(page);
 
         const tabs = new St.BoxLayout({style_class: 'gnomac-notch-tabs', x_align: Clutter.ActorAlign.CENTER});
+        this.tabBar = tabs;
         this.tabButtons = [];
         [['user-home-symbolic', 'home'], ['utilities-system-monitor-symbolic', 'stats'],
             ['view-grid-symbolic', 'actions'], ['edit-paste-symbolic', 'clipboard'],
@@ -310,24 +309,73 @@ export class DynamicIsland {
         this._signals = [];
     }
 
+    // The island's personal settings, read once per (re)load.
+    _readConfig() {
+        const get = this._settings;
+        const all = ['home', 'stats', 'actions', 'clipboard', 'timer', 'shelf'];
+        let tabs = get.get_strv('island-tabs').filter(id => all.includes(id));
+        if (!tabs.length)
+            tabs = ['home'];
+        let first = get.get_string('island-default-tab');
+        if (!tabs.includes(first))
+            first = tabs[0];
+        const scale = get.get_double('island-scale');
+        this._cfg = {
+            trigger: get.get_string('island-open-trigger'),
+            hoverDelay: get.get_int('island-hover-delay'),
+            closeDelay: get.get_int('island-close-delay'),
+            autoClose: get.get_int('island-autoclose-seconds'),
+            restStyle: get.get_string('island-rest-style'),
+            showClock: get.get_boolean('island-show-clock'),
+            h24: get.get_boolean('island-clock-24h'),
+            showBadge: get.get_boolean('island-show-badge'),
+            showRing: get.get_boolean('island-show-timer-ring'),
+            showMedia: get.get_boolean('island-show-media'),
+            hud: get.get_boolean('island-hud'),
+            hudMs: Math.round(get.get_double('island-hud-seconds') * 1000),
+            noticeMs: get.get_int('island-notice-seconds') * 1000,
+            bounce: get.get_boolean('island-bounce'),
+            cascade: get.get_boolean('island-cascade'),
+            hideFullscreen: get.get_boolean('island-hide-fullscreen'),
+            remember: get.get_boolean('island-remember-tab'),
+            tabs,
+            firstTab: first,
+        };
+        // Widths follow the scale; heights only for the open states, so the
+        // folded notch keeps the height of the menu bar.
+        this._sizes = {};
+        for (const [mode, size] of Object.entries(SIZES)) {
+            const folded = mode === 'rest' || mode === 'restBusy' || mode === 'hud';
+            this._sizes[mode] = {
+                width: Math.round(size.width * scale),
+                height: folded ? size.height : Math.round(size.height * scale),
+            };
+        }
+    }
+
     enable() {
+        this._readConfig();
         startClipboard();
         this.island = new Island(this._settings);
         this.island.connect('destroy', () => (this._islandGone = true));
         Main.layoutManager.addTopChrome(this.island);
 
-        this._width = new Spring({stiffness: 330, damping: 21, value: SIZES.rest.width});
-        this._height = new Spring({stiffness: 300, damping: 20, value: SIZES.rest.height});
+        this._width = new Spring({stiffness: 330, damping: 21, value: this._sizes.rest.width});
+        this._height = new Spring({stiffness: 300, damping: 20, value: this._sizes.rest.height});
 
-        this.island.connect('notify::hover', () => this._update());
+        this.island.connect('notify::hover', () => this._onHover());
         this.island.connect('button-release-event', (_a, event) => {
-            if (event.get_button() === Clutter.BUTTON_PRIMARY) {
+            const trigger = this._cfg.trigger;
+            if (event.get_button() === Clutter.BUTTON_PRIMARY && (trigger === 'click' || trigger === 'both')) {
                 this._pinned = !this._pinned;
+                this._lastHover = GLib.get_monotonic_time();
                 this._update();
             }
             return Clutter.EVENT_STOP;
         });
-        this._tab = 'home';
+        this._tab = this._cfg.firstTab;
+        this.island.tabButtons.forEach(([id, button]) => (button.visible = this._cfg.tabs.includes(id)));
+        this.island.tabBar.visible = this._cfg.tabs.length > 1;
         this.island.connect('tab', (_i, tab) => {
             this._tab = tab;
             this._refreshTab();
@@ -338,7 +386,7 @@ export class DynamicIsland {
             this._pinned = false;
             this._update();
         });
-        this.island.showTab('home');
+        this.island.showTab(this._tab);
         // Dropping a file on the notch puts it on the shelf.
         this.island._delegate = this;
         this.island.prevButton.connect('clicked', () => this._player?.previous());
@@ -363,15 +411,22 @@ export class DynamicIsland {
         this._connect(Main.layoutManager, 'monitors-changed', () => this._layout());
         this._connect(Main.overview, 'showing', () => this.island.hide());
         this._connect(Main.overview, 'hidden', () => {
-            this.island.show();
+            this._syncFullscreen();
             this._update();
         });
+        this._connect(global.display, 'in-fullscreen-changed', () => this._syncFullscreen());
 
         this._clockId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 1, () => {
             // At shell shutdown the island dies before disable() runs.
             if (!this.island || this._islandGone)
                 return GLib.SOURCE_REMOVE;
             this._syncContent();
+            const idle = this._cfg.autoClose;
+            if (this._pinned && idle > 0 && !this.island.hover &&
+                GLib.get_monotonic_time() - (this._lastHover ?? 0) > idle * 1e6) {
+                this._pinned = false;
+                this._update();
+            }
             if (this._mode === 'dashboard') {
                 if (this._hasMedia() && this._tab === 'home')
                     this._pollPosition();
@@ -382,7 +437,13 @@ export class DynamicIsland {
         });
 
         // Route GNOME's volume/brightness OSD into the notch.
-        const osd = Main.osdWindowManager;
+        if (this._cfg.hud)
+            this._routeOsd(Main.osdWindowManager);
+
+        this._update();
+    }
+
+    _routeOsd(osd) {
         this._osdSaved = {show: osd.show, showAll: osd.showAll};
         osd.show = (icon, label, levels) => {
             const level = Object.values(levels ?? {}).find(Boolean);
@@ -397,8 +458,57 @@ export class DynamicIsland {
             else
                 this._osdSaved.showAll.call(osd, icon, label, level, maxLevel);
         };
+    }
 
-        this._update();
+    // The island steps aside over a full-screen window (optional).
+    _syncFullscreen() {
+        if (!this.island || this._islandGone)
+            return;
+        const fullscreen = this._cfg.hideFullscreen &&
+            global.display.get_monitor_in_fullscreen(Main.layoutManager.primaryIndex);
+        this.island.visible = !fullscreen && !Main.overview.visible;
+    }
+
+    // Hover opens the dashboard after `hoverDelay` ms, and closes it
+    // `closeDelay` ms after the pointer leaves; clicking is handled apart.
+    _onHover() {
+        if (!this.island || this._islandGone)
+            return;
+        const {trigger, hoverDelay, closeDelay} = this._cfg;
+        for (const id of [this._hoverId, this._leaveId]) {
+            if (id)
+                GLib.source_remove(id);
+        }
+        this._hoverId = this._leaveId = 0;
+        if (this.island.hover)
+            this._lastHover = GLib.get_monotonic_time();
+        if (trigger !== 'hover' && trigger !== 'both') {
+            this._update();
+            return;
+        }
+        const set = open => {
+            this._hoverOpen = open;
+            this._update();
+        };
+        const delayed = (ms, open) => {
+            if (ms <= 0) {
+                set(open);
+                return 0;
+            }
+            return GLib.timeout_add(GLib.PRIORITY_DEFAULT, ms, () => {
+                if (open)
+                    this._hoverId = 0;
+                else
+                    this._leaveId = 0;
+                if (this.island && !this._islandGone)
+                    set(open);
+                return GLib.SOURCE_REMOVE;
+            });
+        };
+        if (this.island.hover)
+            this._hoverId = delayed(hoverDelay, true);
+        else
+            this._leaveId = delayed(closeDelay, false);
     }
 
     // Pages that read live state refresh when they come into view.
@@ -417,7 +527,7 @@ export class DynamicIsland {
     // A short squash-and-stretch: the notch "breathes" when something arrives.
     _bounce() {
         const island = this.island;
-        if (!island || this._islandGone)
+        if (!island || this._islandGone || !this._cfg.bounce)
             return;
         island.set_pivot_point(0.5, 0);
         island.remove_all_transitions();
@@ -426,7 +536,11 @@ export class DynamicIsland {
     }
 
     handleDragOver() {
+        if (!this._cfg.tabs.includes('shelf'))
+            return 0; // DragMotionResult.NO_DROP
         this._pinned = true;
+        this._lastHover = GLib.get_monotonic_time();
+        this._keepTab = true;
         this._tab = 'shelf';
         this._update();
         return 1; // DragMotionResult.COPY_DROP
@@ -443,7 +557,7 @@ export class DynamicIsland {
         if (!this.island || this._islandGone)
             return;
         const timer = this.island.timer;
-        this.island.ring.visible = timer.running && this._mode === 'rest';
+        this.island.ring.visible = timer.running && this._mode === 'rest' && this._cfg.showRing;
         this.island.ring.queue_repaint();
         if (finished) {
             const body = {
@@ -465,11 +579,16 @@ export class DynamicIsland {
             return;
         island.hudIcon.gicon = icon;
         this._hudLevel = Math.max(0, Math.min(1, level / Math.max(1, maxLevel > 0 ? maxLevel : 1)));
-        this._hudUntil = GLib.get_monotonic_time() + HUD_MS * 1000;
+        this._hudUntil = GLib.get_monotonic_time() + this._cfg.hudMs * 1000;
         this._update();
     }
 
     disable() {
+        for (const id of [this._hoverId, this._leaveId]) {
+            if (id)
+                GLib.source_remove(id);
+        }
+        this._hoverId = this._leaveId = 0;
         this.island?.timer?.destroy();
         this.island?.clipboardView?.destroy();
         stopClipboard();
@@ -497,6 +616,7 @@ export class DynamicIsland {
         this._source = null;
         if (this.island) {
             if (!this._islandGone) {
+                this.island.remove_all_transitions();
                 Main.layoutManager.removeChrome(this.island);
                 this.island.destroy();
             }
@@ -572,7 +692,7 @@ export class DynamicIsland {
         island.noticeIcon.gicon = notification.gicon ?? notification.source?.icon ?? null;
         if (!island.noticeIcon.gicon)
             island.noticeIcon.icon_name = 'preferences-system-notifications-symbolic';
-        this._noticeUntil = GLib.get_monotonic_time() + NOTICE_MS * 1000;
+        this._noticeUntil = GLib.get_monotonic_time() + this._cfg.noticeMs * 1000;
         this._update();
     }
 
@@ -596,7 +716,7 @@ export class DynamicIsland {
             return 'notice';
         if (GLib.get_monotonic_time() < (this._hudUntil ?? 0))
             return 'hud';
-        if (this.island.hover || this._pinned)
+        if (this._hoverOpen || this._pinned)
             return 'dashboard';
         return 'rest';
     }
@@ -615,32 +735,32 @@ export class DynamicIsland {
         const now = GLib.DateTime.new_now_local();
         const showDots = GLib.get_monotonic_time() < this._workspaceUntil;
         island.dots.visible = showDots;
-        island.clock.visible = !showDots;
-        island.clock.text = now.format('%H:%M');
+        island.clock.visible = !showDots && this._cfg.showClock;
+        island.clock.text = now.format(this._cfg.h24 ? '%H:%M' : '%-I:%M %p');
         if (this._mode === 'date') {
             island.noticeIcon.gicon = null;
             island.noticeIcon.icon_name = 'x-office-calendar-symbolic';
-            island.noticeTitle.text = now.format('%H:%M');
+            island.noticeTitle.text = now.format(this._cfg.h24 ? '%H:%M' : '%-I:%M %p');
             island.noticeBody.text = now.format('%A %-d %B');
         }
 
         island.calendar.update();
-        island.showTab(this._tab ?? 'home');
+        island.showTab(this._cfg.tabs.includes(this._tab) ? this._tab : this._cfg.firstTab);
         // The player's place on Home: the player when something plays,
         // the clock and chips otherwise.
         island.homePlayer.visible = this._hasMedia();
         island.idleHome.actor.visible = !this._hasMedia();
         if (this._mode === 'dashboard' && this._tab === 'home' && !this._hasMedia())
             island.idleHome.update();
-        island.ring.visible = island.timer.running && this._mode === 'rest';
+        island.ring.visible = island.timer.running && this._mode === 'rest' && this._cfg.showRing;
         const unread = this._unread();
-        island.badge.visible = unread > 0;
+        island.badge.visible = unread > 0 && this._cfg.showBadge;
         island.badgeLabel.text = String(unread);
 
         const player = this._player;
         const media = this._hasMedia();
-        island.restArt.visible = media;
-        island.bars.visible = media;
+        island.restArt.visible = media && this._cfg.showMedia;
+        island.bars.visible = media && this._cfg.showMedia;
         if (player && media) {
             island.restArt.set_style(coverStyle(player.trackCoverUrl, 16));
             island.mediaArt.set_style(coverStyle(player.trackCoverUrl, 40));
@@ -676,17 +796,36 @@ export class DynamicIsland {
         const previous = this._mode;
         this._mode = mode;
         this._syncContent();
-        // Opening the card: its content pops in one piece after another.
-        if (changed && mode === 'dashboard')
-            this.island.cascadeContent();
+        if (changed && mode === 'dashboard') {
+            // Back to the first tab on every opening, unless told to remember.
+            if (!this._keepTab && !this._cfg.remember)
+                this._tab = this._cfg.firstTab;
+            this._keepTab = false;
+            this._syncContent();
+            this._refreshTab();
+            // Opening the card: its content pops in one piece after another.
+            if (this._cfg.cascade)
+                this.island.cascadeContent();
+        }
         // A notification makes the whole notch bounce, like Dynamic Island.
         if (changed && (mode === 'notice' || (previous === 'rest' && mode === 'hud')))
             this._bounce();
         if (changed && mode === 'media')
             this._pollPosition();
+        const cfg = this._cfg;
         const busy = mode === 'rest' &&
-            (this._hasMedia() || this.island.timer.running || this._unread() > 0);
-        const size = busy ? SIZES.restBusy : SIZES[mode];
+            ((this._hasMedia() && cfg.showMedia) || (this.island.timer.running && cfg.showRing) ||
+             (this._unread() > 0 && cfg.showBadge));
+        const size = busy ? this._sizes.restBusy : this._sizes[mode];
+        // "Hidden" folds the notch away at rest, "events" keeps it only while it
+        // has something to show; it still reacts to hover and clicks.
+        const hideAtRest = mode === 'rest' &&
+            (cfg.restStyle === 'hidden' || (cfg.restStyle === 'events' && !busy));
+        const wanted = hideAtRest ? 0 : 255;
+        if (this._shownOpacity !== wanted) {
+            this._shownOpacity = wanted;
+            this.island.ease({opacity: wanted, duration: 220, mode: Clutter.AnimationMode.EASE_OUT_QUAD});
+        }
         this._width.setTarget(size.width);
         this._height.setTarget(size.height);
         getTicker().add(this._tick);
@@ -717,8 +856,8 @@ export class DynamicIsland {
         if (!monitor || !this.island)
             return;
         const island = this.island;
-        const width = Math.round(Math.max(SIZES.rest.height, this._width.value));
-        const height = Math.round(Math.max(SIZES.rest.height, this._height.value));
+        const width = Math.round(Math.max(this._sizes.rest.height, this._width.value));
+        const height = Math.round(Math.max(this._sizes.rest.height, this._height.value));
         island.set_position(Math.round(monitor.x + (monitor.width - width) / 2), monitor.y);
         island.set_size(width, height);
         // The app menus fit themselves around the notch's folded width.
@@ -741,7 +880,7 @@ export class DynamicIsland {
         }
 
         const grow = Math.min(1, Math.max(0,
-            (height - SIZES.rest.height) / (SIZES.notice.height - SIZES.rest.height)));
+            (height - this._sizes.rest.height) / (this._sizes.notice.height - this._sizes.rest.height)));
         island.dashboard.set_position(EAR, 0);
         island.dashboard.set_size(inner, height);
         island.dashboard.opacity = this._mode === 'dashboard' ? Math.round(255 * Math.min(1, grow * 1.4)) : 0;

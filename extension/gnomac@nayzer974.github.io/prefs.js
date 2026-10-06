@@ -92,9 +92,70 @@ export default class GnomacPreferences extends ExtensionPreferences {
         toggle(glass, 'glass-tinted', 'Verre teinté', 'Teinté avec la couleur d’accentuation au lieu de clair');
         toggle(glass, 'glass-dark', 'Teinte sombre');
 
-        const island = group('Dynamic Island');
-        toggle(island, 'island-always-visible', 'Toujours visible', 'Encoche noire au repos, mini tableau de bord au survol');
-        toggle(island, 'island-notifications', 'Notifications dans l’île', 'En plus des bannières, façon RevoShell');
+        const island = group('Dynamic Island',
+            'Tout se règle ici : quand elle s’ouvre, ce qu’elle affiche, sa taille et ses onglets');
+        const combo = (g, key, title, subtitle, choices) => {
+            const row = new Adw.ComboRow({title, subtitle,
+                model: Gtk.StringList.new(choices.map(([, label]) => label))});
+            row.selected = Math.max(0, choices.findIndex(([value]) => value === settings.get_string(key)));
+            row.connect('notify::selected', () => settings.set_string(key, choices[row.selected][0]));
+            g.add(row);
+        };
+        combo(island, 'island-open-trigger', 'Ouverture du tableau de bord',
+            'Comment l’encoche déplie son contenu', [
+                ['both', 'Survol et clic'],
+                ['hover', 'Survol seulement'],
+                ['click', 'Clic seulement'],
+                ['never', 'Jamais (notifications, volume et minuteur uniquement)'],
+            ]);
+        combo(island, 'island-rest-style', 'Encoche repliée',
+            'Visible en permanence, seulement quand elle a quelque chose à montrer, ou invisible jusqu’au survol ou au clic', [
+                ['notch', 'Toujours visible'],
+                ['events', 'Visible seulement s’il se passe quelque chose'],
+                ['hidden', 'Invisible (apparaît au survol ou au clic)'],
+            ]);
+        spin(island, 'island-scale', 'Taille', 0.9, 1.5, 0.05, 2);
+        spin(island, 'island-hover-delay', 'Délai avant ouverture au survol (ms)', 0, 1500, 50);
+        spin(island, 'island-close-delay', 'Délai avant fermeture (ms)', 0, 3000, 50);
+        spin(island, 'island-autoclose-seconds', 'Fermeture automatique après un clic (secondes, 0 = jamais)', 0, 120, 1);
+        toggle(island, 'island-hide-fullscreen', 'Masquer en plein écran');
+        toggle(island, 'island-notifications', 'Notifications dans l’île', 'En plus des bannières');
+        spin(island, 'island-notice-seconds', 'Durée des notifications (secondes)', 1, 20, 1);
+
+        const content = group('Contenu de l’encoche repliée');
+        toggle(content, 'island-show-clock', 'Heure');
+        toggle(content, 'island-clock-24h', 'Format 24 heures');
+        toggle(content, 'island-show-media', 'Pochette et égaliseur pendant la lecture');
+        toggle(content, 'island-show-timer-ring', 'Anneau du minuteur Pomodoro');
+        toggle(content, 'island-show-badge', 'Pastille de notifications non lues');
+        toggle(content, 'island-hud', 'Volume et luminosité dans l’encoche',
+            'Remplace l’affichage à l’écran de GNOME');
+        spin(content, 'island-hud-seconds', 'Durée de la barre de volume (secondes)', 0.5, 6, 0.5, 1);
+
+        const tabsGroup = group('Onglets du tableau de bord');
+        const tabNames = [
+            ['home', 'Accueil'], ['stats', 'Système'], ['actions', 'Actions rapides'],
+            ['clipboard', 'Presse-papiers'], ['timer', 'Minuteur'], ['shelf', 'Étagère'],
+        ];
+        const tabRows = [];
+        const writeTabs = () => {
+            const active = tabNames.filter((_t, i) => tabRows[i].active).map(([id]) => id);
+            // At least one tab must stay.
+            settings.set_strv('island-tabs', active.length ? active : ['home']);
+        };
+        const enabledTabs = settings.get_strv('island-tabs');
+        tabNames.forEach(([id, label]) => {
+            const row = new Adw.SwitchRow({title: label, active: enabledTabs.includes(id)});
+            row.connect('notify::active', writeTabs);
+            tabRows.push(row);
+            tabsGroup.add(row);
+        });
+        combo(tabsGroup, 'island-default-tab', 'Onglet affiché à l’ouverture', null, tabNames);
+        toggle(tabsGroup, 'island-remember-tab', 'Revenir au dernier onglet utilisé');
+
+        const effects = group('Animations de l’encoche');
+        toggle(effects, 'island-bounce', 'Rebond à l’arrivée d’une notification');
+        toggle(effects, 'island-cascade', 'Le contenu apparaît élément par élément');
 
         const pomodoro = group('Minuteur Pomodoro', 'Réglable aussi directement dans l’encoche (roue crantée)');
         spin(pomodoro, 'pomodoro-focus', 'Concentration (minutes)', 1, 180, 1);
