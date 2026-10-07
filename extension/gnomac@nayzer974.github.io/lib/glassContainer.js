@@ -159,7 +159,7 @@ class GlassContainer extends GlassSurface {
 export function glassGroups() {
     const groups = [];
     for (const surface of liveSurfaces) {
-        if (!surface.get_stage?.())
+        if (!surface.get_stage?.() || surface.width < 2 || surface.height < 2)
             continue;
         const [x, y] = surface.get_transformed_position();
         if (surface instanceof GlassContainer) {

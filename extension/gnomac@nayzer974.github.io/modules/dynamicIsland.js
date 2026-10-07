@@ -711,6 +711,24 @@ export class DynamicIsland {
         this._update();
     }
 
+    // The island's states, by name: collapsed, expanded, media, notification,
+    // timer, volume, system. It moves between them on its two springs (width and
+    // height): one shape that changes, never hidden and shown again.
+    get state() {
+        switch (this._mode) {
+        case 'dashboard': return 'expanded';
+        case 'notice': return 'notification';
+        case 'hud': return 'volume';
+        case 'date': return 'system';
+        default:
+            if (this._hasMedia() && this._cfg?.showMedia)
+                return 'media';
+            if (this.island?.timer.running && this._cfg?.showRing)
+                return 'timer';
+            return this._unread() > 0 && this._cfg?.showBadge ? 'system' : 'collapsed';
+        }
+    }
+
     _wantedMode() {
         if (GLib.get_monotonic_time() < this._noticeUntil)
             return 'notice';

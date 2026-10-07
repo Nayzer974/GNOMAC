@@ -279,14 +279,16 @@ export class Spotlight {
         this._wmSettings = null;
     }
 
-    toggle() {
+    // `source`: the actor that opened it (the menu bar magnifier); the glass
+    // then forms from that point instead of from its centre.
+    toggle(source = null) {
         if (this._root.visible)
             this.close();
         else
-            this.open();
+            this.open(source);
     }
 
-    open() {
+    open(source = null) {
         const monitor = Main.layoutManager.primaryMonitor;
         this._root.set_position(monitor.x, monitor.y);
         this._root.set_size(monitor.width, monitor.height);
@@ -308,8 +310,8 @@ export class Spotlight {
         this._card.opacity = 0;
         this._card.ease({opacity: 255, duration: 140, mode: Clutter.AnimationMode.EASE_OUT_QUAD});
         // The glass forms (optics settle, blur eases down) instead of fading in.
-        this._glass?.materialize({duration: 320});
         this._layout();
+        this._glass?.materialize({duration: 320, origin: source ? 'source' : 'center', source});
         getTicker().add(this._tick);
     }
 

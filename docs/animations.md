@@ -43,18 +43,18 @@ Les styles « Hello » (logo dessiné, mots d'accueil écrits) et « Logo » uti
 ## Dock
 
 - Apparition (révélation) : voir ci-dessus.
-- Survol : agrandissement en courbe gaussienne, ressort court (raideur et amortissement dans les préférences › Animations).
+- Survol : agrandissement en courbe gaussienne (`dockMagnification`), ressort court (raideur et amortissement dans les préférences › Animations). L'icône sous le pointeur se soulève et s'éclaircit, ses voisines suivent selon la distance, et le verre gonfle de 5 px sous le pointeur en se fondant dans la plaque (un seul groupe de verre).
 - Rebond de lancement : saut qui se termine avant l'arrêt.
 - Réduction / fermeture / restauration d'une fenêtre : effet Génie (bandes), 560 ms / 460 ms.
 - Compteur de notifications : apparition avec léger dépassement (320 ms, seule exception).
 
 ## Encoche (Dynamic Island)
 
-Largeur et hauteur sur des ressorts distincts (raideur 330/300, amortissement 21/20). Au changement de contenu : cascade (28 ms entre éléments, 260 ms chacun), glissement d'onglet 280 ms. Arrivée d'une notification : étirement bref (520 ms).
+Largeur et hauteur sur des ressorts distincts (raideur 330/300, amortissement 21/20) : une seule forme qui change, jamais cachée puis remontrée. États nommés : `collapsed`, `expanded`, `media`, `notification`, `timer`, `volume`, `system` (`DynamicIsland.state`). Au changement de contenu : cascade (28 ms entre éléments, 260 ms chacun), glissement d'onglet 280 ms. Arrivée d'une notification : étirement bref (520 ms).
 
 ## Spotlight
 
-La barre s'ouvre avec un ressort (90 % → 100 %) ; son **verre se matérialise** en 320 ms (optique qui se stabilise, flou qui diminue, échelle 97 % → 100 %), le champ et les résultats apparaissent par fondu de 140 ms. Fermeture 120 ms.
+La barre s'ouvre avec un ressort (90 % → 100 %) ; depuis la loupe de la barre de menus, son verre sort **de la loupe** (`origin: 'source'`) ; son **verre se matérialise** en 320 ms (optique qui se stabilise, flou qui diminue, échelle 97 % → 100 %), le champ et les résultats apparaissent par fondu de 140 ms. Fermeture 120 ms.
 
 ## Notifications
 
@@ -67,6 +67,10 @@ Animations de GNOME conservées, habillées en verre (voir `stylesheet.css`). L'
 ## Démarrage de l'ordinateur et arrêt
 
 Plymouth : logo et barre fine. Arrêt : l'écran s'assombrit en 520 ms, le logo en verre respire avec un reflet qui passe, la barre se remplit pendant la durée réglée.
+
+## Verre : matérialiser, morpher
+
+`materialize` (le verre se forme : optique qui se stabilise, flou qui baisse) accepte `origin`, `duration`, `intensity`, `easing`, `mode` ; `morph(from, to)` fait glisser une surface d'une forme et d'un matériau à l'autre. Détails et exemples : [liquid-glass.md](liquid-glass.md).
 
 ## Tester une animation au ralenti
 

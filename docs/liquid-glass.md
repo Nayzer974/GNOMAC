@@ -46,6 +46,46 @@ Une surface qui apparaît ne fait pas `opacité 0 → 1`. `GlassSurface.material
 
 Courbe : sortie cubique, **sans rebond**. Avec les animations coupées (mouvement réduit), l'état final est appliqué tout de suite.
 
+Options (toutes facultatives, l'appel simple reste valable) :
+
+```js
+glass.materialize({
+    origin: 'center',      // 'center' | 'cursor' | 'parent' | 'source' | 'explicit'
+    source: actor,         // avec origin 'source' : le bouton d'où le verre sort
+    point: [x, y],         // avec origin 'explicit' : un point de la scène
+    duration: 320,         // ms
+    intensity: 1,          // 1 = normal ; 0,5 plus discret ; 1,5 plus marqué
+    easing: 'out-cubic',   // 'out-quad' | 'in-out' | 'linear'
+    mode: 'form',          // 'dissolve' = l'inverse (ancien `reverse: true`)
+});
+```
+
+Depuis un point (`cursor`, `source`, `explicit`, `parent`) la surface grandit un peu plus (de ≈ 92 %) autour de ce point, pour que l'origine se lise. Spotlight, ouvert depuis la loupe de la barre de menus, sort de la loupe.
+
+### Morphing (`morph`)
+
+`glass.morph(from, to, {duration, easing, onDone})` fait passer **la même surface** d'une forme et d'un matériau à un autre : `x, y, width, height, radius, opacity, blur, refraction, fresnel, specular, shadow` (`from` = `null` part de l'état courant). Rien n'est caché, montré, détruit ni recréé : seules les valeurs glissent. Dans un `GlassContainer`, `morphRegion(id, to)` fait de même pour une région.
+
+### Groupes de verre (`GlassContainer`)
+
+`lib/glassContainer.js`. Un conteneur dessine jusqu'à **8 régions** comme **un seul verre** : un fond, un flou, une passe de shader (union douce, `merge` px). Les régions partagent le même fond flouté, donc **pas de double flou** là où elles se touchent, et elles fusionnent visuellement (le verre « coule » de l'une à l'autre).
+
+```js
+const group = new GlassContainer({containerId: 'dock', backdrop: 'windows', merge: 22, glass: params});
+group.addRegion('plate', {x, y, width, height}, {radius: 24, zIndex: 0, materialParameters: null});
+group.addRegion('lens',  {x, y, width, height}, {radius: 16, zIndex: 1});
+group.getGlassGroup();      // {containerId, groupBounds, surfaces: [...], renderPasses: {backdrop: 1, blur: 1, glass: 1}}
+group.getBackdropContext(); // {renderContext, blurRadius, stageOrigin, sampled: {...}}
+```
+
+Le **Dock** est un groupe : la plaque, plus une lentille qui gonfle de 5 px sous le pointeur et se fond dans la plaque. L'icône sous le pointeur se soulève et s'éclaircit légèrement ; les voisines suivent par `dockMagnification(distance)` (gaussienne, en cases d'icône). Le reflet suit le pointeur (`followPointer`).
+
+À savoir : le matériau (teinte, réfraction…) est celui du conteneur pour toutes ses régions ; `materialParameters` est conservé et relu mais pas encore appliqué région par région.
+
+### Fond local
+
+`GlassSurface.sampleBackdrop(bounds?)` renvoie, pour la zone placée derrière la surface (ou `bounds`, en pixels de scène), `{luminance, saturation, dominant, contrast}`, lus dans la miniature 32 × 32 du fond d'écran, en cache par cellule de 16 px. Avec `adaptiveLocal: true` (le Dock), le matériau reçoit une **petite correction** (± 35 % de l'opacité de teinte, ± 30 % du bord) selon que la zone est plus claire ou plus sombre que la moyenne du fond, recalculée au plus toutes les 250 ms et seulement si la surface a bougé de plus de 24 px. La moyenne de tout le fond d'écran reste la base. Les fenêtres ne sont pas prises en compte.
+
 ### Verre adaptatif
 
 `lib/adaptive.js` mesure la luminosité moyenne du fond d'écran (miniature 32 × 32, refaite quand le fond change) et en tire `amount` (0 sombre → 1 très clair, courbe douce). Sur fond clair le verre se teinte plus sombre et un peu plus opaque, le bord ressort et le reflet se calme ; sur fond sombre il reste léger. Le passage est **continu** (pas de bascule entre deux modes). Désactivable : *Préférences › Liquid Glass › Verre adaptatif*.
@@ -81,7 +121,8 @@ Dans `lib/glassTokens.js` (valeurs par défaut) et dans les préférences (verre
 
 ## Débogage
 
-- *Spotlight › Débogage Liquid Glass* (ou `glass-debug`) : incrustation en haut à droite avec la qualité, le nombre de surfaces, les images par seconde, la luminosité du fond, l'état des animations.
+- *Spotlight › Débogage Liquid Glass* (ou `glass-debug`) : incrustation en haut à droite avec la qualité, le nombre de surfaces et de groupes, les passes de flou (avec et sans regroupement), les images par seconde, l'état de l'encoche, la luminosité du fond, l'état des animations.
+- *Spotlight › Groupes Liquid Glass* (ou `glass-debug-groups`) : un contour orange autour de chaque groupe, avec son identifiant, son nombre de surfaces et ses passes de rendu (3 par groupe : fond, flou, verre).
 - `glass-debug-mode` (en `gsettings` ou dconf) affiche **une seule couche** du matériau sur toutes les surfaces : `1` fond, `2` vecteurs de réfraction, `3` Fresnel, `4` spéculaire, `5` bord, `6` teinte, `0` normal.
 
 ```bash
@@ -89,11 +130,25 @@ gsettings --schemadir ~/.local/share/gnome-shell/extensions/gnomac@nayzer974.git
   set org.gnome.shell.extensions.gnomac glass-debug-mode 3
 ```
 
+## Mesures de performance
+
+Banc d'essai : N surfaces de 200 × 110 px, repeintes à chaque image pendant 3 s ; soit N `GlassSurface` séparées, soit des `GlassContainer` de 8 régions. VM VirtualBox, rendu **logiciel** (llvmpipe), GNOME Shell 50.5, 1280 × 800.
+
+| N | passes de flou (séparées → groupées) | images/s séparées | images/s groupées |
+|---|---|---|---|
+| 1 | 1 → 1 | 59,7 | 60 |
+| 5 | 5 → 1 | 58,3 | 58,9 |
+| 10 | 10 → 2 | 56,4 | 42,6 |
+| 20 | 20 → 3 | 30,5 | 26,6 |
+
+Lecture honnête : le regroupement **divise les passes de flou et les textures de fond** (20 → 3), ce qui est le gain attendu sur un vrai GPU. Mais sur le rendu logiciel, où le coût est proportionnel aux pixels, il n'est **pas plus rapide** et devient un peu plus lent à partir de 10 régions (le shader parcourt les régions de chaque pixel, et le flou couvre aussi les vides entre elles). Conclusion pratique : regrouper des surfaces **voisines qui doivent fusionner** (plaque et lentille du Dock, parties de l'encoche), pas des surfaces éparpillées. Ces chiffres sont à refaire sur du vrai GPU.
+
+Le shader n'évalue plus rien en dehors du verre (les vides d'un groupe, les coins), ce qui a fait gagner quelques images dans ce banc.
+
 ## Ce qui n'est pas (encore) fait
 
 Soyons honnêtes sur l'écart avec le matériau d'Apple :
 
-- **Pas de regroupement de surfaces** (`GlassContainer`) : chaque surface échantillonne son fond seule ; deux surfaces voisines ne fusionnent pas visuellement.
-- **Pas de morphing de forme** entre deux surfaces (l'encoche change de taille par ressorts, pas par fusion de verres).
-- **Luminosité locale** : l'adaptation utilise la luminosité *moyenne* du fond d'écran, pas celle de la zone exacte sous chaque panneau ni la couleur du texte.
-- **Fond avec fenêtres** : l'adaptation ne tient pas compte des fenêtres ouvertes derrière.
+- **Regroupement limité** : un conteneur partage fond et flou entre **ses** régions, pas entre deux acteurs séparés (Spotlight et une bannière restent deux verres).
+- **L'encoche** n'est pas une surface de verre : elle est dessinée (Cairo) et change de taille par ressorts ; ses états (`collapsed`, `expanded`, `media`, `notification`, `timer`, `volume`, `system`) sont nommés (`DynamicIsland.state`) mais elle ne fusionne pas avec un verre.
+- **Luminosité locale** : lue dans le fond d'écran seul, pas la couleur du texte ni les fenêtres ouvertes derrière.

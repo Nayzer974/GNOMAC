@@ -156,6 +156,7 @@ export class GlassDebug {
             `Liquid Glass · ${this._settings.get_string('glass-quality')}`,
             `surfaces ${regions}   groups ${groups.length}   fps ${fps}`,
             `blur passes ${groups.length} (${regions} without grouping)`,
+            `island ${this._extension._modules?.find(m => m.constructor.name === 'DynamicIsland')?.state ?? '-'}`,
             `wallpaper luminance ${adaptive.luminance.toFixed(2)} (adapt ${adaptive.amount.toFixed(2)})`,
             `animations ${St.Settings.get().enable_animations ? 'on' : 'off'}   layer ${mode}`,
         ].join('\n');

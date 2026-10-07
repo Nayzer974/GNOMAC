@@ -123,7 +123,7 @@ export class MenuBarIcons {
         });
         this._search.connect('clicked', () => {
             const spotlight = this._extension._modules?.find(m => m.constructor.name === 'Spotlight');
-            spotlight?.toggle();
+            spotlight?.toggle(this._search);
         });
         // During shell shutdown the panel may destroy it before disable().
         this._search.connect('destroy', () => (this._search = null));
