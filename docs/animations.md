@@ -45,7 +45,7 @@ Les styles « Hello » (logo dessiné, mots d'accueil écrits) et « Logo » uti
 - Apparition (révélation) : voir ci-dessus.
 - Survol : agrandissement en courbe gaussienne (`dockMagnification`), ressort court (raideur et amortissement dans les préférences › Animations). L'icône sous le pointeur se soulève et s'éclaircit, ses voisines suivent selon la distance, et le verre gonfle de 5 px sous le pointeur en se fondant dans la plaque (un seul groupe de verre).
 - Rebond de lancement : saut qui se termine avant l'arrêt.
-- Réduction / fermeture / restauration d'une fenêtre : effet Génie (bandes), 560 ms / 460 ms.
+- Réduction / fermeture / restauration d'une fenêtre : trajectoire courbe vers l'icône du Dock (420 ms, défaut) ou effet Génie (bandes, 560 ms / 460 ms) au choix ; voir [motion.md](motion.md).
 - Compteur de notifications : apparition avec léger dépassement (320 ms, seule exception).
 
 ## Encoche (Dynamic Island)
@@ -54,7 +54,7 @@ Largeur et hauteur sur des ressorts distincts (raideur 330/300, amortissement 21
 
 **Lecteur** (carte dépliée, page Accueil) : la barre de progression **part de la gauche** et suit la musique (position relue chez le lecteur toutes les 2 s, interpolée entre-temps) ; un clic ou un glissement sur la barre **déplace la lecture** (`SetPosition`) ; lecture/pause, précédent et suivant appellent directement le lecteur par D-Bus (l'icône change tout de suite) ; quand le lecteur n'a pas de piste précédente/suivante (onglet de navigateur, podcast), les boutons **avancent/reculent de 10 s** au lieu de ne rien faire. Testé avec un lecteur MPRIS simulé : lecture/pause, suivant, précédent, déplacement dans la piste (les appels arrivent au lecteur). **NON TESTÉ** avec un vrai Spotify/Firefox.
 
-**Chronologie commune** : les animations des surfaces, du Dock, de l'encoche et de Spotlight tournent sur **un seul métronome** (`lib/spring.js`, `getTicker()`), pas sur des dizaines de minuteries. Une classe `AnimationTimeline` dédiée (chaînage, synchronisation) n'a **pas** été créée : NON FAIT. Au changement de contenu : cascade (28 ms entre éléments, 260 ms chacun), glissement d'onglet 280 ms. Arrivée d'une notification : étirement bref (520 ms).
+**Chronologie commune** : les animations des fenêtres, de l'encoche, de Spotlight, du Dock tournent sur **un seul métronome** (`lib/spring.js`, `getTicker()`) ; `lib/animationTimeline.js` (`timelines.run`) y ajoute durée, courbe, annulation et chaînage. Voir [motion.md](motion.md) (le « Desktop Motion System »). Au changement de contenu : cascade (28 ms entre éléments, 260 ms chacun), glissement d'onglet 280 ms. Arrivée d'une notification : étirement bref (520 ms).
 
 ## Spotlight
 
@@ -66,7 +66,7 @@ La bannière glisse (animation de GNOME) pendant que son verre se matérialise (
 
 ## Espaces de travail et aperçu
 
-Animations de GNOME conservées, habillées en verre (voir `stylesheet.css`). L'encoche affiche brièvement les points d'espaces (1,4 s).
+Animations de GNOME, avec une profondeur (l'espace qui part recule et s'estompe un peu) et la durée des jetons de mouvement ; habillées en verre (voir `stylesheet.css`). L'encoche affiche brièvement les points d'espaces (1,4 s).
 
 ## Démarrage de l'ordinateur et arrêt
 

@@ -90,7 +90,11 @@ export class Notifications {
         // A banner that has just appeared: its glass forms while GNOME slides it in.
         if (!this._shown) {
             this._shown = true;
-            glass.materialize({duration: 360, fade: false});
+            // The banner's glass forms from the notch (top centre of the screen),
+            // where notifications come from.
+            const monitor = Main.layoutManager.primaryMonitor;
+            glass.materialize({duration: 360, fade: false, origin: 'explicit',
+                point: [monitor.x + monitor.width / 2, monitor.y]});
         }
         const [x, y] = banner.get_transformed_position();
         const [width, height] = banner.get_transformed_size();

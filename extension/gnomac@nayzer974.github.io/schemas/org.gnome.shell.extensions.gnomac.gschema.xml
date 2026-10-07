@@ -313,6 +313,19 @@
       <default>'dock'</default>
       <summary>Opening a window: it grows out of its dock icon, or pops in from 90 percent</summary>
     </key>
+    <key name="minimize-effect" type="s">
+      <choices>
+        <choice value="path"/>
+        <choice value="genie"/>
+      </choices>
+      <default>'path'</default>
+      <summary>Minimise, restore and close: a curved path into the dock icon, or the Genie funnel</summary>
+    </key>
+    <key name="window-path-curve" type="d">
+      <range min="0.0" max="0.5"/>
+      <default>0.12</default>
+      <summary>How much the window's path to the dock icon bows (0 = straight line)</summary>
+    </key>
     <key name="dock-click-minimize" type="b">
       <default>true</default>
       <summary>Clicking the dock icon of the active app hides it (like the Windows taskbar)</summary>

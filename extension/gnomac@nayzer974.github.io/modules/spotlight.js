@@ -41,6 +41,8 @@ function systemActionEntries(extension) {
             'software-update-available-symbolic', () => extension?.updater?.check({manual: true})),
         entry(t('Liquid Glass Debug', 'Débogage Liquid Glass'), ['glass', 'verre', 'debug', 'liquid', 'fps'],
             'applications-engineering-symbolic', () => extension?.glassDebug?.toggle()),
+        entry(t('Mission Control (experimental)', 'Mission Control (expérimental)'), ['mission', 'control', 'expose', 'fenetres', 'windows'],
+            'view-grid-symbolic', () => import('../lib/missionControl.js').then(m => (m.missionControl.active ? m.exitMissionControl(null) : m.enterMissionControl()))),
         entry(t('Glass Benchmark', 'Glass Benchmark'), ['glass', 'benchmark', 'bench', 'fps', 'performance'],
             'utilities-system-monitor-symbolic', () => import('../lib/glassBench.js').then(m => m.runGlassBench(extension))),
         entry(t('Glass Inspector', 'Glass Inspector'), ['glass', 'inspector', 'inspecteur', 'fps', 'debug'],

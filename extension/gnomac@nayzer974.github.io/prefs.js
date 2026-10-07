@@ -130,6 +130,14 @@ export default class GnomacPreferences extends ExtensionPreferences {
         closeRow.connect('notify::selected', () => settings.set_string('close-animation', closeModes[closeRow.selected]));
         dock.add(closeRow);
 
+        const effects = ['path', 'genie'];
+        const effectRow = new Adw.ComboRow({title: 'Réduction, restauration et fermeture',
+            subtitle: 'Trajectoire : la fenêtre glisse en courbe vers l’icône du dock ; Génie : elle est aspirée',
+            model: Gtk.StringList.new(['Trajectoire vers le dock', 'Effet Génie'])});
+        effectRow.selected = Math.max(0, effects.indexOf(settings.get_string('minimize-effect')));
+        effectRow.connect('notify::selected', () => settings.set_string('minimize-effect', effects[effectRow.selected]));
+        dock.add(effectRow);
+
         const bar = group('Barre de menus');
         const styles = ['transparent', 'glass'];
         const styleRow = new Adw.ComboRow({

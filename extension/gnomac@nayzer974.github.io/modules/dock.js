@@ -24,6 +24,8 @@ import {DownloadsStack, TrashWatcher, confirmEmptyTrash, downloadsDir, openTrash
 import {Spring, getTicker} from '../lib/spring.js';
 import {t} from '../lib/i18n.js';
 import {dockBaseSize} from '../lib/ui.js';
+import {Easing, MotionTokens} from '../lib/motionTokens.js';
+import {timelines} from '../lib/animationTimeline.js';
 
 const SIGMA = 1.05; // magnification falloff, in icon slots
 const BOUNCE_PERIOD = 0.6; // seconds per hop
@@ -148,7 +150,7 @@ class DockItem extends St.Widget {
         const s = scale / this.dock.maxScale;
         this.icon.set_scale(s, s);
         // The pointer lifts the icon a little and brightens it.
-        this.icon.translation_y = -this.lift - influence * this.dock.base * 0.04;
+        this.icon.translation_y = -this.lift - influence * this.dock.base * 0.04 - (this._pulse ?? 0);
         this.dot.visible = this.running && this.dock.showRunning;
         const [, dotWidth] = this.dot.get_preferred_width(-1);
         this.dot.set_position(Math.round((width - dotWidth) / 2), Math.round(dotY));
@@ -755,6 +757,41 @@ export class Dock {
             item.stopBounce = true;
         // Running apps outside the favourites appear and disappear.
         this._rebuild();
+    }
+
+    // Where an app's icon is on the stage right now: {x, y, width, height, cx,
+    // cy}, or null when the app has no icon in the dock. Windows travel to and
+    // from this rectangle (lib/windowMotion.js).
+    getAppTarget(appId) {
+        const item = this._items.find(i => i.app && i.app.get_id() === appId);
+        if (!item || !item.get_stage())
+            return null;
+        const [x, y] = item.icon.get_transformed_position();
+        const [width, height] = item.icon.get_transformed_size();
+        if (!width || !height)
+            return null;
+        return {x, y, width, height, cx: x + width / 2, cy: y + height / 2};
+    }
+
+    // The icon reacts to something happening to its app: a short lift (a
+    // window arriving, a launch), no bounce.
+    pulseApp(appId, lift = 4) {
+        const item = this._items.find(i => i.app && i.app.get_id() === appId);
+        if (!item)
+            return;
+        item.pulse?.cancel();
+        item.pulse = timelines.run({
+            duration: MotionTokens.medium, easing: Easing.smooth,
+            onFrame: (_e, raw) => {
+                item._pulse = lift * Math.sin(Math.PI * raw);
+                this._relayout();
+            },
+            onDone: () => {
+                item._pulse = 0;
+                item.pulse = null;
+                this._relayout();
+            },
+        });
     }
 
     bounce(item) {

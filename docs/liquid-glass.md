@@ -222,7 +222,7 @@ Le shader n'évalue plus rien en dehors du verre (les vides d'un groupe, les coi
 
 Soyons honnêtes sur l'écart avec le matériau d'Apple :
 
-- **Dynamic Island** : non modifiée par le moteur de verre (voir ci-dessous) ; la couche de transition « verre » pour l'encoche n'est **pas faite**.
+- **Dynamic Island** : toujours dessinée en Cairo, pas une surface de verre ; une couche de transition en phases (forme, matériau, contenu) la pilote (voir [motion.md](motion.md)), mais elle n'utilise pas `morph` ni le shader.
 - **Regroupement limité** : un conteneur partage fond et flou entre **ses** régions, pas entre deux acteurs séparés (Spotlight et une bannière restent deux verres).
 - **L'encoche** n'est pas une surface de verre : elle est dessinée (Cairo) et change de taille par ressorts ; ses états (`collapsed`, `expanded`, `media`, `notification`, `timer`, `volume`, `system`) sont nommés (`DynamicIsland.state`) mais elle ne fusionne pas avec un verre.
 - **Luminosité locale** : lue dans le fond d'écran seul, pas la couleur du texte ni les fenêtres ouvertes derrière.

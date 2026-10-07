@@ -1,5 +1,7 @@
-// macOS window animations: open (quick scale-up + fade), close (shrink +
-// fade), minimize and restore with the Genie effect into the dock icon.
+// macOS window animations: open from the dock icon, close, minimize and
+// restore into the dock icon (a curved path, or the Genie effect), maximise.
+// The motion itself lives in lib/windowMotion.js (WindowMotionManager); this
+// module is the bridge to GNOME's window manager signals.
 //
 // GNOME binds its own handlers to the window manager signals at startup, so
 // they cannot be replaced. What can be replaced is the one decision they all
@@ -20,6 +22,10 @@ import Meta from 'gi://Meta';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {Genie} from '../lib/genie.js';
+import {WindowMotionManager} from '../lib/windowMotion.js';
+import {Easing} from '../lib/motionTokens.js';
+import {timelines} from '../lib/animationTimeline.js';
+import {missionControl} from '../lib/missionControl.js';
 
 const OPEN_MS = 260;
 const GENIE_MS = 560;
@@ -32,7 +38,7 @@ const ANIMATED_TYPES = [
 ];
 
 function callerOf(stack) {
-    for (const name of ['_minimizeWindow', '_unminimizeWindow', '_mapWindow', '_destroyWindow']) {
+    for (const name of ['_minimizeWindow', '_unminimizeWindow', '_mapWindow', '_destroyWindow', '_sizeChangeWindow']) {
         if (stack.includes(`${name}@`))
             return name;
     }
@@ -41,6 +47,8 @@ function callerOf(stack) {
 
 export class WindowAnimations {
     constructor(extension) {
+        this._extension = extension;
+        this._motion = new WindowMotionManager(extension);
         this._settings = extension.getSettings();
         this._pendingOpen = new Set();
         this._pendingRestore = new Set();
@@ -52,7 +60,13 @@ export class WindowAnimations {
         this._snapshots = new WeakMap();
     }
 
+    _path() {
+        return this._settings.get_string('minimize-effect') === 'path';
+    }
+
     enable() {
+        this._extension.windowMotion = this._motion;
+        this._motion.enable();
         const wm = Main.wm;
         this._original = wm._shouldAnimateActor;
         const original = this._original;
@@ -79,6 +93,11 @@ export class WindowAnimations {
     }
 
     disable() {
+        missionControl.destroy();
+        this._motion.disable();
+        timelines.cancelAll();
+        if (this._extension.windowMotion === this._motion)
+            this._extension.windowMotion = null;
         if (this._original) {
             Main.wm._shouldAnimateActor = this._original;
             this._original = null;
@@ -86,7 +105,7 @@ export class WindowAnimations {
         global.window_manager.disconnect(this._mapId);
         global.window_manager.disconnect(this._unminimizeId);
         for (const timeline of this._timelines)
-            timeline.stop();
+            timeline.cancel();
         this._timelines.clear();
         for (const genie of this._genies)
             genie.destroy();
@@ -103,6 +122,10 @@ export class WindowAnimations {
             return true;
         case '_unminimizeWindow':
             this._pendingRestore.add(actor);
+            return true;
+        case '_sizeChangeWindow':
+            // Maximise, unmaximise, tile: the motion manager interpolates the
+            // bounds itself (GNOME completes the change at once).
             return true;
         case '_minimizeWindow':
             return this._minimize(actor);
@@ -126,26 +149,8 @@ export class WindowAnimations {
     // from the icon's position, so no snapshot is needed (a window that has
     // just been mapped has not painted yet).
     _openFromDock(actor) {
-        const target = this._target(actor);
-        const width = actor.width || 1;
-        const height = actor.height || 1;
         actor.remove_all_transitions();
-        actor.set_pivot_point(Math.min(1, Math.max(0, (target.x - actor.x) / width)),
-            Math.min(1, Math.max(0, (target.y - actor.y) / height)));
-        actor.set_scale(0.06, 0.06);
-        actor.opacity = 0;
-        actor.ease({
-            scale_x: 1,
-            scale_y: 1,
-            opacity: 255,
-            duration: GENIE_MS,
-            mode: Clutter.AnimationMode.EASE_OUT_QUINT,
-            onStopped: () => {
-                actor.set_scale(1, 1);
-                actor.opacity = 255;
-                actor.set_pivot_point(0, 0);
-            },
-        });
+        this._motion.launchFrom(this._motion.getDockTarget(actor.meta_window), actor);
     }
 
     _afterMap(actor) {
@@ -204,19 +209,17 @@ export class WindowAnimations {
         this._genies.add(genie);
         genie.setProgress(reverse ? 1 : 0);
 
-        const timeline = new Clutter.Timeline({actor: genie.actor, duration});
-        this._timelines.add(timeline);
-        timeline.connect('new-frame', () => {
-            const p = timeline.get_progress();
-            genie.setProgress(reverse ? 1 - p : p);
+        const run = timelines.run({
+            duration, easing: Easing.linear,
+            onFrame: p => genie.setProgress(reverse ? 1 - p : p),
+            onDone: () => {
+                this._timelines.delete(run);
+                this._genies.delete(genie);
+                genie.destroy();
+                onDone();
+            },
         });
-        timeline.connect('stopped', () => {
-            this._timelines.delete(timeline);
-            this._genies.delete(genie);
-            genie.destroy();
-            onDone();
-        });
-        timeline.start();
+        this._timelines.add(run);
     }
 
     _minimize(actor) {
@@ -224,7 +227,10 @@ export class WindowAnimations {
         if (!content)
             return false;
         this._snapshots.set(actor, {content, width: actor.width, height: actor.height});
-        this._runGenie(actor, content, false, () => {});
+        if (this._path())
+            this._motion.minimizeTo(actor, content, null);
+        else
+            this._runGenie(actor, content, false, () => {});
         return true;
     }
 
@@ -232,7 +238,10 @@ export class WindowAnimations {
         const content = this._content(actor);
         if (!content)
             return false;
-        this._runGenie(actor, content, false, () => {}, CLOSE_MS);
+        if (this._path())
+            this._motion.closeTo(actor, content, null);
+        else
+            this._runGenie(actor, content, false, () => {}, CLOSE_MS);
         return true;
     }
 
@@ -248,8 +257,12 @@ export class WindowAnimations {
             return;
         // The real window stays invisible until the genie has landed.
         actor.opacity = 0;
-        this._runGenie(actor, content, true, () => {
+        const done = () => {
             actor.opacity = 255;
-        });
+        };
+        if (this._path())
+            this._motion.restoreFrom(actor, content, null, done);
+        else
+            this._runGenie(actor, content, true, done);
     }
 }

@@ -10,6 +10,7 @@
 //  - notification (optional setting): grows into a notification card.
 // Width and height ride springs; the shape is redrawn with Cairo.
 
+import Cairo from 'cairo';
 import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
@@ -56,7 +57,7 @@ function formatTime(us) {
 }
 
 // Flat top on the screen edge, concave ears, round bottom corners.
-function drawNotch(area) {
+function drawNotch(area, material = 0) {
     const cr = area.get_context();
     const [w, h] = area.get_surface_size();
     const e = Math.min(EAR, h / 2);
@@ -72,7 +73,21 @@ function drawNotch(area) {
     cr.arcNegative(0, e, e, 0, -Math.PI / 2);
     cr.closePath();
     cr.setSourceRGBA(0, 0, 0, 1);
-    cr.fill();
+    cr.fillPreserve();
+    if (material > 0.01) {
+        // The glass material expands after the geometry: a faint light from
+        // the top and a hairline edge, growing with the card (nothing when folded).
+        const sheen = new Cairo.LinearGradient(0, 0, 0, h);
+        sheen.addColorStopRGBA(0, 1, 1, 1, 0.07 * material);
+        sheen.addColorStopRGBA(0.55, 1, 1, 1, 0);
+        cr.setSource(sheen);
+        cr.fillPreserve();
+        cr.setLineWidth(1);
+        cr.setSourceRGBA(1, 1, 1, 0.16 * material);
+        cr.stroke();
+    } else {
+        cr.newPath();
+    }
     cr.$dispose();
 }
 
@@ -96,7 +111,7 @@ const Island = GObject.registerClass({
         this._settings = settings;
 
         this.shape = new St.DrawingArea({reactive: false});
-        this.shape.connect('repaint', area => drawNotch(area));
+        this.shape.connect('repaint', area => drawNotch(area, this._material ?? 0));
         this.add_child(this.shape);
 
         // Resting row.
@@ -315,6 +330,46 @@ export class DynamicIsland {
         this._length = 0;
         this._tick = dt => this._onTick(dt);
         this._signals = [];
+        // How present each content group is (0..1). Content is never switched
+        // on or off in the middle of a morph: it fades with the geometry, which
+        // is what gates it (see _layout).
+        this._presence = {rest: 1, hud: 0, notice: 0, dashboard: 0};
+        this._pendingSize = null;
+    }
+
+    _activeContent() {
+        switch (this._mode) {
+        case 'dashboard': return 'dashboard';
+        case 'notice':
+        case 'date': return 'notice';
+        case 'hud': return 'hud';
+        }
+        return 'rest';
+    }
+
+    _stepPresence(dt) {
+        const active = this._activeContent();
+        let moving = false;
+        for (const key of Object.keys(this._presence)) {
+            const target = key === active ? 1 : 0;
+            const current = this._presence[key];
+            if (current === target)
+                continue;
+            // Leaving content compresses first (fast); arriving content waits
+            // for the geometry (it is gated in _layout) and rises calmly.
+            const rate = target === 0 ? 1 / 0.14 : 1 / 0.22;
+            const step = dt * rate;
+            this._presence[key] = target > current ? Math.min(target, current + step) : Math.max(target, current - step);
+            moving = true;
+        }
+        // The glass material follows the geometry a little later than the shape.
+        const grow = this._grow ?? 0;
+        const before = this.island._material ?? 0;
+        let material = before + (grow - before) * (1 - Math.exp(-dt * 7));
+        if (Math.abs(material - grow) < 0.005)
+            material = grow;
+        this.island._material = material;
+        return moving || material !== grow;
     }
 
     // The island's personal settings, read once per (re)load.
@@ -368,8 +423,8 @@ export class DynamicIsland {
         this.island.connect('destroy', () => (this._islandGone = true));
         Main.layoutManager.addTopChrome(this.island);
 
-        this._width = new Spring({stiffness: 330, damping: 21, value: this._sizes.rest.width});
-        this._height = new Spring({stiffness: 300, damping: 20, value: this._sizes.rest.height});
+        this._width = new Spring({stiffness: 330, damping: 30, value: this._sizes.rest.width});
+        this._height = new Spring({stiffness: 300, damping: 29, value: this._sizes.rest.height});
 
         this.island.connect('notify::hover', () => this._onHover());
         this.island.connect('button-release-event', (_a, event) => {
@@ -995,19 +1050,32 @@ export class DynamicIsland {
             this._shownOpacity = wanted;
             this.island.ease({opacity: wanted, duration: 220, mode: Clutter.AnimationMode.EASE_OUT_QUAD});
         }
-        this._width.setTarget(size.width);
-        this._height.setTarget(size.height);
+        // Folding: the content compresses first, then the shape follows.
+        const leaving = changed && ['dashboard', 'notice', 'date', 'hud'].includes(previous) &&
+            size.width < this._width.target;
+        if (leaving && St.Settings.get().enable_animations) {
+            this._pendingSize = {size, at: GLib.get_monotonic_time() + 140000};
+        } else {
+            this._pendingSize = null;
+            this._width.setTarget(size.width);
+            this._height.setTarget(size.height);
+        }
         getTicker().add(this._tick);
     }
 
     _onTick(dt) {
         if (!this.island || this._islandGone)
             return false;
+        const now = GLib.get_monotonic_time();
+        if (this._pendingSize && now >= this._pendingSize.at) {
+            this._width.setTarget(this._pendingSize.size.width);
+            this._height.setTarget(this._pendingSize.size.height);
+            this._pendingSize = null;
+        }
         this._width.step(dt);
         this._height.step(dt);
         this._phase += dt;
-
-        const now = GLib.get_monotonic_time();
+        const presenceMoving = this._stepPresence(dt);
         if ((this._mode === 'hud' && now >= (this._hudUntil ?? 0)) ||
             (this._mode === 'notice' && now >= this._noticeUntil) ||
             (this.island.dots.visible && now >= this._workspaceUntil))
@@ -1023,7 +1091,7 @@ export class DynamicIsland {
                 this._pollPosition();
         }
         const timed = now < this._noticeUntil || now < this._workspaceUntil || now < (this._hudUntil ?? 0);
-        return playing || timed || !this._width.settled || !this._height.settled;
+        return playing || timed || presenceMoving || !!this._pendingSize || !this._width.settled || !this._height.settled;
     }
 
     _layout() {
@@ -1042,13 +1110,23 @@ export class DynamicIsland {
         island.shape.queue_repaint();
 
         const inner = width - 2 * EAR;
+        const smooth = x => {
+            const u = Math.min(1, Math.max(0, x));
+            return u * u * (3 - 2 * u);
+        };
+        // How far the shape is towards its current target (0 folded .. 1 there):
+        // arriving content only shows once the shape has mostly arrived.
+        const restW = this._sizes.rest.width;
+        const spanW = Math.max(1, this._width.target - restW);
+        const arrived = Math.min(1, Math.max(0, (this._width.value - restW) / spanW));
+        const gate = smooth((arrived - 0.45) / 0.4);
+        const presence = this._presence;
         island.hud.set_position(EAR, 0);
         island.hud.set_size(inner, height);
-        island.hud.visible = this._mode === 'hud';
-        if (island.hud.visible) {
-            const tw = island.hudTrack.width;
+        island.hud.opacity = Math.round(255 * presence.hud * (this._mode === 'hud' ? gate : 1));
+        island.hud.visible = island.hud.opacity > 0;
+        if (island.hud.visible)
             island.setFill(island.hudFill, island.hudTrack, this._hudLevel ?? 0);
-        }
         for (const child of [island.rest, island.media, island.notice]) {
             child.set_position(EAR, 0);
             child.set_size(inner, height);
@@ -1058,12 +1136,13 @@ export class DynamicIsland {
             (height - this._sizes.rest.height) / (this._sizes.notice.height - this._sizes.rest.height)));
         island.dashboard.set_position(EAR, 0);
         island.dashboard.set_size(inner, height);
-        island.dashboard.opacity = this._mode === 'dashboard' ? Math.round(255 * Math.min(1, grow * 1.4)) : 0;
+        this._grow = grow;
+        island.dashboard.opacity = Math.round(255 * presence.dashboard * (this._mode === 'dashboard' ? gate : 1));
         island.dashboard.visible = island.dashboard.opacity > 0;
-        island.rest.opacity = this._mode === 'hud' ? 0 : Math.round(255 * (1 - grow));
+        island.rest.opacity = Math.round(255 * presence.rest * (1 - smooth(grow * 2)));
         island.media.opacity = 0;
-        island.notice.opacity = this._mode === 'notice' || this._mode === 'date'
-            ? Math.round(255 * grow) : 0;
+        const noticeNow = this._mode === 'notice' || this._mode === 'date';
+        island.notice.opacity = Math.round(255 * presence.notice * (noticeNow ? gate : 1));
         for (const child of [island.rest, island.media, island.notice])
             child.visible = child.opacity > 0;
 
