@@ -9,6 +9,7 @@
 // rim light + top sheen.
 
 import Clutter from 'gi://Clutter';
+import GLib from 'gi://GLib';
 import Cogl from 'gi://Cogl';
 import GObject from 'gi://GObject';
 import Meta from 'gi://Meta';
@@ -43,24 +44,50 @@ uniform float fresnel_power;
 uniform float form;            // 0 = the glass is forming, 1 = settled
 uniform float form_boost;      // how much stronger the optics are while forming
 uniform float debug_mode;        // 0 normal; 1 backdrop 2 refraction 3 fresnel 4 specular 5 rim 6 tint
+// Up to eight regions (x, y, w, h in actor pixels) drawn as ONE piece of glass.
+// A region of zero width is unused; with none, the whole actor is the glass.
+uniform vec4 regs[8];
+uniform float reg_radius[8];
+uniform float merge_k;           // smooth-union width: 0 = hard union
 
 float sd_round_rect(vec2 p, vec2 b, float r) {
     vec2 q = abs(p) - b + vec2(r);
     return min(max(q.x, q.y), 0.0) + length(max(q, 0.0)) - r;
 }
+
+float region_sd(vec2 px, vec4 reg, float rad) {
+    vec2 h = reg.zw * 0.5;
+    return sd_round_rect(px - reg.xy - h, h, min(rad, min(h.x, h.y)));
+}
+
+float smin_k(float a, float b, float k) {
+    if (k <= 0.0)
+        return min(a, b);
+    float h = max(k - abs(a - b), 0.0) / k;
+    return min(a, b) - h * h * k * 0.25;
+}
+
+float scene_sd(vec2 px) {
+    if (regs[0].z <= 0.0)
+        return sd_round_rect(px - size * 0.5, size * 0.5, min(radius, min(size.x, size.y) * 0.5));
+    float d = region_sd(px, regs[0], reg_radius[0]);
+    for (int i = 1; i < 8; i++) {
+        if (regs[i].z > 0.0)
+            d = smin_k(d, region_sd(px, regs[i], reg_radius[i]), merge_k);
+    }
+    return d;
+}
 `;
 
 const CODE = `
 vec2 uv = cogl_tex_coord_in[0].st;
-vec2 p = uv * size - size * 0.5;
-vec2 b = size * 0.5;
-float r = min(radius, min(b.x, b.y));
-float d = sd_round_rect(p, b, r);
+vec2 px = uv * size;
+float d = scene_sd(px);
 float mask = 1.0 - smoothstep(-1.0, 0.5, d);
 
 // Outward surface normal from the SDF gradient.
-vec2 g = vec2(sd_round_rect(p + vec2(1.0, 0.0), b, r) - sd_round_rect(p - vec2(1.0, 0.0), b, r),
-              sd_round_rect(p + vec2(0.0, 1.0), b, r) - sd_round_rect(p - vec2(0.0, 1.0), b, r));
+vec2 g = vec2(scene_sd(px + vec2(1.0, 0.0)) - scene_sd(px - vec2(1.0, 0.0)),
+              scene_sd(px + vec2(0.0, 1.0)) - scene_sd(px - vec2(0.0, 1.0)));
 vec2 n = length(g) > 0.0001 ? normalize(g) : vec2(0.0);
 
 // Lens profile: flat in the middle, strongly curved in the edge band.
@@ -144,11 +171,15 @@ class GlassEffect extends Shell.GLSLEffect {
             form: 1,
             formBoost: TOKENS.materializeBoost,
             debug: 0,
+            regions: [],
+            regionRadii: [],
+            merge: 0,
         };
         this._locations = {};
         for (const name of ['tex', 'size', 'radius', 'thickness', 'refraction',
             'chroma', 'rim', 'sheen', 'light_dir', 'tint', 'saturation', 'pointer', 'glow', 'depth_shade',
-            'fresnel', 'fresnel_power', 'form', 'form_boost', 'debug_mode'])
+            'fresnel', 'fresnel_power', 'form', 'form_boost', 'debug_mode',
+            'regs', 'reg_radius', 'merge_k'])
             this._locations[name] = this.get_uniform_location(name);
         this.setParams(params);
     }
@@ -180,6 +211,15 @@ class GlassEffect extends Shell.GLSLEffect {
         this.set_uniform_float(l.form, 1, [p.form]);
         this.set_uniform_float(l.form_boost, 1, [p.formBoost]);
         this.set_uniform_float(l.debug_mode, 1, [p.debug]);
+        const regs = [];
+        const radii = [];
+        for (let i = 0; i < 8; i++) {
+            regs.push(...(p.regions[i] ?? [0, 0, 0, 0]));
+            radii.push(p.regionRadii[i] ?? 0);
+        }
+        this.set_uniform_float(l.regs, 4, regs);
+        this.set_uniform_float(l.reg_radius, 1, radii);
+        this.set_uniform_float(l.merge_k, 1, [p.merge]);
         this.queue_repaint();
     }
 
@@ -246,11 +286,25 @@ export function clearGlassParams(settings, radius) {
 // keeps it cheap and gives Shell.BlurEffect a sane paint volume.
 export const liveSurfaces = new Set();
 
+const EASINGS = {
+    'out-cubic': t => 1 - (1 - t) ** 3,
+    'out-quad': t => 1 - (1 - t) ** 2,
+    'in-out': t => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2),
+    linear: t => t,
+};
+
 export const GlassSurface = GObject.registerClass(
 class GlassSurface extends St.Widget {
-    _init({blur = 30, glass = {}, backdrop = 'wallpaper'} = {}) {
+    // `adaptiveLocal`: the material also follows the brightness of the part of
+    // the wallpaper right behind this surface (see sampleBackdrop()).
+    _init({blur = 30, glass = {}, backdrop = 'wallpaper', adaptiveLocal = false} = {}) {
         super._init({clip_to_allocation: true, reactive: false});
         this._baseBlur = blur;
+        this._backdropKind = backdrop;
+        this._adaptiveLocal = adaptiveLocal;
+        this._userParams = {...glass};
+        this._localTweak = null;
+        this._lastSample = {x: -1e6, y: -1e6, t: 0};
         liveSurfaces.add(this);
         this._margin = Math.max(8, blur * 2);
         this._origin = [0, 0];
@@ -288,23 +342,64 @@ class GlassSurface extends St.Widget {
         this.connect('destroy', () => {
             liveSurfaces.delete(this);
             this._formTimeline?.stop();
+            this._morphTimeline?.stop();
             this._bgManager?.destroy();
             this._bgManager = null;
         });
     }
 
+    // Where the glass forms from, in surface-local fractions (the pivot of the
+    // scale): the centre, the pointer, the middle of the parent, the middle of
+    // another actor (`source`, e.g. the button that opened it) or a stage point.
+    _originFraction(origin, source, point) {
+        if (origin === 'center' || !this.get_stage() || this.width < 1 || this.height < 1)
+            return [0.5, 0.5];
+        let stage = null;
+        if (origin === 'cursor') {
+            const [x, y] = global.get_pointer();
+            stage = [x, y];
+        } else if (origin === 'parent' && this.get_parent()) {
+            const [x, y] = this.get_parent().get_transformed_position();
+            stage = [x + this.get_parent().width / 2, y + this.get_parent().height / 2];
+        } else if (origin === 'source' && source?.get_stage?.()) {
+            const [x, y] = source.get_transformed_position();
+            const [w, h] = source.get_transformed_size();
+            stage = [x + w / 2, y + h / 2];
+        } else if (origin === 'explicit' && point) {
+            stage = point;
+        }
+        if (!stage)
+            return [0.5, 0.5];
+        const [ok, lx, ly] = this.transform_stage_point(stage[0], stage[1]);
+        if (!ok)
+            return [0.5, 0.5];
+        // A point far outside the surface would throw the scale far away.
+        return [Math.min(1.2, Math.max(-0.2, lx / this.width)), Math.min(1.2, Math.max(-0.2, ly / this.height))];
+    }
+
     // The glass forms: lensing, specular and fresnel start strong and settle
-    // while the blur eases down and the surface grows from 97 %. Not a fade.
-    // `reverse` dissolves it instead (dematerialize). Instant when animations
-    // are off (reduced motion).
-    materialize({duration = TOKENS.animationNormal, reverse = false, onDone = null, fade = true} = {}) {
+    // while the blur eases down and the surface grows from ~97 %. Not a fade.
+    // Options: origin ('center' | 'cursor' | 'parent' | 'source' | 'explicit'),
+    // source (actor) / point ([x, y] on the stage), duration, intensity (1 =
+    // normal), easing ('out-cubic' | 'out-quad' | 'in-out' | 'linear'), mode
+    // ('form' | 'dissolve'; `reverse: true` is the old spelling of dissolve),
+    // fade, onDone. Instant when animations are off (reduced motion).
+    materialize({duration = TOKENS.animationNormal, reverse = false, onDone = null, fade = true,
+        origin = 'center', source = null, point = null, intensity = 1, easing = 'out-cubic', mode = 'form'} = {}) {
         this._formTimeline?.stop();
+        reverse = reverse || mode === 'dissolve';
         const final = reverse ? 0 : 1;
+        const ease = EASINGS[easing] ?? EASINGS['out-cubic'];
+        const [px, py] = this._originFraction(origin, source, point);
+        // From a point the surface grows a little more, so the origin reads.
+        const from = 1 - (1 - TOKENS.materializeScale) * (origin === 'center' ? 1 : 2.5) * intensity;
+        const boost = TOKENS.materializeBoost * intensity;
+        const blurBoost = 1 + (TOKENS.materializeBlurBoost - 1) * intensity;
+        this.set_pivot_point(px, py);
         const apply = f => {
-            this._glass.setParams({form: f});
-            this._blur.radius = Math.round(this._baseBlur * (1 + (1 - f) * (TOKENS.materializeBlurBoost - 1)));
-            const scale = TOKENS.materializeScale + (1 - TOKENS.materializeScale) * f;
-            this.set_pivot_point(0.5, 0.5);
+            this._glass.setParams({form: f, formBoost: boost});
+            this._blur.radius = Math.round(this._baseBlur * (1 + (1 - f) * (blurBoost - 1)));
+            const scale = from + (1 - from) * f;
             this.set_scale(scale, scale);
             if (fade)
                 this.opacity = Math.round(255 * Math.min(1, f * 1.6));
@@ -317,17 +412,85 @@ class GlassSurface extends St.Widget {
         const timeline = new Clutter.Timeline({actor: this, duration});
         this._formTimeline = timeline;
         timeline.connect('new-frame', () => {
-            const t = timeline.get_progress();
-            const eased = 1 - (1 - t) ** 3;
+            const eased = ease(timeline.get_progress());
             apply(reverse ? 1 - eased : eased);
         });
         timeline.connect('completed', () => {
             this._formTimeline = null;
             apply(final);
+            if (final === 1)
+                this.set_pivot_point(0.5, 0.5);
             onDone?.();
         });
         apply(reverse ? 1 : 0);
         timeline.start();
+    }
+
+    // Glass-to-glass transition: the SAME surface changes shape and material,
+    // nothing is hidden, shown, destroyed or created. `from` and `to` are
+    // objects with any of x, y, width, height, radius, opacity (0-255), blur,
+    // refraction, fresnel, specular, shadow; `from` null starts from the current
+    // values. Options: duration, easing, onDone.
+    morph(from, to, {duration = TOKENS.animationNormal, easing = 'out-cubic', onDone = null} = {}) {
+        this._morphTimeline?.stop();
+        const p = this._glass._params;
+        const now = {
+            x: this.x, y: this.y, width: this.width, height: this.height,
+            radius: p.radius, opacity: this.opacity, blur: this._baseBlur,
+            refraction: p.refraction, fresnel: p.fresnel, specular: p.sheen, shadow: p.depthShade,
+        };
+        const start = {...now, ...(from ?? {})};
+        const end = {...now, ...to};
+        const keys = Object.keys(to).filter(k => k in now);
+        const ease = EASINGS[easing] ?? EASINGS['out-cubic'];
+        const apply = f => {
+            const v = {};
+            for (const k of keys)
+                v[k] = start[k] + (end[k] - start[k]) * f;
+            if ('x' in v || 'y' in v)
+                this.set_position(Math.round(v.x ?? this.x), Math.round(v.y ?? this.y));
+            if ('width' in v || 'height' in v)
+                this.set_size(Math.round(v.width ?? this.width), Math.round(v.height ?? this.height));
+            if ('opacity' in v)
+                this.opacity = Math.round(v.opacity);
+            if ('blur' in v) {
+                this._baseBlur = Math.round(v.blur);
+                this._blur.radius = this._baseBlur;
+            }
+            const glass = {};
+            for (const [from_, to_] of [['radius', 'radius'], ['refraction', 'refraction'], ['fresnel', 'fresnel'],
+                ['specular', 'sheen'], ['shadow', 'depthShade']]) {
+                if (from_ in v)
+                    glass[to_] = v[from_];
+            }
+            if (Object.keys(glass).length) {
+                Object.assign(this._userParams, glass);
+                this._pushGlass();
+            }
+        };
+        if (!St.Settings.get().enable_animations || !this.get_stage()) {
+            apply(1);
+            onDone?.();
+            return;
+        }
+        const timeline = new Clutter.Timeline({actor: this, duration});
+        this._morphTimeline = timeline;
+        timeline.connect('new-frame', () => apply(ease(timeline.get_progress())));
+        timeline.connect('completed', () => {
+            this._morphTimeline = null;
+            apply(1);
+            onDone?.();
+        });
+        apply(0);
+        timeline.start();
+    }
+
+    // What is right behind the surface (or `bounds`, in stage pixels): mean
+    // luminance and saturation, dominant colour and contrast, taken from the
+    // wallpaper thumbnail. Cached and cheap; windows are not part of it.
+    sampleBackdrop(bounds = null) {
+        const [x, y] = this.get_transformed_position();
+        return adaptive.sample(bounds ?? {x, y, width: this.width, height: this.height});
     }
 
     // Debug view of one layer of the material (0 = off).
@@ -338,6 +501,40 @@ class GlassSurface extends St.Widget {
     setStageOrigin(x, y) {
         this._origin = [Math.round(x), Math.round(y)];
         this._sync();
+        this._adaptLocally();
+    }
+
+    // The material follows the wallpaper right behind it: a small correction on
+    // top of the global one, at most every 250 ms and only when the surface has
+    // moved far enough to see something else.
+    _adaptLocally() {
+        if (!this._adaptiveLocal || this._backdropKind !== 'wallpaper' && this._backdropKind !== 'windows' ||
+            !this.get_stage() || this.width < 4)
+            return;
+        const [x, y] = this._origin;
+        const now = GLib.get_monotonic_time() / 1000;
+        const last = this._lastSample;
+        if (now - last.t < 250 || Math.abs(x - last.x) + Math.abs(y - last.y) < 24)
+            return;
+        this._lastSample = {x, y, t: now};
+        const local = adaptive.sample({x, y, width: this.width, height: this.height});
+        const delta = adaptive.localDelta(local);
+        if (Math.abs(delta - (this._localTweak ?? 0)) < 0.03)
+            return;
+        this._localTweak = delta;
+        this._pushGlass();
+    }
+
+    // The owner's parameters, nudged by the local brightness.
+    _pushGlass() {
+        const params = {...this._userParams};
+        const d = this._localTweak;
+        if (d && params.tint) {
+            const [r, g, b, a] = params.tint;
+            params.tint = [r, g, b, Math.min(0.9, Math.max(0, a * (1 + 0.35 * d)))];
+            params.rim = (params.rim ?? this._glass._params.rim) * (1 + 0.3 * d);
+        }
+        this._glass.setParams(params);
     }
 
     _sync() {
@@ -355,7 +552,8 @@ class GlassSurface extends St.Widget {
     }
 
     setGlass(params) {
-        this._glass.setParams(params);
+        Object.assign(this._userParams, params);
+        this._pushGlass();
     }
 
     // The glass blooms where the pointer is, fading in and out. `owner` is
