@@ -388,6 +388,34 @@
       <default>1.0</default>
       <summary>Spacing of lists: below 1 is more compact</summary>
     </key>
+    <key name="glass-quality" type="s">
+      <choices>
+        <choice value="low"/>
+        <choice value="medium"/>
+        <choice value="high"/>
+        <choice value="ultra"/>
+      </choices>
+      <default>'high'</default>
+      <summary>Liquid Glass quality: lower levels drop optics (chroma, fresnel, blur) to save GPU</summary>
+    </key>
+    <key name="glass-adaptive" type="b">
+      <default>true</default>
+      <summary>Adapt the glass to the brightness of the wallpaper</summary>
+    </key>
+    <key name="glass-fresnel" type="d">
+      <range min="0" max="2"/>
+      <default>1.0</default>
+      <summary>Strength of the Fresnel edge light of the glass</summary>
+    </key>
+    <key name="glass-debug-mode" type="i">
+      <range min="0" max="6"/>
+      <default>0</default>
+      <summary>Debug view of one layer of the glass: 0 off, 1 backdrop, 2 refraction, 3 fresnel, 4 specular, 5 rim, 6 tint</summary>
+    </key>
+    <key name="glass-debug" type="b">
+      <default>false</default>
+      <summary>Show the Liquid Glass debug overlay (surfaces, quality, brightness)</summary>
+    </key>
     <key name="boot-animation" type="s">
       <choices>
         <choice value="auto"/>

@@ -13,6 +13,7 @@ import {BootShutdown} from './modules/bootShutdown.js';
 import {Dock} from './modules/dock.js';
 import {DynamicIsland} from './modules/dynamicIsland.js';
 import {Gaps} from './modules/gaps.js';
+import {GlassDebug} from './modules/glassDebug.js';
 import {GlassMenus} from './modules/glassMenus.js';
 import {Launchpad} from './modules/launchpad.js';
 import {MenuBarIcons} from './modules/menuBarIcons.js';
@@ -29,6 +30,7 @@ import {Widgets} from './modules/widgets.js';
 import {WindowAnimations} from './modules/windowAnimations.js';
 import {WindowLayout} from './modules/windowLayout.js';
 import {closeGuide} from './lib/guide.js';
+import {adaptive} from './lib/adaptive.js';
 import {destroyTicker} from './lib/spring.js';
 
 // Only modules flagged `locked` run while the screen is locked: the
@@ -37,6 +39,7 @@ import {destroyTicker} from './lib/spring.js';
 const MODULES = [
     // First, so the boot cover is up before the other modules build the UI.
     {key: 'enable-theme-custom', Module: ThemeCustom},
+    {key: 'enable-glass-menus', Module: GlassDebug},
     {key: 'enable-boot-shutdown', Module: BootShutdown},
     {key: 'enable-lock-screen', Module: LockScreen, locked: true},
     // GDM's own shell (login screen): the only module that runs there.
@@ -82,7 +85,7 @@ export default class GnomacExtension extends Extension {
         // Runtime state (Pomodoro timings, reminders) is read live by its
         // module: changing it must not rebuild the whole shell UI.
         this._settingsId = this._settings.connect('changed', (_s, key) => {
-            if (key.startsWith('pomodoro-') || key.startsWith('theme-') || key === 'widget-reminders' || key === 'widgets-layout')
+            if (key.startsWith('pomodoro-') || key.startsWith('theme-') || key === 'glass-debug' || key === 'glass-debug-mode' || key === 'widget-reminders' || key === 'widgets-layout')
                 return;
             this._scheduleReload();
         });
@@ -101,6 +104,7 @@ export default class GnomacExtension extends Extension {
         this._settings.disconnect(this._settingsId);
         Main.sessionMode.disconnect(this._sessionId);
         this._stop();
+        adaptive.stop();
         closeGuide(true);
         destroyTicker();
         this._settings = null;
@@ -108,6 +112,7 @@ export default class GnomacExtension extends Extension {
 
     _start() {
         this._forceAnimations();
+        adaptive.start();
         const locked = Main.sessionMode.isLocked;
         const greeter = Main.sessionMode.currentMode === 'gdm';
         for (const {key, Module, locked: allowedLocked, greeter: forGreeter} of MODULES) {

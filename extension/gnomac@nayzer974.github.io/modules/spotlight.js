@@ -36,6 +36,8 @@ const decimalComma = (GLib.get_language_names()[0] ?? '').startsWith('fr');
 function systemActionEntries(extension) {
     const entry = (name, keywords, icon, run) => ({name, keywords, icon, run});
     return [
+        entry(t('Liquid Glass Debug', 'Débogage Liquid Glass'), ['glass', 'verre', 'debug', 'liquid', 'fps'],
+            'applications-engineering-symbolic', () => extension?.glassDebug?.toggle()),
         entry(t('Customise the Theme (user.css)', 'Personnaliser le thème (user.css)'),
             ['theme', 'thème', 'theme', 'css', 'couleur', 'style', 'personnaliser', 'customise'],
             'applications-graphics-symbolic', () => {
