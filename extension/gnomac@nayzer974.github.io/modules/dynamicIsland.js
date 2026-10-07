@@ -162,11 +162,13 @@ const Island = GObject.registerClass({
 
         const progress = new St.BoxLayout({style_class: 'gnomac-notch-progress'});
         this.elapsed = new St.Label({style_class: 'gnomac-notch-time', y_align: Clutter.ActorAlign.CENTER});
-        this.track = new St.Widget({style_class: 'gnomac-notch-track', x_expand: true,
-            y_align: Clutter.ActorAlign.CENTER, layout_manager: new Clutter.BinLayout()});
-        this.fill = new St.Widget({style_class: 'gnomac-notch-fill', x_align: Clutter.ActorAlign.START,
-            y_expand: true});
+        // The track is a plain container and the fill is placed by hand: it
+        // grows from the left edge (a centred or aligned child grew from the middle).
+        this.track = new St.Widget({style_class: 'gnomac-notch-track', x_expand: true, reactive: true,
+            y_align: Clutter.ActorAlign.CENTER});
+        this.fill = new St.Widget({style_class: 'gnomac-notch-fill', reactive: false});
         this.track.add_child(this.fill);
+        this.track.connect('notify::height', () => this.setFill(this.fill, this.track, this._progress ?? 0));
         this.remaining = new St.Label({style_class: 'gnomac-notch-time', y_align: Clutter.ActorAlign.CENTER});
         for (const child of [this.elapsed, this.track, this.remaining])
             progress.add_child(child);
@@ -189,9 +191,8 @@ const Island = GObject.registerClass({
         this.hud = new St.BoxLayout({style_class: 'gnomac-notch-hud'});
         this.hudIcon = new St.Icon({icon_size: 16, y_align: Clutter.ActorAlign.CENTER});
         this.hudTrack = new St.Widget({style_class: 'gnomac-notch-track', x_expand: true,
-            y_align: Clutter.ActorAlign.CENTER, layout_manager: new Clutter.BinLayout()});
-        this.hudFill = new St.Widget({style_class: 'gnomac-notch-fill', x_align: Clutter.ActorAlign.START,
-            y_expand: true});
+            y_align: Clutter.ActorAlign.CENTER});
+        this.hudFill = new St.Widget({style_class: 'gnomac-notch-fill', reactive: false});
         this.hudTrack.add_child(this.hudFill);
         this.hud.add_child(this.hudIcon);
         this.hud.add_child(this.hudTrack);
@@ -281,6 +282,13 @@ const Island = GObject.registerClass({
         const page = this.pageMap[this._shownTab ?? 'home'];
         if (page)
             cascade(page.get_children(), {delay: 30});
+    }
+
+    // Fills `track` from its left edge up to `fraction` (0..1).
+    setFill(fill, track, fraction) {
+        const f = Math.min(1, Math.max(0, Number.isFinite(fraction) ? fraction : 0));
+        fill.set_position(0, 0);
+        fill.set_size(Math.round(track.width * f), track.height);
     }
 
     _control(iconName, size) {
@@ -389,9 +397,10 @@ export class DynamicIsland {
         this.island.showTab(this._tab);
         // Dropping a file on the notch puts it on the shelf.
         this.island._delegate = this;
-        this.island.prevButton.connect('clicked', () => this._player?.previous());
-        this.island.playButton.connect('clicked', () => this._player?.playPause());
-        this.island.nextButton.connect('clicked', () => this._player?.next());
+        this.island.prevButton.connect('clicked', () => this._skip(-1));
+        this.island.playButton.connect('clicked', () => this._togglePlay());
+        this.island.nextButton.connect('clicked', () => this._skip(1));
+        this._wireSeek(this.island.track);
         this.island.mediaArt.connect('button-release-event', () => {
             this._player?.raise();
             return Clutter.EVENT_STOP;
@@ -613,6 +622,10 @@ export class DynamicIsland {
             player.disconnectObject?.(this);
         this._players.clear();
         this._player = null;
+        if (this._pollTimeout) {
+            GLib.source_remove(this._pollTimeout);
+            this._pollTimeout = 0;
+        }
         this._source = null;
         if (this.island) {
             if (!this._islandGone) {
@@ -645,6 +658,8 @@ export class DynamicIsland {
     }
 
     _onPlayerChanged(player) {
+        if (player === this._player || !this._player)
+            this._pollSoon();
         if (player.status === 'Playing' || !this._player)
             this._player = player;
         this._update();
@@ -653,6 +668,140 @@ export class DynamicIsland {
     _hasMedia() {
         const p = this._player;
         return !!p && p.canPlay && (p.status === 'Playing' || p.status === 'Paused');
+    }
+
+    // A call on the current player's MPRIS interface, straight over D-Bus.
+    _playerCall(method, parameters = null, done = null) {
+        const busName = this._player?._busName;
+        if (!busName) {
+            return false;
+        }
+        Gio.DBus.session.call(busName, '/org/mpris/MediaPlayer2', 'org.mpris.MediaPlayer2.Player',
+            method, parameters, null, Gio.DBusCallFlags.NONE, 1500, null, (conn, res) => {
+                try {
+                    conn.call_finish(res);
+                    done?.(true);
+                } catch (e) {
+                    logError(e, `GNOMAC island: player ${method}`);
+                    done?.(false);
+                }
+            });
+        return true;
+    }
+
+    _togglePlay() {
+        const player = this._player;
+        if (!player)
+            return;
+        // The icon answers at once; the player's own signal confirms it.
+        const playing = player.status === 'Playing';
+        this.island.playButton.child.icon_name = playing ? 'media-playback-start-symbolic' : 'media-playback-pause-symbolic';
+        if (!this._playerCall('PlayPause'))
+            player.playPause();
+        this._pollSoon();
+    }
+
+    // Previous / next track; when the player has none (a browser tab, a
+    // podcast) the buttons skip 10 seconds instead, so they never do nothing.
+    _skip(direction) {
+        const player = this._player;
+        if (!player)
+            return;
+        const canTrack = direction > 0 ? player.canGoNext : player.canGoPrevious;
+        if (canTrack) {
+            if (!this._playerCall(direction > 0 ? 'Next' : 'Previous'))
+                direction > 0 ? player.next() : player.previous();
+        } else {
+            this._seekBy(direction * 10 * 1e6);
+        }
+        this._pollSoon();
+    }
+
+    _seekBy(offsetUs) {
+        if (!this._playerCall('Seek', new GLib.Variant('(x)', [Math.round(offsetUs)])))
+            return;
+        this._position = Math.max(0, this._livePosition() + offsetUs);
+        this._positionAt = GLib.get_monotonic_time();
+        this._syncProgress();
+    }
+
+    _seekTo(fraction) {
+        const length = this._length;
+        const trackId = this._player?._playerProxy?.Metadata?.['mpris:trackid'];
+        if (!length)
+            return;
+        const target = Math.round(Math.min(1, Math.max(0, fraction)) * length);
+        const id = trackId?.deepUnpack?.() ?? trackId;
+        const sent = id
+            ? this._playerCall('SetPosition', new GLib.Variant('(ox)', [String(id), target]))
+            : false;
+        if (!sent)
+            this._seekBy(target - this._livePosition());
+        this._position = target;
+        this._positionAt = GLib.get_monotonic_time();
+        this._syncProgress();
+        this._pollSoon();
+    }
+
+    // Click or drag on the progress bar.
+    _wireSeek(track) {
+        let dragging = false;
+        const at = event => {
+            const [x] = event.get_coords();
+            const [ok, lx] = track.transform_stage_point(x, 0);
+            return ok && track.width > 0 ? lx / track.width : 0;
+        };
+        track.connect('button-press-event', (_a, event) => {
+            dragging = true;
+            this._scrubbing = true;
+            this._scrubTo(at(event));
+            return Clutter.EVENT_STOP;
+        });
+        track.connect('motion-event', (_a, event) => {
+            if (dragging)
+                this._scrubTo(at(event));
+            return dragging ? Clutter.EVENT_STOP : Clutter.EVENT_PROPAGATE;
+        });
+        track.connect('button-release-event', (_a, event) => {
+            if (!dragging)
+                return Clutter.EVENT_PROPAGATE;
+            dragging = false;
+            this._scrubbing = false;
+            this._seekTo(at(event));
+            return Clutter.EVENT_STOP;
+        });
+        track.connect('leave-event', () => {
+            if (dragging) {
+                dragging = false;
+                this._scrubbing = false;
+            }
+        });
+    }
+
+    _scrubTo(fraction) {
+        if (!this._length)
+            return;
+        this._position = Math.min(1, Math.max(0, fraction)) * this._length;
+        this._positionAt = GLib.get_monotonic_time();
+        this._syncProgress();
+    }
+
+    // Where the track is now: the last known position plus the time since.
+    _livePosition() {
+        const playing = this._player?.status === 'Playing';
+        const since = playing && this._positionAt ? GLib.get_monotonic_time() - this._positionAt : 0;
+        const position = this._position + since;
+        return this._length ? Math.min(position, this._length) : position;
+    }
+
+    _pollSoon() {
+        if (this._pollTimeout)
+            GLib.source_remove(this._pollTimeout);
+        this._pollTimeout = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 250, () => {
+            this._pollTimeout = 0;
+            this._pollPosition();
+            return GLib.SOURCE_REMOVE;
+        });
     }
 
     // GNOME's MprisPlayer does not track the position; ask the player.
@@ -670,6 +819,7 @@ export class DynamicIsland {
                 } catch {
                     this._position = 0;
                 }
+                this._positionAt = GLib.get_monotonic_time();
                 const metadata = player._playerProxy?.Metadata ?? {};
                 const length = metadata['mpris:length'];
                 this._length = length ? Number(length.deepUnpack?.() ?? length) : 0;
@@ -789,8 +939,9 @@ export class DynamicIsland {
             island.playButton.child.icon_name = player.status === 'Playing'
                 ? 'media-playback-pause-symbolic'
                 : 'media-playback-start-symbolic';
-            island.prevButton.reactive = !!player.canGoPrevious;
-            island.nextButton.reactive = !!player.canGoNext;
+            // Without track changes the buttons skip 10 s, so they stay live.
+            island.prevButton.opacity = player.canGoPrevious ? 255 : 170;
+            island.nextButton.opacity = player.canGoNext ? 255 : 170;
         }
     }
 
@@ -799,11 +950,11 @@ export class DynamicIsland {
         if (!island || this._islandGone)
             return;
         const length = this._length;
-        const position = length ? Math.min(this._position, length) : this._position;
+        const position = this._livePosition();
         island.elapsed.text = formatTime(position);
         island.remaining.text = length ? `-${formatTime(length - position)}` : '';
-        const trackWidth = island.track.width;
-        island.fill.set_width(length && trackWidth ? Math.round(trackWidth * position / length) : 0);
+        island._progress = length ? position / length : 0;
+        island.setFill(island.fill, island.track, island._progress);
     }
 
     _update() {
@@ -865,6 +1016,12 @@ export class DynamicIsland {
         this._layout();
 
         const playing = this._player?.status === 'Playing' && this._hasMedia();
+        // The bar moves with the music, and is re-synced with the player every 2 s.
+        if (this._mode === 'dashboard' && this._hasMedia() && !this._scrubbing) {
+            this._syncProgress();
+            if (playing && now - (this._positionAt ?? 0) > 2e6)
+                this._pollPosition();
+        }
         const timed = now < this._noticeUntil || now < this._workspaceUntil || now < (this._hudUntil ?? 0);
         return playing || timed || !this._width.settled || !this._height.settled;
     }
@@ -890,7 +1047,7 @@ export class DynamicIsland {
         island.hud.visible = this._mode === 'hud';
         if (island.hud.visible) {
             const tw = island.hudTrack.width;
-            island.hudFill.set_width(Math.round(tw * (this._hudLevel ?? 0)));
+            island.setFill(island.hudFill, island.hudTrack, this._hudLevel ?? 0);
         }
         for (const child of [island.rest, island.media, island.notice]) {
             child.set_position(EAR, 0);
