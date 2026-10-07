@@ -19,6 +19,7 @@ import St from 'gi://St';
 import * as Background from 'resource:///org/gnome/shell/ui/background.js';
 import {TOKENS, qualityOf} from './glassTokens.js';
 import {adaptive} from './adaptive.js';
+import {glassPerformance} from './glassPerformance.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 // Shell.SnippetHook was folded into Cogl.SnippetHook in recent GNOME releases.
@@ -368,6 +369,8 @@ class GlassSurface extends St.Widget {
         this._userParams = {...glass};
         this._localTweak = null;
         this._lastSample = {x: -1e6, y: -1e6, t: 0};
+        this._perf = glassPerformance.scale;
+        this._perfOff = glassPerformance.connect((_level, scale) => this._applyPerf(scale));
         liveSurfaces.add(this);
         this._margin = Math.max(8, blur * 2);
         this._origin = [0, 0];
@@ -404,6 +407,7 @@ class GlassSurface extends St.Widget {
         this.connect('notify::mapped', () => this._sync());
         this.connect('destroy', () => {
             liveSurfaces.delete(this);
+            this._perfOff?.();
             this._formTimeline?.stop();
             this._morphTimeline?.stop();
             this._bgManager?.destroy();
@@ -461,7 +465,7 @@ class GlassSurface extends St.Widget {
         this.set_pivot_point(px, py);
         const apply = f => {
             this._glass.setParams({form: f, formBoost: boost});
-            this._blur.radius = Math.round(this._baseBlur * (1 + (1 - f) * (blurBoost - 1)));
+            this._blur.radius = Math.round(this._baseBlur * this._perf.blur * (1 + (1 - f) * (blurBoost - 1)));
             const scale = from + (1 - from) * f;
             this.set_scale(scale, scale);
             if (fade)
@@ -528,7 +532,7 @@ class GlassSurface extends St.Widget {
                 this.opacity = Math.round(v.opacity);
             if ('blur' in v) {
                 this._baseBlur = Math.round(v.blur);
-                this._blur.radius = this._baseBlur;
+                this._blur.radius = Math.round(this._baseBlur * this._perf.blur);
             }
             const glass = {};
             for (const [key, param] of [['radius', 'radius'], ['refraction', 'refraction'], ['fresnel', 'fresnel'],
@@ -604,7 +608,9 @@ class GlassSurface extends St.Widget {
         const [x, y] = this._origin;
         const now = GLib.get_monotonic_time() / 1000;
         const last = this._lastSample;
-        if (now - last.t < 250 || Math.abs(x - last.x) + Math.abs(y - last.y) < 24)
+        // How often the backdrop is re-read depends on the quality level (0 = never).
+        const every = this._perf.backdropMs;
+        if (!every || now - last.t < every || Math.abs(x - last.x) + Math.abs(y - last.y) < 24)
             return;
         this._lastSample = {x, y, t: now};
         const local = adaptive.sample({x, y, width: this.width, height: this.height});
@@ -621,8 +627,23 @@ class GlassSurface extends St.Widget {
         this._glass.setParams(this._buildParams());
     }
 
+    // The quality level chosen by the performance manager: the optics are
+    // eased and the blur narrowed, relative to what the user's setting gave.
+    _applyPerf(scale) {
+        this._perf = scale;
+        if (!this._formTimeline && !this._morphTimeline)
+            this._blur.radius = Math.round(this._baseBlur * scale.blur);
+        this._pushGlass();
+    }
+
     _buildParams() {
         const params = {...this._userParams};
+        const k = this._perf;
+        for (const [key, factor] of [['refraction', k.refraction], ['chroma', k.chroma], ['fresnel', k.fresnel],
+            ['sheen', k.sheen]]) {
+            if (params[key] !== undefined)
+                params[key] *= factor;
+        }
         const d = this._localTweak;
         if (d && params.tint) {
             const [r, g, b, a] = params.tint;

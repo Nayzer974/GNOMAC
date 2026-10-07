@@ -28,6 +28,7 @@ const WIDTH = 680;
 const BAR_HEIGHT = 56;
 const MAX_APPS = 6;
 const RADIUS = 26;
+const MORPH_MS = 420;
 const SHORTCUT_KEY = 'spotlight-shortcut';
 const WM_KEYBINDINGS = 'org.gnome.desktop.wm.keybindings';
 
@@ -40,6 +41,10 @@ function systemActionEntries(extension) {
             'software-update-available-symbolic', () => extension?.updater?.check({manual: true})),
         entry(t('Liquid Glass Debug', 'Débogage Liquid Glass'), ['glass', 'verre', 'debug', 'liquid', 'fps'],
             'applications-engineering-symbolic', () => extension?.glassDebug?.toggle()),
+        entry(t('Glass Benchmark', 'Glass Benchmark'), ['glass', 'benchmark', 'bench', 'fps', 'performance'],
+            'utilities-system-monitor-symbolic', () => import('../lib/glassBench.js').then(m => m.runGlassBench(extension))),
+        entry(t('Glass Inspector', 'Glass Inspector'), ['glass', 'inspector', 'inspecteur', 'fps', 'debug'],
+            'utilities-system-monitor-symbolic', () => extension?.glassDebug?.toggleInspector()),
         entry(t('Liquid Glass Groups', 'Groupes Liquid Glass'), ['glass', 'groups', 'groupes', 'verre', 'debug', 'blur'],
             'view-grid-symbolic', () => extension?.glassDebug?.toggleGroups()),
         entry(t('Customise the Theme (user.css)', 'Personnaliser le thème (user.css)'),
@@ -305,13 +310,26 @@ export class Spotlight {
         global.stage.set_key_focus(this._entry.clutter_text);
 
         this._height.snap(BAR_HEIGHT);
-        this._scale.snap(0.9);
-        this._scale.setTarget(1);
-        this._card.opacity = 0;
-        this._card.ease({opacity: 255, duration: 140, mode: Clutter.AnimationMode.EASE_OUT_QUAD});
-        // The glass forms (optics settle, blur eases down) instead of fading in.
-        this._layout();
-        this._glass?.materialize({duration: 320, origin: source ? 'source' : 'center', source});
+        this._morph = null;
+        this._card.remove_all_transitions();
+        this._srcRect = this._rectOf(source);
+        if (this._srcRect && St.Settings.get().enable_animations) {
+            // The magnifier's glass BECOMES the search bar: the same surface
+            // grows from the button to the bar (shape, radius and optics change
+            // continuously) and the content settles in once there is room.
+            this._scale.snap(1);
+            this._card.opacity = 255;
+            this._morph = {start: GLib.get_monotonic_time(), duration: MORPH_MS, dir: 1};
+            this._layout();
+        } else {
+            this._scale.snap(0.9);
+            this._scale.setTarget(1);
+            this._card.opacity = 0;
+            this._card.ease({opacity: 255, duration: 140, mode: Clutter.AnimationMode.EASE_OUT_QUAD});
+            // The glass forms (optics settle, blur eases down) instead of fading in.
+            this._layout();
+            this._glass?.materialize({duration: 320});
+        }
         getTicker().add(this._tick);
     }
 
@@ -324,6 +342,19 @@ export class Spotlight {
         }
         if (!animate) {
             this._root.hide();
+            return;
+        }
+        if (this._srcRect && St.Settings.get().enable_animations) {
+            // The bar compresses back into the magnifier.
+            this._morph = {start: GLib.get_monotonic_time(), duration: MORPH_MS * 0.8, dir: -1,
+                onDone: () => {
+                    this._root?.hide();
+                    this._morph = null;
+                    this._card?.set_clip_to_allocation(false);
+                    this._content?.set_opacity(255);
+                    this._glass?.setGlass({form: 1, radius: RADIUS});
+                }};
+            getTicker().add(this._tick);
             return;
         }
         this._card.ease({
@@ -345,11 +376,58 @@ export class Spotlight {
         this._height.step(dt);
         this._scale.step(dt);
         this._layout();
-        return !(this._height.settled && this._scale.settled);
+        return !(this._height.settled && this._scale.settled) || !!this._morph;
+    }
+
+    // A source actor's rectangle in the root's coordinates, or null.
+    _rectOf(actor) {
+        if (!actor?.get_stage?.())
+            return null;
+        const [x, y] = actor.get_transformed_position();
+        const [w, h] = actor.get_transformed_size();
+        return {x: x - this._root.x, y: y - this._root.y, width: Math.max(8, w), height: Math.max(8, h)};
+    }
+
+    // Where the card is while it morphs between the magnifier and the bar.
+    _morphLayout(height) {
+        const m = this._morph;
+        const raw = Math.min(1, Math.max(0, (GLib.get_monotonic_time() - m.start) / 1000 / m.duration));
+        const progress = m.dir > 0 ? raw : 1 - raw;
+        const e = progress * progress * (3 - 2 * progress);
+        const src = this._srcRect;
+        const lerp = (a, b) => a + (b - a) * e;
+        const width = Math.round(lerp(src.width, WIDTH));
+        const h = Math.round(lerp(src.height, height));
+        const radius = Math.round(lerp(Math.min(src.width, src.height) / 2, RADIUS));
+        this._card.set_clip_to_allocation(true);
+        this._card.set_scale(1, 1);
+        this._card.set_position(Math.round(lerp(src.x, this._cardX)), Math.round(lerp(src.y, this._cardY)));
+        this._card.set_size(width, h);
+        this._glass.set_size(width, h);
+        this._content.set_size(WIDTH, height);
+        // The content shows once the card is wide enough to hold it.
+        this._content.opacity = Math.round(255 * Math.min(1, Math.max(0, (progress - 0.45) / 0.4)));
+        // The glass swells through the middle of the move, then settles.
+        this._glass.setGlass({radius, form: 1 - 0.5 * Math.sin(Math.PI * progress)});
+        this._glass.setStageOrigin(this._root.x + this._card.x, this._root.y + this._card.y);
+        if (raw >= 1) {
+            this._morph = null;
+            this._card.set_clip_to_allocation(false);
+            this._content.opacity = 255;
+            this._glass.setGlass({radius: RADIUS, form: 1});
+            if (m.dir < 0)
+                m.onDone?.();
+            else
+                this._layout();
+        }
     }
 
     _layout() {
         const height = Math.round(this._height.value);
+        if (this._morph) {
+            this._morphLayout(height);
+            return;
+        }
         this._card.set_position(this._cardX, this._cardY);
         this._card.set_size(WIDTH, height);
         this._card.set_scale(this._scale.value, this._scale.value);

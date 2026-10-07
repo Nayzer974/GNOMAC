@@ -14,6 +14,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {liveSurfaces} from '../lib/glass.js';
 import {glassGroups} from '../lib/glassContainer.js';
 import {adaptive} from '../lib/adaptive.js';
+import {glassPerformance} from '../lib/glassPerformance.js';
 
 const MODES = ['off', 'backdrop', 'refraction', 'fresnel', 'specular', 'rim', 'tint'];
 
@@ -27,7 +28,7 @@ export class GlassDebug {
     enable() {
         this._extension.glassDebug = this;
         this._settingsId = this._settings.connect('changed', (_s, key) => {
-            if (key === 'glass-debug')
+            if (key === 'glass-debug' || key === 'glass-inspector')
                 this._sync();
             else if (key === 'glass-debug-groups')
                 this._syncGroups();
@@ -47,6 +48,10 @@ export class GlassDebug {
         }
         this._hide();
         this._hideGroups();
+    }
+
+    toggleInspector() {
+        this._settings.set_boolean('glass-inspector', !this._settings.get_boolean('glass-inspector'));
     }
 
     toggleGroups() {
@@ -107,10 +112,11 @@ export class GlassDebug {
     }
 
     _sync() {
-        if (this._settings.get_boolean('glass-debug'))
+        if (this._settings.get_boolean('glass-debug') || this._settings.get_boolean('glass-inspector'))
             this._show();
         else
             this._hide();
+        this._update();
     }
 
     _show() {
@@ -142,6 +148,42 @@ export class GlassDebug {
         this._label = null;
     }
 
+    // The Glass Inspector: everything the glass engine is doing right now.
+    _inspect(fps, groups, regions) {
+        const perf = glassPerformance;
+        const upper = s => s.toUpperCase();
+        const morphing = [];
+        const forming = [];
+        for (const s of liveSurfaces) {
+            if (s._morphTimeline)
+                morphing.push(Math.round(s._morphTimeline.get_progress() * 100));
+            if (s._formTimeline)
+                forming.push(Math.round(s._formTimeline.get_progress() * 100));
+        }
+        const params = [...liveSurfaces][0]?._glass?._params;
+        let rss = 0;
+        try {
+            const text = new TextDecoder().decode(GLib.file_get_contents('/proc/self/status')[1]);
+            rss = Math.round(parseInt(/VmRSS:\s+(\d+)/.exec(text)?.[1] ?? '0') / 1024);
+        } catch {}
+        const island = this._extension._modules?.find(m => m.constructor.name === 'DynamicIsland')?.state ?? '-';
+        return [
+            'GLASS',
+            `FPS: ${fps}${perf.fps ? ` (while animating ${perf.fps.toFixed(0)}, ${perf.frameMs.toFixed(1)} ms)` : ''}`,
+            `Groups: ${groups.length}`,
+            `Regions: ${regions}`,
+            `Blur passes: ${groups.length} (${regions} ungrouped)`,
+            `Backdrop: ${upper(perf.level)}`,
+            `Shader: ${upper(perf.level)}  (setting ${upper(perf.ceiling)}, auto ${upper(perf.autoLevel)}, power ${upper(perf.powerCap)})`,
+            `Blur ${params ? Math.round([...liveSurfaces][0]._blur.radius) : '-'}  Fresnel ${params ? params.fresnel.toFixed(2) : '-'}  Refraction ${params ? params.refraction.toFixed(1) : '-'}`,
+            `Materialization: ${forming.length ? forming.map(p => `${p}%`).join(' ') : 'idle'}`,
+            `Morph: ${morphing.length ? morphing.map(p => `${p}%`).join(' ') : 'idle'}`,
+            `Reduced motion: ${perf.reducedMotion ? 'on' : 'off'}`,
+            `Island: ${island}   Wallpaper luminance ${adaptive.luminance.toFixed(2)}`,
+            `Memory (shell): ${rss} MB`,
+        ].join('\n');
+    }
+
     _update() {
         if (!this._label)
             return;
@@ -152,6 +194,11 @@ export class GlassDebug {
         const mode = MODES[this._settings.get_int('glass-debug-mode')] ?? 'off';
         const groups = glassGroups();
         const regions = groups.reduce((n, g) => n + g.count, 0);
+        if (this._settings.get_boolean('glass-inspector')) {
+            this._label.text = this._inspect(fps, groups, regions);
+            this._place();
+            return;
+        }
         this._label.text = [
             `Liquid Glass · ${this._settings.get_string('glass-quality')}`,
             `surfaces ${regions}   groups ${groups.length}   fps ${fps}`,
@@ -160,5 +207,11 @@ export class GlassDebug {
             `wallpaper luminance ${adaptive.luminance.toFixed(2)} (adapt ${adaptive.amount.toFixed(2)})`,
             `animations ${St.Settings.get().enable_animations ? 'on' : 'off'}   layer ${mode}`,
         ].join('\n');
+        this._place();
+    }
+
+    _place() {
+        const monitor = Main.layoutManager.primaryMonitor;
+        this._label.set_position(monitor.x + monitor.width - this._label.width - 12, this._label.y);
     }
 }

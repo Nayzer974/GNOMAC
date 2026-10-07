@@ -50,11 +50,15 @@ Les styles « Hello » (logo dessiné, mots d'accueil écrits) et « Logo » uti
 
 ## Encoche (Dynamic Island)
 
-Largeur et hauteur sur des ressorts distincts (raideur 330/300, amortissement 21/20) : une seule forme qui change, jamais cachée puis remontrée. États nommés : `collapsed`, `expanded`, `media`, `notification`, `timer`, `volume`, `system` (`DynamicIsland.state`). Au changement de contenu : cascade (28 ms entre éléments, 260 ms chacun), glissement d'onglet 280 ms. Arrivée d'une notification : étirement bref (520 ms).
+Largeur et hauteur sur des ressorts distincts (raideur 330/300, amortissement 21/20) : une seule forme qui change, jamais cachée puis remontrée. États nommés : `collapsed`, `expanded`, `media`, `notification`, `timer`, `volume`, `system` (`DynamicIsland.state`).
+
+**Lecteur** (carte dépliée, page Accueil) : la barre de progression **part de la gauche** et suit la musique (position relue chez le lecteur toutes les 2 s, interpolée entre-temps) ; un clic ou un glissement sur la barre **déplace la lecture** (`SetPosition`) ; lecture/pause, précédent et suivant appellent directement le lecteur par D-Bus (l'icône change tout de suite) ; quand le lecteur n'a pas de piste précédente/suivante (onglet de navigateur, podcast), les boutons **avancent/reculent de 10 s** au lieu de ne rien faire. Testé avec un lecteur MPRIS simulé : lecture/pause, suivant, précédent, déplacement dans la piste (les appels arrivent au lecteur). **NON TESTÉ** avec un vrai Spotify/Firefox.
+
+**Chronologie commune** : les animations des surfaces, du Dock, de l'encoche et de Spotlight tournent sur **un seul métronome** (`lib/spring.js`, `getTicker()`), pas sur des dizaines de minuteries. Une classe `AnimationTimeline` dédiée (chaînage, synchronisation) n'a **pas** été créée : NON FAIT. Au changement de contenu : cascade (28 ms entre éléments, 260 ms chacun), glissement d'onglet 280 ms. Arrivée d'une notification : étirement bref (520 ms).
 
 ## Spotlight
 
-La barre s'ouvre avec un ressort (90 % → 100 %) ; depuis la loupe de la barre de menus, son verre sort **de la loupe** (`origin: 'source'`) ; son **verre se matérialise** en 320 ms (optique qui se stabilise, flou qui diminue, échelle 97 % → 100 %), le champ et les résultats apparaissent par fondu de 140 ms. Fermeture 120 ms.
+Depuis la loupe de la barre de menus, **le verre de la loupe devient la barre** : il grandit en continu de la taille du bouton à celle de la barre (420 ms, courbe douce), le contenu apparaît à mi-course, et à la fermeture la barre se comprime jusqu'à la loupe (336 ms). Ouvert au clavier : la barre s'ouvre avec un ressort (90 % → 100 %) ; son **verre se matérialise** en 320 ms (optique qui se stabilise, flou qui diminue, échelle 97 % → 100 %), le champ et les résultats apparaissent par fondu de 140 ms. Fermeture 120 ms.
 
 ## Notifications
 

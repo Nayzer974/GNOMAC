@@ -64,7 +64,9 @@ Depuis un point (`cursor`, `source`, `explicit`, `parent`) la surface grandit un
 
 ### Morphing (`morph`)
 
-`glass.morph(from, to, {duration, easing, onDone})` fait passer **la même surface** d'une forme et d'un matériau à un autre : `x, y, width, height, radius, opacity, blur, refraction, fresnel, specular, shadow` (`from` = `null` part de l'état courant). Rien n'est caché, montré, détruit ni recréé : seules les valeurs glissent. Dans un `GlassContainer`, `morphRegion(id, to)` fait de même pour une région.
+`glass.morph(from, to, {duration, easing, materialTransition, onDone})` fait passer **la même surface** d'une forme et d'un matériau à un autre : `x, y, width, height, radius, opacity, blur, brightness, saturation, tint, refraction, fresnel, specular, shadow, materialization`. `from` et `to` peuvent aussi être **un acteur** (sa place à l'écran devient `x, y, width, height`) ; `from` = `null` part de l'état courant. `easing` : `'out-cubic'`, `'out-quad'`, `'in-out'`, `'smooth'`, `'linear'`. Avec `materialTransition: true`, l'optique du verre (lentille, reflet) **gonfle au milieu du trajet** puis se calme : on voit un seul matériau qui change de forme. Rien n'est caché, montré, détruit ni recréé : seules les valeurs glissent. Dans un `GlassContainer`, `morphRegion(id, to)` fait de même pour une région.
+
+**Spotlight** s'en sert : ouvert depuis la loupe de la barre de menus, le verre part de la taille de la loupe (rayon = moitié de la plus petite dimension) et grandit **en continu** jusqu'à la barre (420 ms, courbe douce, optique qui gonfle au milieu) ; le contenu apparaît quand il y a la place. À la fermeture la barre se **comprime** jusqu'à la loupe. Ouvert au clavier, il garde la matérialisation habituelle. Mesuré (taille de la carte, en échantillons) : 21 × 21 px → 215 × 31 → 666 × 55 → 680 × 56, puis retour à 21 × 21 ; contenu invisible jusqu'à mi-course.
 
 ### Groupes de verre (`GlassContainer`)
 
@@ -80,7 +82,23 @@ group.getBackdropContext(); // {renderContext, blurRadius, stageOrigin, sampled:
 
 Le **Dock** est un groupe : la plaque, plus une lentille qui gonfle de 5 px sous le pointeur et se fond dans la plaque. L'icône sous le pointeur se soulève et s'éclaircit légèrement ; les voisines suivent par `dockMagnification(distance)` (gaussienne, en cases d'icône). Le reflet suit le pointeur (`followPointer`).
 
-À savoir : le matériau (teinte, réfraction…) est celui du conteneur pour toutes ses régions ; `materialParameters` est conservé et relu mais pas encore appliqué région par région.
+#### Matériau par région
+
+Chaque région garde **son propre matériau**. Le conteneur partage ce qui est commun (le fond, le flou, la lumière), le shader reçoit pour chaque pixel le matériau de la région où il se trouve, et le **mélange en douceur à la jointure** (poids décroissant avec la distance à chaque région).
+
+```js
+group.addRegion('a', rect, {radius: 40, materialParameters: {
+    opacity: 0.82,                  // 0..1
+    saturation: 1.05, brightness: 1.02,
+    tint: [0.07, 0.07, 0.09, 0.18], // r, g, b, alpha de la teinte
+    fresnelIntensity: 0.34, specularIntensity: 1, refractionIntensity: 14,
+    edgeLight: 0.55,                // intensité du bord
+    materializationIntensity: 1,    // amplitude de la matérialisation de cette région
+}});
+group.setRegionMaterial('a', {brightness: 1.2});   // changer plus tard
+```
+
+Tout paramètre omis prend la valeur du conteneur. **`blur` n'est pas par région** : le flou fait partie du fond partagé (un seul flou par groupe, c'est le but) ; il se règle sur le conteneur. Testé : trois régions rouge / bleu / à moitié opaque dans un même groupe, avec la transition de couleur à la jointure.
 
 ### Fond local
 
@@ -130,7 +148,62 @@ gsettings --schemadir ~/.local/share/gnome-shell/extensions/gnomac@nayzer974.git
   set org.gnome.shell.extensions.gnomac glass-debug-mode 3
 ```
 
-## Mesures de performance
+## Qualité adaptative (`lib/glassPerformance.js`)
+
+`GlassPerformanceManager` écoute les images dessinées **pendant que le bureau s'anime** (un écart de plus de 100 ms entre deux images est du repos, pas de la lenteur) et décide d'un niveau, fenêtre de 1 s :
+
+| Images/s mesurées | Niveau |
+|---|---|
+| ≥ 56 | ULTRA |
+| ≥ 46 | HIGH |
+| ≥ 36 | MEDIUM |
+| en dessous | LOW |
+
+**Hystérésis** : descendre demande deux fenêtres mauvaises de suite ; remonter demande cinq fenêtres bonnes (4 images/s au-dessus du seuil), 20 s après le dernier changement, et d'un seul niveau. Le niveau n'oscille donc pas toutes les secondes. Le réglage *Qualité* des préférences est le **plafond** : le gestionnaire ne dépasse jamais. Le **mode économie d'énergie** (profil `power-saver`, via `net.hadess.PowerProfiles`) plafonne à LOW. Le **mouvement réduit** est signalé (les animations sautent déjà à leur état final). Un plafond lié au niveau de batterie n'est **pas** implémenté.
+
+Ce que chaque niveau change, par rapport au réglage de l'utilisateur : flou, chromatisme, Fresnel, réfraction et reflet diminuent (table `QUALITY`), et la **fréquence de relecture du fond** passe à 250 / 500 / 1000 ms (ULTRA / HIGH / MEDIUM) ou **jamais** (LOW : seule la moyenne du fond d'écran est utilisée). Chaque surface s'abonne au gestionnaire et se désabonne à sa destruction (vérifié : le nombre d'abonnés ne grandit pas après 4 cycles activer/désactiver).
+
+### Qualité du fond (`backdropQuality`) : ce qui existe vraiment
+
+Le fond d'une surface est, selon le cas, une copie vivante du groupe de fenêtres (Dock, Spotlight : ce sont les vrais pixels, fenêtres comprises) ou une copie du fond d'écran. Il n'y a **pas** de capture de pixels « par région » : NON IMPLÉMENTÉ. Le niveau de qualité règle uniquement la fréquence de la **lecture locale** de la luminosité (`sampleBackdrop`, fond d'écran) décrite plus haut. Un mode « ULTRA dynamique si le compositeur le permet » n'existe pas.
+
+## Glass Inspector
+
+*Spotlight › Glass Inspector* (réglage `glass-inspector`, **éteint par défaut**) :
+
+```
+GLASS
+FPS: 60 (while animating 60, 16.7 ms)
+Groups: 4
+Regions: 12
+Blur passes: 4 (12 ungrouped)
+Backdrop: HIGH
+Shader: HIGH  (setting HIGH, auto ULTRA, power ULTRA)
+Blur 30  Fresnel 0.34  Refraction 14.0
+Materialization: idle        (ou la progression de chaque animation en cours)
+Morph: idle
+Reduced motion: off
+Island: collapsed   Wallpaper luminance 0.16
+Memory (shell): 404 MB
+```
+
+## Benchmark intégré
+
+*Spotlight › Glass Benchmark* mesure 1, 5, 10, 20 et 50 surfaces de 120 × 64 px, d'abord séparées puis en groupes de 8 régions, repeintes à chaque image pendant 3 s. Il écrit `~/.cache/gnomac/glass-bench.json` (images/s, temps par image, CPU du shell, mémoire, passes de flou, captures de fond, passes de shader) et envoie une notification. Il suspend le gestionnaire de qualité pendant la mesure. **Le temps GPU n'est pas mesuré** (GNOME Shell ne l'expose pas) : lancez-le sur votre machine.
+
+Résultats dans la VM (rendu logiciel llvmpipe, 1280 × 800) :
+
+| Surfaces | séparées : fps / CPU / Mo | groupées : fps / CPU / Mo |
+|---|---|---|
+| 1 | 60 / 7 % / 401 | 59,7 / 8 % / 396 |
+| 5 | 60 / 19 % / 409 | 60 / 22 % / 414 |
+| 10 | 60 / 45 % / 423 | 58,6 / 75 % / 441 |
+| 20 | 59 / 76 % / 455 | 42,1 / 77 % / 479 |
+| 50 | 26,4 / 77 % / 520 | 17,2 / 76 % / 595 |
+
+Là encore, **regrouper n'a pas été plus rapide** en rendu logiciel (le coût suit les pixels et le nombre de régions parcourues par pixel, pas le nombre de passes), et consomme un peu plus de mémoire à 50. Le gain attendu du groupement (20 → 3 flous, moins de textures de fond) concerne un vrai GPU : **non vérifié**.
+
+## Mesures de performance (première série)
 
 Banc d'essai : N surfaces de 200 × 110 px, repeintes à chaque image pendant 3 s ; soit N `GlassSurface` séparées, soit des `GlassContainer` de 8 régions. VM VirtualBox, rendu **logiciel** (llvmpipe), GNOME Shell 50.5, 1280 × 800.
 
@@ -149,6 +222,7 @@ Le shader n'évalue plus rien en dehors du verre (les vides d'un groupe, les coi
 
 Soyons honnêtes sur l'écart avec le matériau d'Apple :
 
+- **Dynamic Island** : non modifiée par le moteur de verre (voir ci-dessous) ; la couche de transition « verre » pour l'encoche n'est **pas faite**.
 - **Regroupement limité** : un conteneur partage fond et flou entre **ses** régions, pas entre deux acteurs séparés (Spotlight et une bannière restent deux verres).
 - **L'encoche** n'est pas une surface de verre : elle est dessinée (Cairo) et change de taille par ressorts ; ses états (`collapsed`, `expanded`, `media`, `notification`, `timer`, `volume`, `system`) sont nommés (`DynamicIsland.state`) mais elle ne fusionne pas avec un verre.
 - **Luminosité locale** : lue dans le fond d'écran seul, pas la couleur du texte ni les fenêtres ouvertes derrière.
