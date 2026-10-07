@@ -39,8 +39,12 @@ class GlassContainer extends GlassSurface {
     }
 
     // bounds: {x, y, width, height} in container coordinates.
-    // materialParameters: kept with the region (read back through
-    // getGlassGroup()); the shader applies the container's material to all of them.
+    // materialParameters (all optional, the container's own values fill the
+    // rest): {opacity (0..1), saturation, brightness, tint [r, g, b, a],
+    // fresnelIntensity, specularIntensity, refractionIntensity, edgeLight,
+    // materializationIntensity}. `blur` is part of the shared backdrop, so it is
+    // the group's, not the region's. Each region keeps its own material; the
+    // shader blends them across the joins.
     addRegion(surfaceId, bounds, {radius = 18, zIndex = 0, materialParameters = null} = {}) {
         if (!this._regions.has(surfaceId) && this._regions.size >= MAX_REGIONS) {
             log(`GNOMAC glass: group ${this.containerId} already has ${MAX_REGIONS} regions, "${surfaceId}" ignored`);
@@ -49,6 +53,14 @@ class GlassContainer extends GlassSurface {
         this._regions.set(surfaceId, {surfaceId, bounds: {...bounds}, radius, zIndex, materialParameters});
         this._applyRegions();
         return true;
+    }
+
+    setRegionMaterial(surfaceId, materialParameters) {
+        const region = this._regions.get(surfaceId);
+        if (!region)
+            return;
+        region.materialParameters = {...(region.materialParameters ?? {}), ...materialParameters};
+        this._applyRegions();
     }
 
     updateRegion(surfaceId, bounds, radius) {
@@ -150,7 +162,30 @@ class GlassContainer extends GlassSurface {
         this._userParams.regions = regions;
         this._userParams.regionRadii = radii;
         this._userParams.merge = this._merge;
+        this._sorted = list;
         this._pushGlass();
+    }
+
+    // The container's material is the default of every region; a region's
+    // materialParameters override it value by value.
+    _buildParams() {
+        const params = super._buildParams();
+        const base = {...this._glass._params, ...params};
+        params.materials = (this._sorted ?? []).map(r => {
+            const m = r.materialParameters ?? {};
+            return {
+                tint: m.tint ?? base.tint,
+                saturation: m.saturation ?? base.saturation,
+                brightness: m.brightness ?? base.brightness ?? 1,
+                fresnel: m.fresnelIntensity ?? base.fresnel,
+                specular: m.specularIntensity ?? base.sheen,
+                refraction: m.refractionIntensity ?? base.refraction,
+                edgeLight: m.edgeLight ?? base.rim,
+                opacity: m.opacity ?? 1,
+                materializationIntensity: m.materializationIntensity ?? 1,
+            };
+        });
+        return params;
     }
 });
 

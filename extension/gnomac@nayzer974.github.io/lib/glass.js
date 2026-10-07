@@ -49,6 +49,18 @@ uniform float debug_mode;        // 0 normal; 1 backdrop 2 refraction 3 fresnel 
 uniform vec4 regs[8];
 uniform float reg_radius[8];
 uniform float merge_k;           // smooth-union width: 0 = hard union
+uniform float brightness;        // overall brightness of the material (1 = unchanged)
+// Per-region material, used when the surface has regions:
+//   mat_tint     rgba tint
+//   mat_a        saturation, brightness, fresnel, specular
+//   mat_b        refraction, edge light, opacity, materialization intensity
+uniform vec4 mat_tint[8];
+uniform vec4 mat_a[8];
+uniform vec4 mat_b[8];
+
+vec4 g_tint;
+vec4 g_a;
+vec4 g_b;
 
 float sd_round_rect(vec2 p, vec2 b, float r) {
     vec2 q = abs(p) - b + vec2(r);
@@ -65,6 +77,33 @@ float smin_k(float a, float b, float k) {
         return min(a, b);
     float h = max(k - abs(a - b), 0.0) / k;
     return min(a, b) - h * h * k * 0.25;
+}
+
+// The material at a pixel: the surface's own, or, with regions, a blend of the
+// regions' materials weighted by closeness (inside a region it is that region's
+// exactly; across a join it glides from one to the other).
+void material_at(vec2 px) {
+    g_tint = tint;
+    g_a = vec4(saturation, brightness, fresnel, sheen);
+    g_b = vec4(refraction, rim, 1.0, 1.0);
+    if (regs[0].z <= 0.0)
+        return;
+    float wsum = 0.0;
+    vec4 t = vec4(0.0);
+    vec4 a = vec4(0.0);
+    vec4 b = vec4(0.0);
+    for (int i = 0; i < 8; i++) {
+        if (regs[i].z > 0.0) {
+            float w = exp(-max(region_sd(px, regs[i], reg_radius[i]), 0.0) / 6.0) + 0.0001;
+            t += w * mat_tint[i];
+            a += w * mat_a[i];
+            b += w * mat_b[i];
+            wsum += w;
+        }
+    }
+    g_tint = t / wsum;
+    g_a = a / wsum;
+    g_b = b / wsum;
 }
 
 float scene_sd(vec2 px) {
@@ -85,6 +124,7 @@ vec2 px = uv * size;
 float d = scene_sd(px);
 float mask = 1.0 - smoothstep(-1.0, 0.5, d);
 cogl_color_out = vec4(0.0);
+material_at(px);
 // Outside the glass (the gaps of a group, the corners) nothing else is computed.
 if (d < 1.5) {
 
@@ -97,8 +137,8 @@ float depth = clamp(-d / max(thickness, 1.0), 0.0, 1.0);
 float bend = (1.0 - depth) * (1.0 - depth);
 // While the glass forms, lensing, specular and fresnel start strong and settle:
 // it materialises instead of fading.
-float forming = 1.0 + (1.0 - form) * form_boost;
-vec2 shift = -n * bend * refraction * forming / size;
+float forming = 1.0 + (1.0 - form) * form_boost * g_b.w;
+vec2 shift = -n * bend * g_b.x * forming / size;
 vec2 split = n * bend * chroma * forming / size;
 
 vec3 col;
@@ -109,8 +149,9 @@ col.b = texture2D(tex, clamp(uv + shift - split, 0.0, 1.0)).b;
 
 // Tahoe glass makes what is behind it a little more vivid.
 float luma = dot(col, vec3(0.299, 0.587, 0.114));
-col = clamp(mix(vec3(luma), col, saturation), 0.0, 1.0);
-col = mix(col, tint.rgb, tint.a);
+col = clamp(mix(vec3(luma), col, g_a.x), 0.0, 1.0);
+col = mix(col, g_tint.rgb, g_tint.a);
+col = clamp(col * g_a.y, 0.0, 1.0);
 vec3 tinted = col;
 
 // Rim light: a hairline all around, a touch brighter on the side facing the
@@ -118,15 +159,15 @@ vec3 tinted = col;
 // border, especially where it piles up in the corners.
 float band = 1.0 - smoothstep(0.0, 1.0, -d);
 float facing = dot(n, light_dir);
-float rim_light = band * (0.22 + 0.18 * max(facing, 0.0)) * rim;
+float rim_light = band * (0.22 + 0.18 * max(facing, 0.0)) * g_b.y;
 
 // Fresnel: the surface catches more light towards its edges, as glass does at
 // grazing angles. Faint, visible only when looking closely.
-float fres = pow(1.0 - depth, fresnel_power) * fresnel * forming;
+float fres = pow(1.0 - depth, fresnel_power) * g_a.z * forming;
 
 // Soft sheen on the upper part of the surface.
 float top = clamp(1.0 - uv.y * 2.2, 0.0, 1.0);
-float sheen_light = top * top * sheen * 0.08 * forming;
+float sheen_light = top * top * g_a.w * 0.08 * forming;
 
 // Inner shadow: the glass looks thick, the edges darken a touch.
 float inner = smoothstep(0.0, max(thickness * 1.6, 8.0), -d);
@@ -143,12 +184,13 @@ if (pointer.x >= 0.0) {
 col = col + vec3(rim_light + sheen_light + fres * 0.30 + lit * 0.14) * (1.0 - col);
 int dm = int(debug_mode + 0.5);
 if (dm == 1) col = backdrop;
-else if (dm == 2) col = vec3(0.5 + 0.5 * (shift.x * size.x) / max(refraction, 1.0), 0.5 + 0.5 * (shift.y * size.y) / max(refraction, 1.0), 0.5);
+else if (dm == 2) col = vec3(0.5 + 0.5 * (shift.x * size.x) / max(g_b.x, 1.0), 0.5 + 0.5 * (shift.y * size.y) / max(g_b.x, 1.0), 0.5);
 else if (dm == 3) col = vec3(fres * 2.5);
 else if (dm == 4) col = vec3(sheen_light * 6.0 + lit * 0.4);
 else if (dm == 5) col = vec3(rim_light * 2.0);
 else if (dm == 6) col = tinted;
-cogl_color_out = vec4(col * mask, mask);
+float alpha = mask * g_b.z;
+cogl_color_out = vec4(col * alpha, alpha);
 }
 `;
 
@@ -177,12 +219,14 @@ class GlassEffect extends Shell.GLSLEffect {
             regions: [],
             regionRadii: [],
             merge: 0,
+            brightness: 1,
+            materials: [],
         };
         this._locations = {};
         for (const name of ['tex', 'size', 'radius', 'thickness', 'refraction',
             'chroma', 'rim', 'sheen', 'light_dir', 'tint', 'saturation', 'pointer', 'glow', 'depth_shade',
             'fresnel', 'fresnel_power', 'form', 'form_boost', 'debug_mode',
-            'regs', 'reg_radius', 'merge_k'])
+            'regs', 'reg_radius', 'merge_k', 'brightness', 'mat_tint', 'mat_a', 'mat_b'])
             this._locations[name] = this.get_uniform_location(name);
         this.setParams(params);
     }
@@ -223,6 +267,21 @@ class GlassEffect extends Shell.GLSLEffect {
         this.set_uniform_float(l.regs, 4, regs);
         this.set_uniform_float(l.reg_radius, 1, radii);
         this.set_uniform_float(l.merge_k, 1, [p.merge]);
+        this.set_uniform_float(l.brightness, 1, [p.brightness]);
+        if (p.materials.length) {
+            const tints = [];
+            const as = [];
+            const bs = [];
+            for (let i = 0; i < 8; i++) {
+                const m = p.materials[i] ?? p.materials[0];
+                tints.push(...m.tint);
+                as.push(m.saturation, m.brightness, m.fresnel, m.specular);
+                bs.push(m.refraction, m.edgeLight, m.opacity, m.materializationIntensity);
+            }
+            this.set_uniform_float(l.mat_tint, 4, tints);
+            this.set_uniform_float(l.mat_a, 4, as);
+            this.set_uniform_float(l.mat_b, 4, bs);
+        }
         this.queue_repaint();
     }
 
@@ -293,6 +352,7 @@ const EASINGS = {
     'out-cubic': t => 1 - (1 - t) ** 3,
     'out-quad': t => 1 - (1 - t) ** 2,
     'in-out': t => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2),
+    smooth: t => t * t * (3 - 2 * t),
     linear: t => t,
 };
 
@@ -432,24 +492,34 @@ class GlassSurface extends St.Widget {
     // Glass-to-glass transition: the SAME surface changes shape and material,
     // nothing is hidden, shown, destroyed or created. `from` and `to` are
     // objects with any of x, y, width, height, radius, opacity (0-255), blur,
-    // refraction, fresnel, specular, shadow; `from` null starts from the current
-    // values. Options: duration, easing, onDone.
-    morph(from, to, {duration = TOKENS.animationNormal, easing = 'out-cubic', onDone = null} = {}) {
+    // brightness, saturation, tint ([r, g, b, a]), refraction, fresnel,
+    // specular, shadow, materialization (0 forming .. 1 settled), or an actor
+    // (its place on the screen becomes x, y, width, height); `from` null
+    // starts from the current values. Options: duration, easing ('smooth' is
+    // 'in-out'), materialTransition (the optics of the glass swell through the
+    // middle of the move, as if the glass were flowing), onDone.
+    morph(from, to, {duration = TOKENS.animationNormal, easing = 'out-cubic', materialTransition = false,
+        onDone = null} = {}) {
         this._morphTimeline?.stop();
         const p = this._glass._params;
+        const local = value => (value instanceof Clutter.Actor ? this._boundsOf(value) : value);
+        from = local(from);
+        to = local(to);
         const now = {
             x: this.x, y: this.y, width: this.width, height: this.height,
             radius: p.radius, opacity: this.opacity, blur: this._baseBlur,
             refraction: p.refraction, fresnel: p.fresnel, specular: p.sheen, shadow: p.depthShade,
+            brightness: p.brightness, saturation: p.saturation, tint: [...p.tint], materialization: p.form,
         };
         const start = {...now, ...(from ?? {})};
         const end = {...now, ...to};
         const keys = Object.keys(to).filter(k => k in now);
         const ease = EASINGS[easing] ?? EASINGS['out-cubic'];
-        const apply = f => {
+        const lerp = (a, b, f) => (Array.isArray(a) ? a.map((v, i) => v + (b[i] - v) * f) : a + (b - a) * f);
+        const apply = (f, progress) => {
             const v = {};
             for (const k of keys)
-                v[k] = start[k] + (end[k] - start[k]) * f;
+                v[k] = lerp(start[k], end[k], f);
             if ('x' in v || 'y' in v)
                 this.set_position(Math.round(v.x ?? this.x), Math.round(v.y ?? this.y));
             if ('width' in v || 'height' in v)
@@ -461,31 +531,48 @@ class GlassSurface extends St.Widget {
                 this._blur.radius = this._baseBlur;
             }
             const glass = {};
-            for (const [from_, to_] of [['radius', 'radius'], ['refraction', 'refraction'], ['fresnel', 'fresnel'],
-                ['specular', 'sheen'], ['shadow', 'depthShade']]) {
-                if (from_ in v)
-                    glass[to_] = v[from_];
+            for (const [key, param] of [['radius', 'radius'], ['refraction', 'refraction'], ['fresnel', 'fresnel'],
+                ['specular', 'sheen'], ['shadow', 'depthShade'], ['brightness', 'brightness'],
+                ['saturation', 'saturation'], ['tint', 'tint'], ['materialization', 'form']]) {
+                if (key in v)
+                    glass[param] = v[key];
             }
-            if (Object.keys(glass).length) {
-                Object.assign(this._userParams, glass);
-                this._pushGlass();
-            }
+            Object.assign(this._userParams, glass);
+            // The glass swells (more lensing and light) in the middle of the
+            // move and settles at the end: one material changing shape.
+            const swell = materialTransition ? Math.sin(Math.PI * progress) : 0;
+            this._glass.setParams({...this._buildParams(), form: 1 - 0.6 * swell});
         };
         if (!St.Settings.get().enable_animations || !this.get_stage()) {
-            apply(1);
+            apply(1, 1);
+            this._pushGlass();
             onDone?.();
             return;
         }
         const timeline = new Clutter.Timeline({actor: this, duration});
         this._morphTimeline = timeline;
-        timeline.connect('new-frame', () => apply(ease(timeline.get_progress())));
+        timeline.connect('new-frame', () => apply(ease(timeline.get_progress()), timeline.get_progress()));
         timeline.connect('completed', () => {
             this._morphTimeline = null;
-            apply(1);
+            apply(1, 1);
+            this._pushGlass();
             onDone?.();
         });
-        apply(0);
+        apply(0, 0);
         timeline.start();
+    }
+
+    // An actor's place in this surface's parent: x, y, width, height.
+    _boundsOf(actor) {
+        const [x, y] = actor.get_transformed_position();
+        const [w, h] = actor.get_transformed_size();
+        const parent = this.get_parent();
+        if (parent) {
+            const [ok, lx, ly] = parent.transform_stage_point(x, y);
+            if (ok)
+                return {x: lx, y: ly, width: w, height: h};
+        }
+        return {x, y, width: w, height: h};
     }
 
     // What is right behind the surface (or `bounds`, in stage pixels): mean
@@ -528,8 +615,13 @@ class GlassSurface extends St.Widget {
         this._pushGlass();
     }
 
-    // The owner's parameters, nudged by the local brightness.
+    // The owner's parameters, nudged by the local brightness. Containers add
+    // the per-region materials on top (see GlassContainer._buildParams).
     _pushGlass() {
+        this._glass.setParams(this._buildParams());
+    }
+
+    _buildParams() {
         const params = {...this._userParams};
         const d = this._localTweak;
         if (d && params.tint) {
@@ -537,7 +629,7 @@ class GlassSurface extends St.Widget {
             params.tint = [r, g, b, Math.min(0.9, Math.max(0, a * (1 + 0.35 * d)))];
             params.rim = (params.rim ?? this._glass._params.rim) * (1 + 0.3 * d);
         }
-        this._glass.setParams(params);
+        return params;
     }
 
     _sync() {
