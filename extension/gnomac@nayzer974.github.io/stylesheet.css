@@ -2149,6 +2149,21 @@
     background-gradient-end: rgba(225, 232, 250, 0);
 }
 
+.gnomac-glass-group {
+    border: 1px solid rgba(255, 140, 60, 0.9);
+    border-radius: 6px;
+    background-color: rgba(255, 140, 60, 0.06);
+}
+
+.gnomac-glass-group-label {
+    background-color: rgba(255, 140, 60, 0.92);
+    color: #1a1000;
+    font-family: monospace;
+    font-size: 7.5pt;
+    padding: 0 5px;
+    border-radius: 4px;
+}
+
 .gnomac-glass-debug {
     background-color: rgba(0, 0, 0, 0.72);
     color: #9ef0a6;

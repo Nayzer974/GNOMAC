@@ -12,6 +12,7 @@ import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {liveSurfaces} from '../lib/glass.js';
+import {glassGroups} from '../lib/glassContainer.js';
 import {adaptive} from '../lib/adaptive.js';
 
 const MODES = ['off', 'backdrop', 'refraction', 'fresnel', 'specular', 'rim', 'tint'];
@@ -28,10 +29,13 @@ export class GlassDebug {
         this._settingsId = this._settings.connect('changed', (_s, key) => {
             if (key === 'glass-debug')
                 this._sync();
+            else if (key === 'glass-debug-groups')
+                this._syncGroups();
             else if (key === 'glass-debug-mode')
                 this._applyMode();
         });
         this._sync();
+        this._syncGroups();
     }
 
     disable() {
@@ -42,6 +46,54 @@ export class GlassDebug {
             this._settingsId = 0;
         }
         this._hide();
+        this._hideGroups();
+    }
+
+    toggleGroups() {
+        this._settings.set_boolean('glass-debug-groups', !this._settings.get_boolean('glass-debug-groups'));
+    }
+
+    // SHOW GROUPS: an outline around every glass group with its id, how many
+    // surfaces it holds and its render passes (backdrop + blur + glass = 3 per
+    // group, however many surfaces share it).
+    _syncGroups() {
+        if (!this._settings.get_boolean('glass-debug-groups')) {
+            this._hideGroups();
+            return;
+        }
+        if (this._groupsTimeout)
+            return;
+        this._outlines = [];
+        this._drawGroups();
+        this._groupsTimeout = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 400, () => {
+            this._drawGroups();
+            return GLib.SOURCE_CONTINUE;
+        });
+    }
+
+    _hideGroups() {
+        if (this._groupsTimeout) {
+            GLib.source_remove(this._groupsTimeout);
+            this._groupsTimeout = 0;
+        }
+        for (const o of this._outlines ?? [])
+            o.destroy();
+        this._outlines = [];
+    }
+
+    _drawGroups() {
+        for (const o of this._outlines)
+            o.destroy();
+        this._outlines = [];
+        for (const g of glassGroups()) {
+            const box = new St.Widget({style_class: 'gnomac-glass-group', reactive: false,
+                x: Math.round(g.x), y: Math.round(g.y), width: Math.round(g.width), height: Math.round(g.height)});
+            const label = new St.Label({style_class: 'gnomac-glass-group-label',
+                text: `${g.id} · ${g.count} surf · ${g.passes} passes`, reactive: false});
+            box.add_child(label);
+            Main.layoutManager.uiGroup.add_child(box);
+            this._outlines.push(box);
+        }
     }
 
     toggle() {
@@ -98,9 +150,12 @@ export class GlassDebug {
         this._frames = 0;
         this._since = now;
         const mode = MODES[this._settings.get_int('glass-debug-mode')] ?? 'off';
+        const groups = glassGroups();
+        const regions = groups.reduce((n, g) => n + g.count, 0);
         this._label.text = [
             `Liquid Glass · ${this._settings.get_string('glass-quality')}`,
-            `surfaces ${liveSurfaces.size}   fps ${fps}`,
+            `surfaces ${regions}   groups ${groups.length}   fps ${fps}`,
+            `blur passes ${groups.length} (${regions} without grouping)`,
             `wallpaper luminance ${adaptive.luminance.toFixed(2)} (adapt ${adaptive.amount.toFixed(2)})`,
             `animations ${St.Settings.get().enable_animations ? 'on' : 'off'}   layer ${mode}`,
         ].join('\n');

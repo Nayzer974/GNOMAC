@@ -40,6 +40,8 @@ function systemActionEntries(extension) {
             'software-update-available-symbolic', () => extension?.updater?.check({manual: true})),
         entry(t('Liquid Glass Debug', 'Débogage Liquid Glass'), ['glass', 'verre', 'debug', 'liquid', 'fps'],
             'applications-engineering-symbolic', () => extension?.glassDebug?.toggle()),
+        entry(t('Liquid Glass Groups', 'Groupes Liquid Glass'), ['glass', 'groups', 'groupes', 'verre', 'debug', 'blur'],
+            'view-grid-symbolic', () => extension?.glassDebug?.toggleGroups()),
         entry(t('Customise the Theme (user.css)', 'Personnaliser le thème (user.css)'),
             ['theme', 'thème', 'theme', 'css', 'couleur', 'style', 'personnaliser', 'customise'],
             'applications-graphics-symbolic', () => {

@@ -84,10 +84,12 @@ vec2 uv = cogl_tex_coord_in[0].st;
 vec2 px = uv * size;
 float d = scene_sd(px);
 float mask = 1.0 - smoothstep(-1.0, 0.5, d);
+cogl_color_out = vec4(0.0);
+// Outside the glass (the gaps of a group, the corners) nothing else is computed.
+if (d < 1.5) {
 
-// Outward surface normal from the SDF gradient.
-vec2 g = vec2(scene_sd(px + vec2(1.0, 0.0)) - scene_sd(px - vec2(1.0, 0.0)),
-              scene_sd(px + vec2(0.0, 1.0)) - scene_sd(px - vec2(0.0, 1.0)));
+// Outward surface normal from the SDF gradient (forward differences).
+vec2 g = vec2(scene_sd(px + vec2(1.0, 0.0)) - d, scene_sd(px + vec2(0.0, 1.0)) - d);
 vec2 n = length(g) > 0.0001 ? normalize(g) : vec2(0.0);
 
 // Lens profile: flat in the middle, strongly curved in the edge band.
@@ -147,6 +149,7 @@ else if (dm == 4) col = vec3(sheen_light * 6.0 + lit * 0.4);
 else if (dm == 5) col = vec3(rim_light * 2.0);
 else if (dm == 6) col = tinted;
 cogl_color_out = vec4(col * mask, mask);
+}
 `;
 
 export const GlassEffect = GObject.registerClass(

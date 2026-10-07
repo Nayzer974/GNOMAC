@@ -18,7 +18,8 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 import {AppMenu} from 'resource:///org/gnome/shell/ui/appMenu.js';
 
-import {GlassSurface, glassParamsFromSettings} from '../lib/glass.js';
+import {glassParamsFromSettings} from '../lib/glass.js';
+import {GlassContainer} from '../lib/glassContainer.js';
 import {DownloadsStack, TrashWatcher, confirmEmptyTrash, downloadsDir, openTrash} from './dockExtras.js';
 import {Spring, getTicker} from '../lib/spring.js';
 import {t} from '../lib/i18n.js';
@@ -28,6 +29,13 @@ const SIGMA = 1.05; // magnification falloff, in icon slots
 const BOUNCE_PERIOD = 0.6; // seconds per hop
 const BOUNCE_TIMEOUT = 8; // give up bouncing after this many seconds
 const FLOAT_MARGIN = 8;
+const LENS_RISE = 5; // px the glass swells above the plate under the pointer
+
+// How strongly an icon is magnified, 0..1, by its distance from the pointer in
+// icon slots (gaussian). Neighbours follow smoothly; the farther, the calmer.
+export function dockMagnification(distance, sigma = SIGMA) {
+    return Math.exp(-(distance * distance) / (2 * sigma * sigma));
+}
 
 // macOS Tahoe icon & widget styles, as RevoShell's dock offers them:
 // "dark" dims and calms colours, "tinted" turns icons monochrome (the look
@@ -132,17 +140,33 @@ class DockItem extends St.Widget {
         return !!this.app && this.app.state !== Shell.AppState.STOPPED;
     }
 
-    place(width, height, iconBottom, scale, dotY) {
+    place(width, height, iconBottom, scale, dotY, influence = 0) {
+        this._setInfluence(influence);
         this.set_size(Math.round(width), Math.round(height));
         const size = this.dock.renderSize;
         this.icon.set_position(Math.round((width - size) / 2), Math.round(iconBottom - size));
         const s = scale / this.dock.maxScale;
         this.icon.set_scale(s, s);
-        this.icon.translation_y = -this.lift;
+        // The pointer lifts the icon a little and brightens it.
+        this.icon.translation_y = -this.lift - influence * this.dock.base * 0.04;
         this.dot.visible = this.running && this.dock.showRunning;
         const [, dotWidth] = this.dot.get_preferred_width(-1);
         this.dot.set_position(Math.round((width - dotWidth) / 2), Math.round(dotY));
         this._placeBadge(width, iconBottom, size, s);
+    }
+
+    _setInfluence(k) {
+        if (k > 0.03) {
+            if (!this._bright) {
+                this._bright = new Clutter.BrightnessContrastEffect();
+                this.icon.add_effect_with_name('gnomac-hover-bright', this._bright);
+            }
+            const b = 0.07 * k;
+            this._bright.set_brightness_full(b, b, b);
+        } else if (this._bright) {
+            this.icon.remove_effect_by_name('gnomac-hover-bright');
+            this._bright = null;
+        }
     }
 
     setBadge(count) {
@@ -250,12 +274,20 @@ export class Dock {
             track_hover: true,
         });
         // Windows can be dragged behind the dock, so it shows them like macOS.
-        this._glass = new GlassSurface({
+        // One glass group: the plate, plus a lens that swells under the pointer
+        // and melts into it (one backdrop, one blur, one shader pass).
+        this._glass = new GlassContainer({
+            containerId: 'dock',
             backdrop: 'windows',
             blur: s.get_int('glass-blur'),
+            merge: 22,
+            adaptiveLocal: s.get_boolean('glass-adaptive'),
             glass: glassParamsFromSettings(s, this._radius),
         });
+        this._glass.addRegion('plate', {x: 0, y: LENS_RISE, width: 100, height: this._glassHeight},
+            {radius: this._radius, zIndex: 0});
         this.actor.add_child(this._glass);
+        this._glass.followPointer(this.actor, 1);
 
         this._tooltip = new St.Label({style_class: 'gnomac-dock-tooltip', opacity: 0});
         // Not chrome: it must never take part in struts or fullscreen tracking.
@@ -453,6 +485,21 @@ export class Dock {
         return item;
     }
 
+    // The lens: a pill under the pointer, rising LENS_RISE px above the plate,
+    // melted into it by the smooth union of the group. Only while the dock is
+    // hovered with magnification on; it grows and shrinks with `hover`.
+    _placeLens(width, hover, influence) {
+        const rise = LENS_RISE * Math.min(1, hover) * Math.max(...influence, 0);
+        if (!this.magnify || this._pointerX === null || rise < 0.4) {
+            this._glass.removeRegion('lens');
+            return;
+        }
+        const centre = Math.min(width - this._pad, Math.max(this._pad, this._pointerX - this.actor.x));
+        const w = this.base * 1.5;
+        this._glass.addRegion('lens', {x: centre - w / 2, y: LENS_RISE - rise, width: w, height: rise + 14},
+            {radius: 16, zIndex: 1});
+    }
+
     _relayout() {
         const monitor = Main.layoutManager.primaryMonitor;
         if (!monitor || !this.actor)
@@ -479,9 +526,10 @@ export class Dock {
             if (!this.magnify || this._pointerX === null || hover <= 0)
                 return 1;
             const distance = (this._pointerX - slotCenter) / step;
-            return 1 + (this.maxScale - 1) * hover *
-                Math.exp(-(distance * distance) / (2 * SIGMA * SIGMA));
+            return 1 + (this.maxScale - 1) * hover * dockMagnification(distance);
         });
+        // Per icon, how much the pointer "lights" it (0..1): lift and brightness.
+        const influence = scales.map(sc => (this.maxScale > 1 ? (sc - 1) / (this.maxScale - 1) : 0));
 
         // While an icon is dragged, its slot collapses and a gap opens where
         // it would land, so the other icons slide apart like macOS.
@@ -506,9 +554,12 @@ export class Dock {
         this.actor.set_size(Math.round(width), height);
 
         const glassY = height - FLOAT_MARGIN - this._glassHeight;
-        this._glass.set_position(0, glassY);
-        this._glass.set_size(Math.round(width), this._glassHeight);
-        this._glass.setStageOrigin(x, y + glassY);
+        this._glass.set_position(0, glassY - LENS_RISE);
+        this._glass.set_size(Math.round(width), this._glassHeight + LENS_RISE);
+        this._glass.setStageOrigin(x, y + glassY - LENS_RISE);
+        this._glass.updateRegion('plate', {x: 0, y: LENS_RISE, width: Math.round(width), height: this._glassHeight},
+            this._radius);
+        this._placeLens(Math.round(width), hover, influence);
 
         const iconBottom = glassY + this._pad + base;
         const dotY = glassY + this._glassHeight - Math.max(4, this._pad * 0.45);
@@ -519,7 +570,7 @@ export class Dock {
                 left += gap;
             item.set_position(Math.round(left), 0);
             item.visible = item !== this._dragItem;
-            item.place(Math.max(0, widths[i]), glassY + this._glassHeight, iconBottom, scales[i], dotY);
+            item.place(Math.max(0, widths[i]), glassY + this._glassHeight, iconBottom, scales[i], dotY, influence[i]);
             left += widths[i] + this._spacing;
             if (this._separatorAfter.has(i)) {
                 const separator = this._separators[separatorIndex++];
