@@ -149,6 +149,16 @@ export default class GnomacPreferences extends ExtensionPreferences {
         spin(glass, 'glass-intensity', 'Intensité (curseur Liquid Glass de macOS)', 0, 1, 0.05, 2);
         toggle(glass, 'glass-tinted', 'Verre teinté', 'Teinté avec la couleur d’accentuation au lieu de clair');
         toggle(glass, 'glass-dark', 'Teinte sombre');
+        const qualityKeys = ['low', 'medium', 'high', 'ultra'];
+        const qualityRow = new Adw.ComboRow({title: 'Qualité',
+            subtitle: 'Plus bas : moins d’optique (aberration, Fresnel, flou) pour économiser le processeur graphique',
+            model: Gtk.StringList.new(['Basse', 'Moyenne', 'Haute', 'Ultra'])});
+        qualityRow.selected = Math.max(0, qualityKeys.indexOf(settings.get_string('glass-quality')));
+        qualityRow.connect('notify::selected', () => settings.set_string('glass-quality', qualityKeys[qualityRow.selected]));
+        glass.add(qualityRow);
+        toggle(glass, 'glass-adaptive', 'Verre adaptatif', 'La luminosité du fond d’écran règle la teinte, le bord et le reflet du verre');
+        spin(glass, 'glass-fresnel', 'Lumière de bord (Fresnel)', 0, 2, 0.05, 2);
+        toggle(glass, 'glass-debug', 'Afficher le débogage Liquid Glass', 'Surfaces actives, images par seconde, luminosité du fond ; couches visibles une par une via glass-debug-mode');
 
         const island = group('Dynamic Island',
             'Tout se règle ici : quand elle s’ouvre, ce qu’elle affiche, sa taille et ses onglets');
@@ -396,6 +406,25 @@ export default class GnomacPreferences extends ExtensionPreferences {
         });
         themeResetRow.add_suffix(resetTheme);
         theme.add(themeResetRow);
+
+        const updates = group('Mises à jour', 'GNOMAC regarde sur GitHub si une nouvelle version existe et te prévient par une notification');
+        toggle(updates, 'enable-updater', 'Rechercher les mises à jour');
+        const updateModes = ['notify', 'auto', 'off'];
+        const updateRow = new Adw.ComboRow({title: 'Quand une mise à jour existe',
+            subtitle: 'Les nouveautés du thème s’appliquent à la prochaine connexion (Wayland ne recharge pas le shell à chaud)',
+            model: Gtk.StringList.new(['Me prévenir', 'Installer automatiquement', 'Ne rien faire'])});
+        updateRow.selected = Math.max(0, updateModes.indexOf(settings.get_string('update-mode')));
+        updateRow.connect('notify::selected', () => settings.set_string('update-mode', updateModes[updateRow.selected]));
+        updates.add(updateRow);
+        spin(updates, 'update-hours', 'Vérifier toutes les (heures)', 1, 168, 1);
+        const installedFile = GLib.build_filenamev([GLib.get_user_config_dir(), 'gnomac', 'installed.json']);
+        let installedSha = '';
+        try {
+            installedSha = JSON.parse(new TextDecoder().decode(GLib.file_get_contents(installedFile)[1])).sha ?? '';
+        } catch {}
+        const statusRow = new Adw.ActionRow({title: 'Version installée',
+            subtitle: installedSha ? installedSha.slice(0, 10) : 'inconnue (réinstalle avec la commande express)'});
+        updates.add(statusRow);
 
         const motion = group('Animations', 'Ressorts : plus de raideur = plus vif, plus d\'amortissement = moins de rebond');
         spin(motion, 'spring-stiffness', 'Raideur', 40, 1000, 10);

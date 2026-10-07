@@ -420,6 +420,32 @@
       <default>true</default>
       <summary>Unlock transition: the lock screen dissolves and the desktop is revealed (instead of GNOME's slide)</summary>
     </key>
+    <key name="enable-updater" type="b">
+      <default>true</default>
+      <summary>Check GitHub for GNOMAC updates</summary>
+    </key>
+    <key name="update-mode" type="s">
+      <choices>
+        <choice value="notify"/>
+        <choice value="auto"/>
+        <choice value="off"/>
+      </choices>
+      <default>'notify'</default>
+      <summary>New version found: tell me (notify), install it (auto), or do nothing (off)</summary>
+    </key>
+    <key name="update-hours" type="i">
+      <range min="1" max="168"/>
+      <default>6</default>
+      <summary>Hours between two checks</summary>
+    </key>
+    <key name="update-latest" type="s">
+      <default>''</default>
+      <summary>Latest commit seen on GitHub at the last check</summary>
+    </key>
+    <key name="update-dismissed" type="s">
+      <default>''</default>
+      <summary>Commit the user chose to ignore (no notification again for it)</summary>
+    </key>
     <key name="boot-animation" type="s">
       <choices>
         <choice value="auto"/>

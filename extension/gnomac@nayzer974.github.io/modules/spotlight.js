@@ -36,6 +36,8 @@ const decimalComma = (GLib.get_language_names()[0] ?? '').startsWith('fr');
 function systemActionEntries(extension) {
     const entry = (name, keywords, icon, run) => ({name, keywords, icon, run});
     return [
+        entry(t('Check for GNOMAC Updates', 'Rechercher des mises à jour GNOMAC'), ['update', 'mise', 'jour', 'maj', 'upgrade'],
+            'software-update-available-symbolic', () => extension?.updater?.check({manual: true})),
         entry(t('Liquid Glass Debug', 'Débogage Liquid Glass'), ['glass', 'verre', 'debug', 'liquid', 'fps'],
             'applications-engineering-symbolic', () => extension?.glassDebug?.toggle()),
         entry(t('Customise the Theme (user.css)', 'Personnaliser le thème (user.css)'),
@@ -303,6 +305,8 @@ export class Spotlight {
         this._scale.setTarget(1);
         this._card.opacity = 0;
         this._card.ease({opacity: 255, duration: 140, mode: Clutter.AnimationMode.EASE_OUT_QUAD});
+        // The glass forms (optics settle, blur eases down) instead of fading in.
+        this._glass?.materialize({duration: 320});
         this._layout();
         getTicker().add(this._tick);
     }

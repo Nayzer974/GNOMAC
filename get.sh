@@ -33,6 +33,8 @@ else
   rm -rf "$DEST"
   mkdir -p "$DEST"
   curl -fsSL "https://github.com/$REPO/archive/refs/heads/main.tar.gz" | tar -xz --strip-components=1 -C "$DEST"
+  curl -fsSL "https://api.github.com/repos/$REPO/commits/main" 2>/dev/null \
+    | python3 -c 'import json,sys; print(json.load(sys.stdin)["sha"])' > "$DEST/.gnomac-sha" 2>/dev/null || true
 fi
 
 # `--ez` runs the express installer (asks a few questions, sets everything up).

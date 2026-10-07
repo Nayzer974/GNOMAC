@@ -1,0 +1,73 @@
+# Animations de GNOMAC
+
+Principe : rapides, douces, précises, **amorties**. Courbes de sortie cubique ou ressorts fortement amortis, **aucun rebond** dans les transitions système. Avec les animations coupées (mouvement réduit, ou rendu logiciel sans réglage), chaque transition applique directement son état final.
+
+Durées de base (`lib/glassTokens.js`) : rapide 180 ms, normale 320 ms, lente 520 ms.
+
+## Déverrouillage (`modules/lockScreen.js` + `lib/reveal.js`)
+
+Une seule chronologie, environ 660 ms. GNOME fait glisser tout l'écran de verrouillage vers le haut ; GNOMAC le remplace par :
+
+```
+0 ms        mot de passe accepté
+0–220       la zone de saisie se contracte (97 %) et s'efface
+0–240       l'avatar et le nom s'effacent
+40–280      l'horloge monte de 10 px et s'efface
+0–520       le flou et l'assombrissement du fond d'écran diminuent (sortie cubique)
+140–520     la couche de verrouillage se dissout et découvre le bureau
+120–540     les fenêtres sont révélées (98,5 % → 100 %, opacité)
+160–540     la barre de menus se pose (opacité, descend de 8 px)
+210–660     le dock apparaît : monte de 24 px, 97 % → 100 %, son verre se matérialise
+660         fin : plus rien ne bouge
+```
+
+Réglable : *Préférences › Démarrage et extinction › Transition de déverrouillage*. En cas d'erreur, le chemin d'origine de GNOME prend le relais (on n'est jamais bloqué).
+
+## Démarrage de la session, style « Brume » (`modules/bootShutdown.js`)
+
+L'écran reste noir pendant que GNOME démarre, puis :
+
+```
+0–280       le voile apparaît : fond d'écran flou (48) et pâle, brume légère
+200         la révélation du bureau démarre (la même que le déverrouillage)
+200–720     le flou et l'opacité du voile diminuent ensemble ; la brume monte de 48 px
+~880        le voile est retiré
+```
+
+Les styles « Hello » (logo dessiné, mots d'accueil écrits) et « Logo » utilisent la même révélation à la fin.
+
+## Dock
+
+- Apparition (révélation) : voir ci-dessus.
+- Survol : agrandissement en courbe gaussienne, ressort court (raideur et amortissement dans les préférences › Animations).
+- Rebond de lancement : saut qui se termine avant l'arrêt.
+- Réduction / fermeture / restauration d'une fenêtre : effet Génie (bandes), 560 ms / 460 ms.
+- Compteur de notifications : apparition avec léger dépassement (320 ms, seule exception).
+
+## Encoche (Dynamic Island)
+
+Largeur et hauteur sur des ressorts distincts (raideur 330/300, amortissement 21/20). Au changement de contenu : cascade (28 ms entre éléments, 260 ms chacun), glissement d'onglet 280 ms. Arrivée d'une notification : étirement bref (520 ms).
+
+## Spotlight
+
+La barre s'ouvre avec un ressort (90 % → 100 %) ; son **verre se matérialise** en 320 ms (optique qui se stabilise, flou qui diminue, échelle 97 % → 100 %), le champ et les résultats apparaissent par fondu de 140 ms. Fermeture 120 ms.
+
+## Notifications
+
+La bannière glisse (animation de GNOME) pendant que son verre se matérialise (360 ms, sans toucher à l'opacité que GNOME pilote).
+
+## Espaces de travail et aperçu
+
+Animations de GNOME conservées, habillées en verre (voir `stylesheet.css`). L'encoche affiche brièvement les points d'espaces (1,4 s).
+
+## Démarrage de l'ordinateur et arrêt
+
+Plymouth : logo et barre fine. Arrêt : l'écran s'assombrit en 520 ms, le logo en verre respire avec un reflet qui passe, la barre se remplit pendant la durée réglée.
+
+## Tester une animation au ralenti
+
+Les durées ont un facteur global pour les tests : `globalThis.GNOMAC_BOOT_SPEED` (démarrage), `globalThis.GNOMAC_UNLOCK_SPEED` (déverrouillage). Exemple depuis Looking Glass (`Alt+F2`, `lg`) :
+
+```js
+globalThis.GNOMAC_UNLOCK_SPEED = 8   // 8 fois plus lent, jusqu'au prochain rechargement
+```

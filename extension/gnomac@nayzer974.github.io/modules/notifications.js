@@ -84,7 +84,13 @@ export class Notifications {
         const banner = Main.messageTray._bannerBin.get_first_child();
         if (!banner || !banner.mapped || !Main.messageTray._bannerBin.visible) {
             glass.opacity = 0;
+            this._shown = false;
             return;
+        }
+        // A banner that has just appeared: its glass forms while GNOME slides it in.
+        if (!this._shown) {
+            this._shown = true;
+            glass.materialize({duration: 360, fade: false});
         }
         const [x, y] = banner.get_transformed_position();
         const [width, height] = banner.get_transformed_size();

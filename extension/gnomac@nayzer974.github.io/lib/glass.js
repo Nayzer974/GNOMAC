@@ -297,7 +297,7 @@ class GlassSurface extends St.Widget {
     // while the blur eases down and the surface grows from 97 %. Not a fade.
     // `reverse` dissolves it instead (dematerialize). Instant when animations
     // are off (reduced motion).
-    materialize({duration = TOKENS.animationNormal, reverse = false, onDone = null} = {}) {
+    materialize({duration = TOKENS.animationNormal, reverse = false, onDone = null, fade = true} = {}) {
         this._formTimeline?.stop();
         const final = reverse ? 0 : 1;
         const apply = f => {
@@ -306,7 +306,8 @@ class GlassSurface extends St.Widget {
             const scale = TOKENS.materializeScale + (1 - TOKENS.materializeScale) * f;
             this.set_pivot_point(0.5, 0.5);
             this.set_scale(scale, scale);
-            this.opacity = Math.round(255 * Math.min(1, f * 1.6));
+            if (fade)
+                this.opacity = Math.round(255 * Math.min(1, f * 1.6));
         };
         if (!St.Settings.get().enable_animations || !this.get_stage()) {
             apply(final);

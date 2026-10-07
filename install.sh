@@ -8,6 +8,7 @@
 #   ./install.sh --cursors  also install macOS-style cursors (WhiteSur)
 #   ./install.sh --plymouth prepare the macOS-style boot splash (prints the sudo commands, never runs them)
 #   ./install.sh --gdm      prepare the macOS-style login screen (prints the sudo command, never runs it)
+#   ./install.sh --update   refresh the extension and styles only (used by the automatic updater)
 #   ./install.sh --all      everything above
 #
 # Never stores or pipes your password: sudo prompts you directly.
@@ -25,7 +26,7 @@ CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}"
 # Genie and app menus, so Magic Lamp / Global Menu would now conflict.
 EXTRA_EXTENSIONS=(7048 615)
 
-WITH_DEPS=0 WITH_EXTRAS=0 WITH_ICONS=0 WITH_CURSORS=0 WITH_PLYMOUTH=0 WITH_GDM=0
+WITH_DEPS=0 WITH_EXTRAS=0 WITH_ICONS=0 WITH_CURSORS=0 WITH_PLYMOUTH=0 WITH_GDM=0 UPDATE_ONLY=0
 for arg in "$@"; do
   case "$arg" in
     --deps) WITH_DEPS=1 ;;
@@ -34,8 +35,9 @@ for arg in "$@"; do
     --cursors) WITH_CURSORS=1 ;;
     --plymouth) WITH_PLYMOUTH=1 ;;
     --gdm) WITH_GDM=1 ;;
+    --update) UPDATE_ONLY=1 ;;
     --all) WITH_DEPS=1 WITH_EXTRAS=1 WITH_ICONS=1 WITH_CURSORS=1 ;;
-    -h|--help) sed -n '2,14p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,15p' "$0"; exit 0 ;;
     *) echo "Unknown option: $arg" >&2; exit 1 ;;
   esac
 done
@@ -100,11 +102,13 @@ if uuid not in current:
 PY
 }
 
+if (( ! UPDATE_ONLY )); then
 enable_extension "$UUID"
 gsettings set org.gnome.shell disable-user-extensions false
+fi
 
 # Docks fight over the same screen edge.
-for other in dash-to-dock@micxgx.gmail.com ubuntu-dock@ubuntu.com dash2dock-lite@icedman.github.com; do
+(( UPDATE_ONLY )) || for other in dash-to-dock@micxgx.gmail.com ubuntu-dock@ubuntu.com dash2dock-lite@icedman.github.com; do
   if gnome-extensions list --enabled 2>/dev/null | grep -qx "$other"; then
     warn "Disabling $other (conflicts with the GNOMAC dock)"
     gnome-extensions disable "$other" || true
@@ -129,6 +133,7 @@ info "Installing Golden Gate window controls (GTK 3 + GTK 4)"
 install_gtk_css 3.0
 install_gtk_css 4.0
 
+if (( ! UPDATE_ONLY )); then
 info "Applying macOS window button layout and fonts"
 gsettings set org.gnome.desktop.wm.preferences button-layout 'close,minimize,maximize:'
 if fc-list 2>/dev/null | grep -qi 'Inter'; then
@@ -136,6 +141,13 @@ if fc-list 2>/dev/null | grep -qi 'Inter'; then
   gsettings set org.gnome.desktop.interface document-font-name 'Inter 11'
   gsettings set org.gnome.desktop.wm.preferences titlebar-font 'Inter Bold 11'
 fi
+fi
+
+# ---------------------------------------------------------------- version record
+# The automatic updater compares this commit with the latest one on GitHub.
+SHA="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || cat "$ROOT/.gnomac-sha" 2>/dev/null || echo unknown)"
+mkdir -p "$CONFIG/gnomac"
+printf '{"sha": "%s", "source": "%s", "installed": "%s"}\n' "$SHA" "$ROOT" "$(date -u +%FT%TZ)" > "$CONFIG/gnomac/installed.json"
 
 # ---------------------------------------------------------------- extras
 if (( WITH_EXTRAS )); then

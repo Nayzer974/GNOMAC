@@ -170,7 +170,7 @@ Préférences (`gnome-extensions prefs gnomac@nayzer974.github.io`) › **Dynami
 
 | Élément | Détail |
 |---|---|
-| **Liquid Glass** | Vraie réfraction : un shader GLSL courbe une copie floutée de ce qui est derrière (fenêtres comprises) près des bords arrondis, avec dispersion chromatique, éclairage du bord et reflet en haut. La lueur suit le pointeur et une ombre interne adoucit les surfaces. |
+| **Liquid Glass** (moteur commun, [docs/liquid-glass.md](docs/liquid-glass.md)) | Vraie réfraction : un shader GLSL courbe une copie floutée de ce qui est derrière (fenêtres comprises) près des bords arrondis, avec dispersion chromatique, éclairage du bord et reflet en haut. La lueur suit le pointeur et une ombre interne adoucit les surfaces. |
 | **Liquid Glass réglable** | Curseur d'intensité, **transparent ou teinté** comme dans les Réglages de macOS 27, appliqués à tout le verre. |
 | **Section Apparence** | Dans le Centre de contrôle : couleur d'accentuation (9 couleurs, GNOME), Auto / Clair / Sombre, verre transparent ou teinté, style des icônes (défaut, sombre, transparent, teinté). |
 | **Menus en verre** | Tous les menus du shell (système, apps, dock, calendrier, Réglages rapides) reçoivent un fond Liquid Glass qui suit leur animation. Les Réglages rapides prennent l'allure du **Centre de contrôle** : tuiles arrondies, curseurs épais. |
@@ -219,7 +219,7 @@ Clic droit sur un widget : **couleur** (9 teintes macOS), **matière** (clair, d
 
 ### Session
 
-**Écran de verrouillage** : date et très grande heure en haut, avatar et pilule de verre en bas, fond net au repos qui se floute. **Démarrage « Brume » (par défaut)** : l'écran reste noir pendant que GNOME démarre, puis le bureau apparaît à travers un voile très léger : le fond d'écran, flou et pâle, retrouve sa netteté pendant qu'une brume claire, accrochée en haut, s'élève et s'efface ; la barre de menus descend se poser en fondu, puis **le dock se lève depuis le bas de l'écran avec un léger rebond**, ses icônes apparaissant l'une après l'autre de gauche à droite (environ deux secondes en tout). **Démarrage « Hello » à la macOS 26/27** (au choix dans les préférences) : le logo se **dessine d'un trait fin**, se remplit de verre et un reflet le balaye pendant qu'une barre très fine se remplit ; il fond dans le fond d'écran, flou, qui revient net ; des **mots d'accueil s'écrivent à la main** en lettres de verre (« bonjour », « hello », « hola »… ta langue d'abord) ; puis la barre de menus apparaît en fondu et le dock monte avec un petit rebond. Un clic saute au bureau ; style, nombre de mots et durée sont réglables. Pour la revoir sans redémarrer : tape « démarrage » dans Spotlight › **Aperçu de l'animation de démarrage**. **Extinction animée** : avant l'arrêt, le redémarrage ou la fermeture de session, l'écran s'assombrit avec « Arrêt en cours… » puis le signal part vraiment. **Thème Plymouth** et **écran de connexion GDM** (optionnels).
+**Écran de verrouillage** : à la saisie du mot de passe, il se **dissout en 0,6 s** pendant que le fond retrouve sa netteté et que le bureau est révélé (barre de menus, dock, fenêtres), au lieu du glissement de GNOME ([docs/animations.md](docs/animations.md)). Date et très grande heure en haut, avatar et pilule de verre en bas, fond net au repos qui se floute. **Démarrage « Brume » (par défaut)** : l'écran reste noir pendant que GNOME démarre, puis le bureau apparaît à travers un voile très léger : le fond d'écran, flou et pâle, retrouve sa netteté pendant qu'une brume claire, accrochée en haut, s'élève et s'efface ; la barre de menus descend se poser en fondu, puis **le dock se lève depuis le bas de l'écran avec un léger rebond**, ses icônes apparaissant l'une après l'autre de gauche à droite (environ deux secondes en tout). **Démarrage « Hello » à la macOS 26/27** (au choix dans les préférences) : le logo se **dessine d'un trait fin**, se remplit de verre et un reflet le balaye pendant qu'une barre très fine se remplit ; il fond dans le fond d'écran, flou, qui revient net ; des **mots d'accueil s'écrivent à la main** en lettres de verre (« bonjour », « hello », « hola »… ta langue d'abord) ; puis la barre de menus apparaît en fondu et le dock monte avec un petit rebond. Un clic saute au bureau ; style, nombre de mots et durée sont réglables. Pour la revoir sans redémarrer : tape « démarrage » dans Spotlight › **Aperçu de l'animation de démarrage**. **Extinction animée** : avant l'arrêt, le redémarrage ou la fermeture de session, l'écran s'assombrit avec « Arrêt en cours… » puis le signal part vraiment. **Thème Plymouth** et **écran de connexion GDM** (optionnels).
 
 ---
 
@@ -311,6 +311,12 @@ Le script copie l'extension dans `/usr/share/gnome-shell/extensions`, le fond da
 > Cette partie n'a pas pu être vérifiée visuellement (elle ne se teste qu'avec un vrai GDM). Si l'écran paraît mal composé, ouvre une *issue* avec une capture.
 
 ---
+
+## Mises à jour automatiques
+
+GNOMAC regarde sur GitHub, toutes les 6 heures (et peu après la connexion), si une nouvelle version existe. Quand c'est le cas, une notification **« Nouvelle mise à jour disponible »** s'affiche, avec les boutons **Mettre à jour**, **Plus tard** et **Nouveautés**. Réglable (Préférences › Mises à jour) : *me prévenir* (par défaut), *installer automatiquement*, ou *ne rien faire*. Tes réglages et ton `user.css` ne sont jamais touchés. Les nouveautés du thème s'appliquent à la **prochaine connexion** (Wayland ne recharge pas le shell à chaud). L'écran de connexion et le démarrage (installés avec `sudo`) se rafraîchissent en relançant `sudo ./gdm/install-gdm.sh` depuis le dossier source. À la main : `~/.local/share/gnomac-src/scripts/update.sh`, ou Spotlight › « Rechercher des mises à jour GNOMAC ». Le journal est dans `~/.config/gnomac/update.log`.
+
+Tous tes appareils reçoivent la mise à jour de la même façon : il suffit que GNOMAC y soit installé avec la commande express.
 
 ## Personnaliser le thème
 
