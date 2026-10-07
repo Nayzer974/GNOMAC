@@ -48,6 +48,7 @@ export class GlassDebug {
         }
         this._hide();
         this._hideGroups();
+        import('../lib/diagnostics.js').then(m => m.closeDiagnostics()).catch(() => {});
     }
 
     toggleInspector() {

@@ -226,3 +226,19 @@ Soyons honnêtes sur l'écart avec le matériau d'Apple :
 - **Regroupement limité** : un conteneur partage fond et flou entre **ses** régions, pas entre deux acteurs séparés (Spotlight et une bannière restent deux verres).
 - **L'encoche** n'est pas une surface de verre : elle est dessinée (Cairo) et change de taille par ressorts ; ses états (`collapsed`, `expanded`, `media`, `notification`, `timer`, `volume`, `system`) sont nommés (`DynamicIsland.state`) mais elle ne fusionne pas avec un verre.
 - **Luminosité locale** : lue dans le fond d'écran seul, pas la couleur du texte ni les fenêtres ouvertes derrière.
+
+## Fond : ce qui existe réellement
+
+| Fond | Source | Vrai pixels des fenêtres ? |
+|---|---|---|
+| Dock, Spotlight, About | copie vivante du groupe de fenêtres (`Clutter.Clone`) | oui |
+| Barre de menus, widgets, bannières, menus | copie du fond d'écran seul | non |
+| Adaptation locale (`sampleBackdrop`) | miniature 32 × 32 du fond d'écran | non |
+
+**LIMITATION GNOME/MUTTER** : GNOME Shell n'offre pas de capture propre, sous une surface précise, de ce que le compositeur dessine (fenêtres comprises) sans copier le groupe entier. Il n'y a donc pas de « vrai backdrop par région » ; le repli (fond d'écran + clone des fenêtres pour les surfaces flottantes) est conservé et assumé.
+
+## GNOME 51 et batterie
+
+* `lib/shaderEffect.js` : base commune des shaders. GNOME 51 a retiré `Shell.GLSLEffect` ; la même API est fournie au-dessus de `Clutter.OffscreenEffect` + snippets Cogl (le shader est inchangé). Vérifié en VM sous GNOME 51 : le verre du Dock s'affiche. Rendu comparé à GNOME 50.5 : **non comparé image par image**.
+* Plafond batterie (`lib/glassPerformance.js`, UPower) : en décharge, sous 20 % → HIGH au plus, sous 10 % → MEDIUM ; sur secteur, sans batterie ou sans réponse fiable : aucun plafond (affiché `N/A`). La fonction `batteryCap` n'a **pas** été exercée sur une vraie batterie (la VM n'en a pas de fiable pour ce test).
+* Fréquence : les seuils FPS du gestionnaire de qualité sont mis à l'échelle de la fréquence réelle (`lib/display.js`).

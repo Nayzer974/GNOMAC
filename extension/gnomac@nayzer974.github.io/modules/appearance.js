@@ -53,7 +53,7 @@ export class Appearance {
             return;
         this._menu = menu;
 
-        this._root = new St.BoxLayout({style_class: 'gnomac-appearance', vertical: true, x_expand: true});
+        this._root = new St.BoxLayout({style_class: 'gnomac-appearance', orientation: Clutter.Orientation.VERTICAL, x_expand: true});
         this._root.add_child(new St.Label({style_class: 'gnomac-appearance-title',
             text: t('Appearance', 'Apparence')}));
 

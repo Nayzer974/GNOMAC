@@ -170,7 +170,7 @@ export class WindowLayout {
         const root = new St.Widget({style_class: 'gnomac-layout-backdrop', reactive: true,
             x: monitor.x, y: monitor.y, width: monitor.width, height: monitor.height,
             layout_manager: new Clutter.BinLayout(), opacity: 0});
-        const panel = new St.BoxLayout({style_class: 'gnomac-layout-panel', vertical: true,
+        const panel = new St.BoxLayout({style_class: 'gnomac-layout-panel', orientation: Clutter.Orientation.VERTICAL,
             x_align: Clutter.ActorAlign.CENTER, y_align: Clutter.ActorAlign.CENTER});
         panel.add_child(new St.Label({style_class: 'gnomac-layout-title',
             text: t('Move & Resize Window', 'Déplacer et redimensionner la fenêtre')}));

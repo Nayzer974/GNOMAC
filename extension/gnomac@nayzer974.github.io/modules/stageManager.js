@@ -64,7 +64,7 @@ export class StageManager {
             return;
         this._active = true;
 
-        this._strip = new St.BoxLayout({style_class: 'gnomac-stage-strip', vertical: true, reactive: true,
+        this._strip = new St.BoxLayout({style_class: 'gnomac-stage-strip', orientation: Clutter.Orientation.VERTICAL, reactive: true,
             visible: false});
         const monitor = Main.layoutManager.primaryMonitor;
         this._strip.set_position(monitor.x, monitor.y + Main.panel.height);
@@ -155,7 +155,7 @@ export class StageManager {
     _card(window) {
         const tracker = Shell.WindowTracker.get_default();
         const app = tracker.get_window_app(window);
-        const column = new St.BoxLayout({vertical: true, x_align: Clutter.ActorAlign.CENTER});
+        const column = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL, x_align: Clutter.ActorAlign.CENTER});
         const icon = app ? app.create_icon_texture(48) : new St.Icon({icon_name: 'application-x-executable', icon_size: 48});
         icon.x_align = Clutter.ActorAlign.CENTER;
         column.add_child(icon);

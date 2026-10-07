@@ -21,6 +21,8 @@ import St from 'gi://St';
 import {QUALITY} from './glassTokens.js';
 
 export const LEVELS = ['low', 'medium', 'high', 'ultra'];
+// Thresholds are for 60 Hz; they scale with the real refresh rate of the
+// screen (90 Hz: x1.5, 144 Hz: x2.4). Unknown refresh rate: 60 is used.
 const FPS_FOR = {ultra: 56, high: 46, medium: 36};   // below medium's: low
 const DOWN_WINDOWS = 2;
 const UP_WINDOWS = 5;
@@ -41,11 +43,32 @@ export function levelScale(level, ceiling) {
     };
 }
 
+// The quality ceiling a battery imposes: under 20 % while discharging, HIGH
+// at most; under 10 %, MEDIUM. `battery` is {percent, state} (UPower states:
+// 1 charging, 2 discharging, 3 empty, 4 fully charged, 5 pending charge, 6
+// pending discharge) or null when there is no reliable reading.
+export function batteryCap(battery) {
+    if (!battery || !(battery.percent > 0 && battery.percent <= 100))
+        return 'ultra';
+    const discharging = battery.state === 2 || battery.state === 3 || battery.state === 6;
+    if (!discharging)
+        return 'ultra';
+    if (battery.percent < 10)
+        return 'medium';
+    if (battery.percent < 20)
+        return 'high';
+    return 'ultra';
+}
+
 class GlassPerformanceManager {
     constructor() {
         this.autoLevel = 'ultra';
         this.ceiling = 'high';
         this.powerCap = 'ultra';
+        this.batteryCap = 'ultra';
+        // Set by the extension: () => the screen's real refresh rate in Hz, or null.
+        this.refreshHz = null;
+        this.battery = null;           // {percent, state} when a battery is present and readable
         this.fps = 0;
         this.frameMs = 0;
         this.benchmarking = false;
@@ -60,7 +83,7 @@ class GlassPerformanceManager {
     }
 
     get level() {
-        const list = [this.autoLevel, this.ceiling, this.powerCap];
+        const list = [this.autoLevel, this.ceiling, this.powerCap, this.batteryCap];
         return list.reduce((a, b) => (LEVELS.indexOf(a) <= LEVELS.indexOf(b) ? a : b));
     }
 
@@ -87,6 +110,7 @@ class GlassPerformanceManager {
             return GLib.SOURCE_CONTINUE;
         });
         this._watchPower();
+        this._watchBattery();
         this._notify();
     }
 
@@ -107,10 +131,15 @@ class GlassPerformanceManager {
             Gio.DBus.system.signal_unsubscribe(this._powerSub);
             this._powerSub = 0;
         }
+        if (this._batterySub) {
+            Gio.DBus.system.signal_unsubscribe(this._batterySub);
+            this._batterySub = 0;
+        }
         this._settings = null;
         this._listeners.clear();
         this.autoLevel = 'ultra';
         this.powerCap = 'ultra';
+        this.batteryCap = 'ultra';
     }
 
     // callback(level, scale); returns a function that removes it.
@@ -168,8 +197,9 @@ class GlassPerformanceManager {
     }
 
     _levelFor(fps, margin) {
+        const k = (this.refreshHz?.() ?? 60) / 60;
         for (const level of ['ultra', 'high', 'medium'])
-            if (fps >= FPS_FOR[level] + margin)
+            if (fps >= (FPS_FOR[level] + margin) * k)
                 return level;
         return 'low';
     }
@@ -181,6 +211,44 @@ class GlassPerformanceManager {
             return;
         this.autoLevel = level;
         this._notify();
+    }
+
+    // Battery (UPower's display device). The cap only applies when the answer
+    // is trustworthy: a battery is present, it is discharging, and the
+    // percentage is in 0..100. On AC, without a battery, or when UPower does
+    // not answer, there is no cap and `battery` stays null (shown as N/A).
+    _watchBattery() {
+        const path = '/org/freedesktop/UPower/devices/DisplayDevice';
+        const apply = props => {
+            const present = props.IsPresent?.deepUnpack?.() ?? props.IsPresent;
+            const percent = props.Percentage?.deepUnpack?.() ?? props.Percentage;
+            const state = props.State?.deepUnpack?.() ?? props.State;
+            this.battery = present && Number.isFinite(percent) ? {percent, state} : null;
+            this.batteryCap = batteryCap(this.battery);
+            this._notify();
+        };
+        try {
+            Gio.DBus.system.call('org.freedesktop.UPower', path, 'org.freedesktop.DBus.Properties', 'GetAll',
+                new GLib.Variant('(s)', ['org.freedesktop.UPower.Device']), null, Gio.DBusCallFlags.NONE, 1000,
+                null, (conn, res) => {
+                    try {
+                        apply(conn.call_finish(res).deepUnpack()[0]);
+                    } catch {}
+                });
+            this._batterySub = Gio.DBus.system.signal_subscribe('org.freedesktop.UPower',
+                'org.freedesktop.DBus.Properties', 'PropertiesChanged', path, null, Gio.DBusSignalFlags.NONE,
+                () => this._watchBatteryOnce(path, apply));
+        } catch {}
+    }
+
+    _watchBatteryOnce(path, apply) {
+        Gio.DBus.system.call('org.freedesktop.UPower', path, 'org.freedesktop.DBus.Properties', 'GetAll',
+            new GLib.Variant('(s)', ['org.freedesktop.UPower.Device']), null, Gio.DBusCallFlags.NONE, 1000,
+            null, (conn, res) => {
+                try {
+                    apply(conn.call_finish(res).deepUnpack()[0]);
+                } catch {}
+            });
     }
 
     // Power profile: power-saver caps the glass at "low". Read once, then

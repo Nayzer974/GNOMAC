@@ -78,3 +78,17 @@ Avec les animations coupées (réglage de GNOME) : réduire, restaurer, ouvrir, 
 * Déverrouillage : 4 cycles verrouiller / déverrouiller (le mot de passe lui-même n'est pas simulé : `deactivate()`), aucun fantôme, aucun minuteur, Dock et barre rétablis. **Saisie réelle du mot de passe : NON TESTÉ.**
 * Démarrage Brume : 4 cycles (`_playBoot`), même moteur de révélation (`lib/reveal.js`, utilisé aussi par le déverrouillage ; il n'existe pas de seconde implémentation), état final identique au départ. **Démarrage réel (redémarrage) : NON TESTÉ.**
 * 30 / 60 / 120 Hz : **NON TESTÉ** (la VM est à 60 Hz).
+
+## Interruption (testé en VM, GNOME 51)
+
+Une fenêtre n'a qu'**un** mouvement à la fois. Démarrer un nouveau mouvement annule proprement l'ancien (sa chronologie, son fantôme, la transformation laissée sur la fenêtre) et reprend **là où il en était** : réduire puis restaurer tout de suite fait faire demi-tour à la fenêtre sur son chemin (durée proportionnelle au trajet restant), une fenêtre fermée pendant son ouverture continue depuis l'endroit atteint, un deuxième agrandissement part du rectangle réellement visible. Une fenêtre détruite en plein mouvement annule le sien. Scénarios joués sans attendre la fin de chaque animation (réduire → restaurer, agrandir → démaximiser, ouvrir → fermer à 90 ms, espace → espace, enchaînement de 7 actions à 80 ms d'intervalle) : état final à chaque fois échelle 1, translation 0, opacité 255, 0 fantôme, 0 animation en cours, 0 groupe d'espace restant, rectangle identique à l'origine (340,167,600,420).
+
+**Limite de la mesure** : le suivi image par image de la trajectoire (détection de sauts) n'a pas pu être fait : sous GNOME 51 dans la VM, la boucle principale s'arrête ≈ 0,5 s à la réduction (voir hardware-testing.md §6). Les états finaux sont vérifiés ; l'absence de saut visuel **ne l'est pas**.
+
+## Audit : un seul système ?
+
+Résultat honnête : **non, pas encore**. Les animations des fenêtres, de l'île, de Spotlight, du Dock (soulèvement), de Mission Control et des espaces utilisent `MotionTokens` et `AnimationTimeline` / le métronome commun. Restent, hors de ce système, des `actor.ease({duration: …})` de Clutter à durées écrites en dur (elles tournent sur l'horloge d'images de Clutter, donc indépendantes de la fréquence d'écran, mais pas des jetons) : écran de démarrage et d'arrêt (`bootShutdown.js`), écran de connexion (`loginScreen.js`), déverrouillage (`lockScreen.js`, déjà validé, laissé tel quel), widgets, icônes du bureau, Launchpad, sélecteur de fond d'écran, info-bulles du Dock, pastille de notification (rebond volontaire) et le rebond de l'île (`EASE_OUT_ELASTIC`, réglage `island-bounce`). Des `GLib.timeout_add` subsistent pour des horloges (1 s), des relectures de fichiers et des délais de rechargement : ce ne sont pas des animations. Les migrer tous est un chantier à part, non fait.
+
+## Mouvement réduit
+
+Comportement inchangé (instantané), conformément à la consigne de ne le modifier que si les tests le demandent : rien ne l'a demandé.

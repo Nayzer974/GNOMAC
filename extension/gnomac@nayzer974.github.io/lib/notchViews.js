@@ -278,7 +278,7 @@ export class Shelf {
     constructor() {
         this.files = [];
         this.actor = new St.BoxLayout({style_class: 'gnomac-notch-shelf'});
-        this._empty = new St.BoxLayout({vertical: true, x_expand: true, y_align: Clutter.ActorAlign.CENTER,
+        this._empty = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL, x_expand: true, y_align: Clutter.ActorAlign.CENTER,
             style_class: 'gnomac-notch-shelf-empty'});
         this._empty.add_child(new St.Label({
             text: t('Keep files handy: drag desktop icons here, or paste files copied in Files',
@@ -357,7 +357,7 @@ export class Shelf {
     _itemMenu(uri, button) {
         const desktop = GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_DESKTOP);
         const file = Gio.File.new_for_uri(uri);
-        const popup = new St.BoxLayout({vertical: true, style_class: 'gnomac-notch-shelf-menu'});
+        const popup = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL, style_class: 'gnomac-notch-shelf-menu'});
         const entry = (label, action) => {
             const b = new St.Button({label, style_class: 'gnomac-notch-pill-button', can_focus: false});
             b.connect('clicked', () => {

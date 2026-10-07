@@ -21,6 +21,7 @@ import {TOKENS, qualityOf} from './glassTokens.js';
 import {adaptive} from './adaptive.js';
 import {glassPerformance} from './glassPerformance.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import {GLSLEffect} from './shaderEffect.js';
 
 // Shell.SnippetHook was folded into Cogl.SnippetHook in recent GNOME releases.
 const FRAGMENT_HOOK = Shell.SnippetHook?.FRAGMENT ?? Cogl.SnippetHook.FRAGMENT;
@@ -196,7 +197,7 @@ cogl_color_out = vec4(col * alpha, alpha);
 `;
 
 export const GlassEffect = GObject.registerClass(
-class GlassEffect extends Shell.GLSLEffect {
+class GlassEffect extends GLSLEffect {
     _init(params = {}) {
         super._init();
         this._params = {
@@ -232,7 +233,7 @@ class GlassEffect extends Shell.GLSLEffect {
         this.setParams(params);
     }
 
-    vfunc_build_pipeline() {
+    buildPipeline() {
         this.add_glsl_snippet(FRAGMENT_HOOK, DECLARATIONS, CODE, false);
     }
 

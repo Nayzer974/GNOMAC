@@ -82,7 +82,7 @@ export function showGuide() {
 
     const width = Math.min(980, Math.round(monitor.width * 0.82));
     const height = Math.min(700, Math.round(monitor.height * 0.86));
-    const panel = new St.BoxLayout({style_class: 'gnomac-guide', vertical: true, width, height,
+    const panel = new St.BoxLayout({style_class: 'gnomac-guide', orientation: Clutter.Orientation.VERTICAL, width, height,
         x_align: Clutter.ActorAlign.CENTER, y_align: Clutter.ActorAlign.CENTER});
     panel.add_child(new St.Label({style_class: 'gnomac-guide-title', text: t('GNOMAC Guide', 'Guide GNOMAC')}));
     panel.add_child(new St.Label({style_class: 'gnomac-guide-sub',
@@ -91,12 +91,12 @@ export function showGuide() {
     const scroll = new St.ScrollView({style_class: 'gnomac-guide-scroll', y_expand: true, x_expand: true,
         hscrollbar_policy: St.PolicyType.NEVER});
     const columns = new St.BoxLayout({style_class: 'gnomac-guide-columns', x_expand: true});
-    const left = new St.BoxLayout({vertical: true, x_expand: true, style_class: 'gnomac-guide-column'});
-    const right = new St.BoxLayout({vertical: true, x_expand: true, style_class: 'gnomac-guide-column'});
+    const left = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL, x_expand: true, style_class: 'gnomac-guide-column'});
+    const right = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL, x_expand: true, style_class: 'gnomac-guide-column'});
     columns.add_child(left);
     columns.add_child(right);
     SECTIONS().forEach(([title, rows], index) => {
-        const section = new St.BoxLayout({vertical: true, style_class: 'gnomac-guide-section'});
+        const section = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL, style_class: 'gnomac-guide-section'});
         section.add_child(new St.Label({style_class: 'gnomac-guide-heading', text: title}));
         for (const [keys, text] of rows) {
             const row = new St.BoxLayout({style_class: 'gnomac-guide-row'});

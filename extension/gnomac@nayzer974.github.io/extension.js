@@ -34,6 +34,7 @@ import {WindowLayout} from './modules/windowLayout.js';
 import {closeGuide} from './lib/guide.js';
 import {adaptive} from './lib/adaptive.js';
 import {glassPerformance} from './lib/glassPerformance.js';
+import {displayInfo} from './lib/display.js';
 import {destroyTicker} from './lib/spring.js';
 
 // Only modules flagged `locked` run while the screen is locked: the
@@ -111,6 +112,7 @@ export default class GnomacExtension extends Extension {
         this._stop();
         adaptive.stop();
         glassPerformance.stop();
+        displayInfo.stop();
         closeGuide(true);
         destroyTicker();
         this._settings = null;
@@ -119,6 +121,8 @@ export default class GnomacExtension extends Extension {
     _start() {
         this._forceAnimations();
         adaptive.start();
+        displayInfo.start();
+        glassPerformance.refreshHz = () => displayInfo.refreshHz;
         glassPerformance.start(this.getSettings());
         const locked = Main.sessionMode.isLocked;
         const greeter = Main.sessionMode.currentMode === 'gdm';

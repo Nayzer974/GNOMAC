@@ -46,7 +46,7 @@ class IconTile {
         this.selected = false;
         const scale = manager.scale;
 
-        this.actor = new St.BoxLayout({style_class: 'gnomac-desk-icon', vertical: true, reactive: true,
+        this.actor = new St.BoxLayout({style_class: 'gnomac-desk-icon', orientation: Clutter.Orientation.VERTICAL, reactive: true,
             track_hover: true, width: Math.round(CELL_W * scale), height: Math.round(CELL_H * scale)});
         this.actor.set_pivot_point(0.5, 0.5);
 

@@ -33,10 +33,12 @@ export function press(actor, {down = 0.93, stiffness = 520, damping = 17} = {}) 
     const spring = new Spring({stiffness, damping, value: 1});
     actor.set_pivot_point(0.5, 0.5);
     let ticking = false;
+    let dead = false;
+    actor.connect('destroy', () => (dead = true));
     const tick = dt => {
-        spring.step(dt);
-        if (actor.is_finalized?.())
+        if (dead)
             return false;
+        spring.step(dt);
         actor.set_scale(spring.value, spring.value);
         if (spring.settled) {
             actor.set_scale(1, 1);

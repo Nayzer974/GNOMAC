@@ -36,6 +36,7 @@ export class WindowMotionManager {
         this._ghosts = new Set();
         this._runs = new Set();
         this._resizes = new WeakMap();
+        this._active = new Map();
     }
 
     // ------------------------------------------------------------ geometry
@@ -131,65 +132,138 @@ export class WindowMotionManager {
         actor.opacity = sample.opacity;
     }
 
-    _travel({actor, content, from, to, reverse, duration, onDone, path}) {
+    // ---- interruption. At most one motion per window. Starting a new one
+    // cancels the old one cleanly (its timeline, its ghost, the transform it
+    // left on the window) and hands back WHERE it was, so the new motion
+    // continues from the picture the user is looking at: no jump, no
+    // teleportation.
+    //   kind 'min'     path progress e (0 at the window .. 1 at the icon)
+    //   kind 'res'     the same, going back
+    //   kind 'launch'  path progress e (1 at the icon .. 0 at the window)
+    //   kind 'resize'  the visible rectangle `current`
+    _begin(actor) {
+        const handle = this._active.get(actor);
+        if (!handle)
+            return null;
+        this._active.delete(actor);
+        handle.run?.cancel();
+        this._runs.delete(handle.run);
+        if (handle.ghost)
+            this._drop(handle.ghost);
+        if (handle.destroyId) {
+            try {
+                actor.disconnect(handle.destroyId);
+            } catch {}
+        }
+        if (handle.kind === 'launch' || handle.kind === 'resize')
+            this._settle(actor);
+        return handle;
+    }
+
+    _finish(actor, handle) {
+        if (this._active.get(actor) === handle)
+            this._active.delete(actor);
+        this._runs.delete(handle.run);
+    }
+
+    // A window being destroyed mid-motion must not be touched any more.
+    _guard(actor, handle) {
+        handle.destroyId = actor.connect('destroy', () => {
+            handle.destroyId = 0;
+            handle.run?.cancel();
+            this._runs.delete(handle.run);
+            if (handle.ghost)
+                this._drop(handle.ghost);
+            if (this._active.get(actor) === handle)
+                this._active.delete(actor);
+        });
+    }
+
+    _travel({actor, content, from, to, forward, startE = null, onDone, path}) {
         const sample = this.calculateMinimizePath(from, to, path);
+        const e0 = startE ?? (forward ? 0 : 1);
+        const e1 = forward ? 1 : 0;
+        const span = Math.abs(e1 - e0);
         const ghost = this._ghost(content, from);
-        const apply = e => this._place(ghost, from, sample(reverse ? 1 - e : e));
-        apply(0);
-        const run = timelines.run({
-            duration, easing: reverse ? Easing.easeOut : Easing.smooth,
-            onFrame: e => apply(e),
+        const handle = {kind: forward ? 'min' : 'res', ghost, content, e: e0, run: null};
+        this._active.set(actor, handle);
+        const place = e => {
+            handle.e = e;
+            this._place(ghost, from, sample(e));
+        };
+        place(e0);
+        // A trip resumed half-way takes proportionally less time.
+        handle.run = timelines.run({
+            duration: Math.max(MotionTokens.micro, Math.round(MotionTokens.long * span)),
+            easing: forward && span === 1 ? Easing.smooth : Easing.easeOut,
+            onFrame: t => place(e0 + (e1 - e0) * t),
             onDone: () => {
-                this._runs.delete(run);
+                this._finish(actor, handle);
                 this._drop(ghost);
                 onDone?.();
             },
         });
-        this._runs.add(run);
-        return run;
+        this._runs.add(handle.run);
+        return handle.run;
     }
 
     minimizeTo(actor, content, target, onDone) {
-        return this._travel({actor, content, from: this.getWindowOrigin(actor), to: target ?? this.getDockTarget(actor.meta_window),
-            reverse: false, duration: MotionTokens.long, onDone, path: this._path()});
+        const prev = this._begin(actor);
+        return this._travel({actor, content: prev?.content ?? content, from: this.getWindowOrigin(actor),
+            to: target ?? this.getDockTarget(actor.meta_window), forward: true,
+            startE: prev?.kind === 'res' ? prev.e : null, onDone, path: this._path()});
     }
 
+    // Closing is the same trip. A window closed while it was still opening
+    // continues from where the opening had got to.
     closeTo(actor, content, target, onDone) {
-        return this._travel({actor, content, from: this.getWindowOrigin(actor), to: target ?? this.getDockTarget(actor.meta_window),
-            reverse: false, duration: MotionTokens.long, onDone, path: this._path()});
+        const prev = this._begin(actor);
+        return this._travel({actor, content: prev?.content ?? content, from: this.getWindowOrigin(actor),
+            to: target ?? this.getDockTarget(actor.meta_window), forward: true,
+            startE: prev?.kind === 'launch' ? prev.e : prev?.kind === 'res' ? prev.e : null, onDone, path: this._path()});
     }
 
     // The exact inverse of the minimize: out of the icon, along the same path.
+    // Restored while still minimising, it turns round where it is.
     restoreFrom(actor, content, target, onDone) {
-        return this._travel({actor, content, from: this.getWindowOrigin(actor), to: target ?? this.getDockTarget(actor.meta_window),
-            reverse: true, duration: MotionTokens.long, onDone, path: this._path()});
+        const prev = this._begin(actor);
+        return this._travel({actor, content: prev?.content ?? content, from: this.getWindowOrigin(actor),
+            to: target ?? this.getDockTarget(actor.meta_window), forward: false,
+            startE: prev?.kind === 'min' ? prev.e : null, onDone, path: this._path()});
     }
 
     // A new window grows out of its icon: the real window is transformed (it
     // has not painted yet, so there is no picture to carry) along the same
     // path, a little faster than a restore.
     launchFrom(target, actor, onDone) {
+        this._begin(actor);
         const from = this.getWindowOrigin(actor);
         const sample = this.calculateMinimizePath(from, target, this._path());
         actor.set_pivot_point(0.5, 0.5);
+        const handle = {kind: 'launch', e: 1, run: null};
+        this._active.set(actor, handle);
+        this._guard(actor, handle);
         const apply = e => {
+            handle.e = 1 - e;
             const s = sample(1 - e);
             this._place(actor, from, {...s, opacity: Math.round(255 * Math.min(1, e * 3.5))});
         };
         apply(0);
-        const run = timelines.run({
+        handle.run = timelines.run({
             duration: MotionTokens.medium + 60, easing: Easing.easeOut,
             onFrame: apply,
             onDone: () => {
-                this._runs.delete(run);
+                if (handle.destroyId)
+                    actor.disconnect(handle.destroyId);
+                this._finish(actor, handle);
                 this._settle(actor);
                 onDone?.();
             },
         });
-        this._runs.add(run);
+        this._runs.add(handle.run);
         this._extension._modules?.find(m => m.constructor.name === 'Dock')?.pulseApp?.(
             Shell.WindowTracker.get_default().get_window_app(actor.meta_window)?.get_id());
-        return run;
+        return handle.run;
     }
 
     _settle(actor) {
@@ -209,7 +283,8 @@ export class WindowMotionManager {
     // ------------------------------------------------------------ maximise
 
     // Called when a window is about to change size (maximise, unmaximise,
-    // tile): we keep a picture of the old frame.
+    // tile): we keep a picture of the old frame, and, if the window was in the
+    // middle of another resize, the rectangle it was showing.
     beginResize(actor, oldRect) {
         if (reducedMotion() || !oldRect || oldRect.width < 1 || oldRect.height < 1)
             return;
@@ -217,8 +292,11 @@ export class WindowMotionManager {
         try {
             content = actor.paint_to_content(oldRect);
         } catch {}
-        if (content)
-            this._resizes.set(actor, {content, old: rectOf(oldRect.x, oldRect.y, oldRect.width, oldRect.height)});
+        if (!content)
+            return;
+        const running = this._active.get(actor);
+        this._resizes.set(actor, {content, old: rectOf(oldRect.x, oldRect.y, oldRect.width, oldRect.height),
+            visible: running?.kind === 'resize' ? running.current : null});
     }
 
     // ...and when the new size is there: the old picture grows (or shrinks) to
@@ -230,36 +308,47 @@ export class WindowMotionManager {
         if (!info)
             return;
         this._resizes.delete(actor);
+        this._begin(actor);
         const frame = actor.meta_window.get_frame_rect();
         const to = rectOf(frame.x, frame.y, frame.width, frame.height);
-        const from = info.old;
+        // Interrupted: start from the rectangle that was on screen, not from
+        // the old frame (which the user never saw again).
+        const from = info.visible ?? info.old;
         const ghost = this._ghost(info.content, from);
         ghost.set_pivot_point(0, 0);
         actor.set_pivot_point(0, 0);
+        const handle = {kind: 'resize', ghost, current: from, run: null};
+        this._active.set(actor, handle);
+        this._guard(actor, handle);
         const apply = e => {
-            // The old picture: from the old rectangle to the new one, fading out.
-            ghost.set_position(from.x + (to.x - from.x) * e, from.y + (to.y - from.y) * e);
-            ghost.set_size(Math.max(1, from.width + (to.width - from.width) * e),
-                Math.max(1, from.height + (to.height - from.height) * e));
+            const x = from.x + (to.x - from.x) * e;
+            const y = from.y + (to.y - from.y) * e;
+            const width = Math.max(1, from.width + (to.width - from.width) * e);
+            const height = Math.max(1, from.height + (to.height - from.height) * e);
+            handle.current = rectOf(x, y, width, height);
+            // The old picture: from the start rectangle to the new one, fading out.
+            ghost.set_position(x, y);
+            ghost.set_size(width, height);
             ghost.opacity = Math.round(255 * (1 - Easing.smooth(Math.min(1, e * 1.25))));
-            // The live window: from the old rectangle's size to its own.
-            const sx = from.width / to.width + (1 - from.width / to.width) * e;
-            const sy = from.height / to.height + (1 - from.height / to.height) * e;
-            actor.set_scale(sx, sy);
+            // The live window: from the start rectangle's size to its own.
+            actor.set_scale(from.width / to.width + (1 - from.width / to.width) * e,
+                from.height / to.height + (1 - from.height / to.height) * e);
             actor.translation_x = (from.x - to.x) * (1 - e);
             actor.translation_y = (from.y - to.y) * (1 - e);
             actor.opacity = Math.round(255 * Easing.smooth(Math.min(1, e * 1.25)));
         };
         apply(0);
-        const run = timelines.run({
+        handle.run = timelines.run({
             duration: MotionTokens.long, easing: Easing.smooth, onFrame: apply,
             onDone: () => {
-                this._runs.delete(run);
+                if (handle.destroyId)
+                    actor.disconnect(handle.destroyId);
+                this._finish(actor, handle);
                 this._drop(ghost);
                 this._settle(actor);
             },
         });
-        this._runs.add(run);
+        this._runs.add(handle.run);
     }
 
     // ------------------------------------------------------------ workspaces
@@ -333,6 +422,16 @@ export class WindowMotionManager {
         for (const run of this._runs)
             run.cancel();
         this._runs.clear();
+        for (const [actor, handle] of [...this._active]) {
+            if (handle.destroyId) {
+                try {
+                    actor.disconnect(handle.destroyId);
+                } catch {}
+            }
+            if (handle.kind === 'launch' || handle.kind === 'resize')
+                this._settle(actor);
+        }
+        this._active.clear();
         for (const ghost of [...this._ghosts])
             this._drop(ghost);
     }

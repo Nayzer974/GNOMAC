@@ -16,6 +16,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {Spring, getTicker} from '../lib/spring.js';
 import {t} from '../lib/i18n.js';
+import {GLSLEffect} from '../lib/shaderEffect.js';
 
 const SHORTCUT_KEY = 'wallpaper-shortcut';
 const CARD_W = 220;
@@ -30,7 +31,7 @@ const HOOK = Shell.SnippetHook?.FRAGMENT ?? Cogl.SnippetHook.FRAGMENT;
 
 // Circle mask: shows the actor only inside a growing radius.
 const CircleReveal = GObject.registerClass(
-class CircleReveal extends Shell.GLSLEffect {
+class CircleReveal extends GLSLEffect {
     _init() {
         super._init();
         this._size = this.get_uniform_location('size');
@@ -38,7 +39,7 @@ class CircleReveal extends Shell.GLSLEffect {
         this.setRadius(0);
     }
 
-    vfunc_build_pipeline() {
+    buildPipeline() {
         this.add_glsl_snippet(HOOK,
             'uniform vec2 size; uniform float radius;',
             `vec2 p = cogl_tex_coord_in[0].st * size - size * 0.5;

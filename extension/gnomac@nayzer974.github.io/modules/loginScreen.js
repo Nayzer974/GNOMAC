@@ -223,7 +223,7 @@ export class LoginScreen {
         const monitor = Main.layoutManager.primaryMonitor;
         this._date = new St.Label({style_class: 'gnomac-login-date', x_align: Clutter.ActorAlign.CENTER});
         this._time = new St.Label({style_class: 'gnomac-login-time', x_align: Clutter.ActorAlign.CENTER});
-        this._clock = new St.BoxLayout({vertical: true, reactive: false,
+        this._clock = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL, reactive: false,
             x: monitor.x, y: monitor.y + Math.round(monitor.height * TOP), width: monitor.width});
         this._clock.add_child(this._date);
         this._clock.add_child(this._time);
@@ -262,7 +262,7 @@ export class LoginScreen {
             ['system-shutdown-symbolic', t('Shut Down', 'Éteindre'), () => login.powerOff()],
         ];
         for (const [icon, name, action] of entries) {
-            const cell = new St.BoxLayout({vertical: true, style_class: 'gnomac-login-power-cell',
+            const cell = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL, style_class: 'gnomac-login-power-cell',
                 x_align: Clutter.ActorAlign.CENTER});
             const button = new St.Button({style_class: 'gnomac-login-power', can_focus: true, reactive: true,
                 child: new St.Icon({icon_name: icon, icon_size: 20}), x_align: Clutter.ActorAlign.CENTER});
