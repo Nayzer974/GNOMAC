@@ -2157,3 +2157,59 @@
     padding: 8px 12px;
     border-radius: 10px;
 }
+
+/* ---------- Desktop icons ---------- */
+
+.gnomac-desk-icon {
+    border-radius: 12px;
+    padding: 6px 4px;
+    border: 1px solid transparent;
+}
+
+.gnomac-desk-icon:hover {
+    background-color: rgba(255, 255, 255, 0.10);
+}
+
+.gnomac-desk-icon:selected {
+    background-color: rgba(255, 255, 255, 0.22);
+    border-color: rgba(255, 255, 255, 0.34);
+}
+
+.gnomac-desk-icon-label {
+    color: #ffffff;
+    font-size: 9.5pt;
+    font-weight: 600;
+    text-align: center;
+    padding-top: 4px;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+
+.gnomac-desk-icon:selected .gnomac-desk-icon-label {
+    background-color: #0a84ff;
+    border-radius: 6px;
+    padding: 1px 6px;
+    text-shadow: none;
+}
+
+.gnomac-desk-rename {
+    font-size: 9.5pt;
+    border-radius: 6px;
+    padding: 2px 4px;
+    background-color: rgba(30, 30, 36, 0.92);
+    color: #ffffff;
+    caret-color: #ffffff;
+}
+
+.gnomac-desk-ghost {
+    border: 2px dashed rgba(255, 255, 255, 0.5);
+    border-radius: 12px;
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+.gnomac-notch-shelf-empty {
+    spacing: 8px;
+}
+
+.gnomac-notch-shelf-menu {
+    spacing: 4px;
+}

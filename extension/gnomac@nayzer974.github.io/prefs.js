@@ -267,6 +267,19 @@ export default class GnomacPreferences extends ExtensionPreferences {
         spin(placement, 'widgets-margin', 'Marge avec le bord de l’écran (px)', 0, 120, 2);
         toggle(placement, 'enable-widgets', 'Afficher les widgets');
 
+        const icons = group('Icônes du bureau', 'Les fichiers de ton dossier Bureau, sur le fond d’écran : double-clic pour ouvrir, glisser pour déplacer ou déposer sur l’encoche, clic droit pour renommer ou mettre à la corbeille');
+        toggle(icons, 'enable-desktop-icons', 'Afficher les icônes du bureau');
+        const iconSizes = ['small', 'medium', 'large'];
+        const iconSizeRow = new Adw.ComboRow({title: 'Taille des icônes', model: Gtk.StringList.new(['Petites', 'Moyennes', 'Grandes'])});
+        iconSizeRow.selected = Math.max(0, iconSizes.indexOf(settings.get_string('desktop-icons-size')));
+        iconSizeRow.connect('notify::selected', () => settings.set_string('desktop-icons-size', iconSizes[iconSizeRow.selected]));
+        icons.add(iconSizeRow);
+        const iconSides = ['right', 'left'];
+        const iconSideRow = new Adw.ComboRow({title: 'Côté de départ', model: Gtk.StringList.new(['Droite', 'Gauche'])});
+        iconSideRow.selected = Math.max(0, iconSides.indexOf(settings.get_string('desktop-icons-side')));
+        iconSideRow.connect('notify::selected', () => settings.set_string('desktop-icons-side', iconSides[iconSideRow.selected]));
+        icons.add(iconSideRow);
+
         const misc = group('Bureau et barre de menus');
         const editRow = new Adw.ActionRow({title: 'Modifier les widgets',
             subtitle: 'Clic droit sur le bureau › « Modifier les widgets… », ou Spotlight. Ajout, suppression, déplacement, taille et matière se font sur le bureau.'});

@@ -10,6 +10,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {AppMenus} from './modules/appMenus.js';
 import {Appearance} from './modules/appearance.js';
 import {BootShutdown} from './modules/bootShutdown.js';
+import {DesktopIcons} from './modules/desktopIcons.js';
 import {Dock} from './modules/dock.js';
 import {DynamicIsland} from './modules/dynamicIsland.js';
 import {Gaps} from './modules/gaps.js';
@@ -58,6 +59,7 @@ const MODULES = [
     {key: 'enable-notifications', Module: Notifications},
     {key: 'enable-vibrancy', Module: Vibrancy},
     {key: 'enable-widgets', Module: Widgets},
+    {key: 'enable-desktop-icons', Module: DesktopIcons},
     {key: 'enable-wallpaper-picker', Module: WallpaperPicker},
     {key: 'enable-menubar-icons', Module: MenuBarIcons},
     {key: 'enable-appearance', Module: Appearance},
@@ -87,7 +89,7 @@ export default class GnomacExtension extends Extension {
         // Runtime state (Pomodoro timings, reminders) is read live by its
         // module: changing it must not rebuild the whole shell UI.
         this._settingsId = this._settings.connect('changed', (_s, key) => {
-            if (key.startsWith('pomodoro-') || key.startsWith('theme-') || key.startsWith('update-') || key === 'glass-debug' || key === 'glass-debug-mode' || key === 'widget-reminders' || key === 'widgets-layout')
+            if (key.startsWith('pomodoro-') || key.startsWith('theme-') || key.startsWith('update-') || key === 'desktop-icons-layout' || key === 'glass-debug' || key === 'glass-debug-mode' || key === 'widget-reminders' || key === 'widgets-layout')
                 return;
             this._scheduleReload();
         });

@@ -446,6 +446,31 @@
       <default>''</default>
       <summary>Commit the user chose to ignore (no notification again for it)</summary>
     </key>
+    <key name="enable-desktop-icons" type="b">
+      <default>true</default>
+      <summary>Show the files of the Desktop folder as icons on the wallpaper</summary>
+    </key>
+    <key name="desktop-icons-layout" type="s">
+      <default>''</default>
+      <summary>Remembered grid cell of each desktop icon (JSON)</summary>
+    </key>
+    <key name="desktop-icons-size" type="s">
+      <choices>
+        <choice value="small"/>
+        <choice value="medium"/>
+        <choice value="large"/>
+      </choices>
+      <default>'medium'</default>
+      <summary>Size of the desktop icons</summary>
+    </key>
+    <key name="desktop-icons-side" type="s">
+      <choices>
+        <choice value="right"/>
+        <choice value="left"/>
+      </choices>
+      <default>'right'</default>
+      <summary>Side of the screen the icons start from</summary>
+    </key>
     <key name="boot-animation" type="s">
       <choices>
         <choice value="auto"/>

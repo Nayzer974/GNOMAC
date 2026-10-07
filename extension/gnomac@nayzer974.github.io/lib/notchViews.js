@@ -278,12 +278,16 @@ export class Shelf {
     constructor() {
         this.files = [];
         this.actor = new St.BoxLayout({style_class: 'gnomac-notch-shelf'});
-        this._empty = new St.Label({
-            text: t('Drop files here to keep them handy', 'Dépose des fichiers ici pour les garder à portée'),
-            style_class: 'gnomac-notch-subtitle',
-            x_expand: true,
-            y_align: Clutter.ActorAlign.CENTER,
-        });
+        this._empty = new St.BoxLayout({vertical: true, x_expand: true, y_align: Clutter.ActorAlign.CENTER,
+            style_class: 'gnomac-notch-shelf-empty'});
+        this._empty.add_child(new St.Label({
+            text: t('Keep files handy: drag desktop icons here, or paste files copied in Files',
+                'Garde des fichiers à portée : glisse ici des icônes du bureau, ou colle des fichiers copiés dans Fichiers'),
+            style_class: 'gnomac-notch-subtitle', x_align: Clutter.ActorAlign.CENTER}));
+        const paste = new St.Button({label: t('Paste Files', 'Coller des fichiers'),
+            style_class: 'gnomac-notch-pill-button', can_focus: false, x_align: Clutter.ActorAlign.CENTER});
+        paste.connect('clicked', () => this.paste());
+        this._empty.add_child(paste);
         this.actor.add_child(this._empty);
     }
 
@@ -292,6 +296,27 @@ export class Shelf {
             return;
         this.files.push(uri);
         this._render();
+    }
+
+    remove(uri) {
+        this.files = this.files.filter(f => f !== uri);
+        this._render();
+    }
+
+    // Files copied in the Files app (x-special/gnome-copied-files) or a URI list.
+    paste() {
+        const clipboard = St.Clipboard.get_default();
+        const take = bytes => {
+            const text = bytes ? new TextDecoder().decode(bytes.get_data?.() ?? bytes) : '';
+            for (const line of text.split('\n').map(l => l.trim()).filter(l => l.startsWith('file://')))
+                this.add(line);
+        };
+        clipboard.get_content(St.ClipboardType.CLIPBOARD, 'x-special/gnome-copied-files', (_c, bytes) => {
+            if (bytes && bytes.get_size?.() > 0)
+                take(bytes);
+            else
+                clipboard.get_content(St.ClipboardType.CLIPBOARD, 'text/uri-list', (_c2, list) => take(list));
+        });
     }
 
     _render() {
@@ -307,14 +332,48 @@ export class Shelf {
                 gicon = file.query_info('standard::icon', Gio.FileQueryInfoFlags.NONE, null).get_icon();
             } catch {}
             const column = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL});
-            column.add_child(new St.Icon({gicon, icon_name: 'text-x-generic', icon_size: 32,
-                x_align: Clutter.ActorAlign.CENTER}));
+            const fileIcon = new St.Icon({icon_size: 32, x_align: Clutter.ActorAlign.CENTER});
+            if (gicon)
+                fileIcon.gicon = gicon;
+            else
+                fileIcon.icon_name = 'text-x-generic';
+            column.add_child(fileIcon);
             column.add_child(new St.Label({text: file.get_basename().slice(0, 12),
                 style_class: 'gnomac-notch-cal-head', x_align: Clutter.ActorAlign.CENTER}));
-            const button = new St.Button({style_class: 'gnomac-notch-shelf-item', child: column});
-            button.connect('clicked', () => Gio.AppInfo.launch_default_for_uri(uri,
-                global.create_app_launch_context(0, -1)));
+            const button = new St.Button({style_class: 'gnomac-notch-shelf-item', child: column,
+                button_mask: St.ButtonMask.ONE | St.ButtonMask.THREE});
+            button.connect('clicked', (_b, mouseButton) => {
+                if (mouseButton === 3) {
+                    // Right click: copy it to the desktop, or let it go.
+                    this._itemMenu(uri, button);
+                    return;
+                }
+                Gio.AppInfo.launch_default_for_uri(uri, global.create_app_launch_context(0, -1));
+            });
             this.actor.add_child(button);
         }
+    }
+
+    _itemMenu(uri, button) {
+        const desktop = GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_DESKTOP);
+        const file = Gio.File.new_for_uri(uri);
+        const popup = new St.BoxLayout({vertical: true, style_class: 'gnomac-notch-shelf-menu'});
+        const entry = (label, action) => {
+            const b = new St.Button({label, style_class: 'gnomac-notch-pill-button', can_focus: false});
+            b.connect('clicked', () => {
+                popup.destroy();
+                action();
+            });
+            popup.add_child(b);
+        };
+        if (desktop && file.get_path()) {
+            entry(t('Copy to Desktop', 'Copier sur le bureau'), () => {
+                try {
+                    Gio.Subprocess.new(['cp', '-rn', '--', file.get_path(), `${desktop}/`], Gio.SubprocessFlags.NONE);
+                } catch {}
+            });
+        }
+        entry(t('Remove', 'Retirer'), () => this.remove(uri));
+        button.get_parent().add_child(popup);
     }
 }
