@@ -416,6 +416,10 @@
       <default>false</default>
       <summary>Show the Liquid Glass debug overlay (surfaces, quality, brightness)</summary>
     </key>
+    <key name="enable-unlock-animation" type="b">
+      <default>true</default>
+      <summary>Unlock transition: the lock screen dissolves and the desktop is revealed (instead of GNOME's slide)</summary>
+    </key>
     <key name="boot-animation" type="s">
       <choices>
         <choice value="auto"/>

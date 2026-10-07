@@ -12,10 +12,76 @@ import Clutter from 'gi://Clutter';
 import GObject from 'gi://GObject';
 import St from 'gi://St';
 
+import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import {ScreenShield} from 'resource:///org/gnome/shell/ui/screenShield.js';
 import {UnlockDialog} from 'resource:///org/gnome/shell/ui/unlockDialog.js';
 import {Avatar} from 'resource:///org/gnome/shell/ui/userWidget.js';
 
 import {t} from '../lib/i18n.js';
+import {hideDesktop, revealDesktop} from '../lib/reveal.js';
+
+// ---------------------------------------------------------------------------
+// The unlock transition: lock screen -> desktop, in about 600 ms, one timeline.
+// GNOME slides the whole lock screen up; here the lock UI contracts and fades,
+// the wallpaper loses its frost and brightens, and the desktop is revealed
+// underneath (menu bar, dock and windows materialise, see lib/reveal.js).
+//
+//    0 ms  password UI starts to fade and contract (220 ms)
+//   40 ms  clock lifts and fades (240 ms)
+//    0 ms  blur and dimming of the wallpaper ease out (520 ms)
+//  140 ms  the lock layer dissolves (380 ms) and uncovers the desktop
+//  120-660 ms  menu bar, dock, windows are revealed
+// Ease-out curves, no bounce, no overshoot.
+// ---------------------------------------------------------------------------
+function unlockTransition(shield, dialog, extension, done, slow = 1) {
+    const ms = v => Math.round(v * slow);
+    const group = shield._lockDialogGroup;
+    const OUT = Clutter.AnimationMode.EASE_OUT_QUAD;
+
+    // The desktop underneath starts hidden, then is revealed.
+    hideDesktop(extension);
+
+    if (dialog) {
+        const fadeOut = (actor, extra = {}) => actor?.ease({opacity: 0, duration: ms(220), mode: OUT, ...extra});
+        if (dialog._promptBox) {
+            dialog._promptBox.set_pivot_point(0.5, 0.5);
+            dialog._promptBox.ease({opacity: 0, scale_x: 0.97, scale_y: 0.97, duration: ms(220), mode: OUT});
+        }
+        fadeOut(dialog._gnomacRest);
+        fadeOut(dialog._otherUserButton);
+        dialog._clock?.ease({opacity: 0, translation_y: -10, duration: ms(240), delay: ms(40), mode: OUT});
+
+        // Wallpaper: blur and dimming ease out together with the UI.
+        const widgets = [...(dialog._backgroundGroup ?? [])];
+        const starts = widgets.map(w => {
+            const effect = w.get_effect('blur');
+            return effect ? {effect, radius: effect.radius, brightness: effect.brightness} : null;
+        }).filter(Boolean);
+        if (starts.length) {
+            const timeline = new Clutter.Timeline({actor: group, duration: ms(520)});
+            timeline.connect('new-frame', () => {
+                const eased = 1 - (1 - timeline.get_progress()) ** 3;
+                for (const {effect, radius, brightness} of starts) {
+                    effect.set({radius: Math.max(1, Math.round(radius * (1 - eased))),
+                        brightness: brightness + (1 - brightness) * eased});
+                }
+            });
+            timeline.start();
+        }
+    }
+
+    group.set_pivot_point(0.5, 0.5);
+    group.ease({opacity: 0, duration: ms(380), delay: ms(140), mode: OUT});
+
+    revealDesktop(extension, {slow, onDone: () => {
+        done();
+        // The next lock starts from a clean layer.
+        group.remove_all_transitions();
+        group.opacity = 255;
+        group.translation_y = 0;
+        group.set_scale(1, 1);
+    }});
+}
 
 const TOP = 0.075; // clock distance from the top, fraction of the height
 const BOTTOM = 0.07; // prompt distance from the bottom
@@ -139,6 +205,45 @@ export class LockScreen {
 
     enable() {
         const proto = UnlockDialog.prototype;
+        // GNOME slides the lock screen away: replaced by the unlock transition.
+        const shieldProto = ScreenShield.prototype;
+        this._savedShield = {_continueDeactivate: shieldProto._continueDeactivate};
+        const savedShield = this._savedShield;
+        const extension = this._extension;
+        const self = this;
+        shieldProto._continueDeactivate = function (animate) {
+            const wanted = animate && !this._isGreeter && St.Settings.get().enable_animations &&
+                extension.getSettings().get_boolean('enable-unlock-animation');
+            if (!wanted)
+                return savedShield._continueDeactivate.call(this, animate);
+            try {
+                const dialog = this._dialog;
+                // GNOME's own steps, minus the slide: state bookkeeping first.
+                this._hideLockScreen(false);
+                this._lockDialogGroup.remove_all_transitions();
+                this._lockDialogGroup.translation_y = 0;
+                // Leaving the unlock-dialog mode rebuilds the desktop modules.
+                if (Main.sessionMode.currentMode === 'unlock-dialog')
+                    Main.sessionMode.popMode('unlock-dialog');
+                this.emit('wake-up-screen');
+                dialog?.popModal();
+                if (this._grab) {
+                    Main.popModal(this._grab);
+                    this._grab = null;
+                }
+                this._longLightbox.lightOff();
+                this._shortLightbox.lightOff();
+                unlockTransition(this, dialog, extension, () => this._completeDeactivate(),
+                    Number(globalThis.GNOMAC_UNLOCK_SPEED) || 1);
+            } catch (e) {
+                logError(e, 'GNOMAC unlock transition');
+                // Never leave the user locked in: finish the plain way.
+                this._completeDeactivate();
+            }
+            return undefined;
+        };
+        self._unlockPatched = true;
+
         this._saved = {
             _init: proto._init,
             _setTransitionProgress: proto._setTransitionProgress,
@@ -201,6 +306,10 @@ export class LockScreen {
     }
 
     disable() {
+        if (this._savedShield) {
+            ScreenShield.prototype._continueDeactivate = this._savedShield._continueDeactivate;
+            this._savedShield = null;
+        }
         if (!this._saved)
             return;
         Object.assign(UnlockDialog.prototype, this._saved);

@@ -37,6 +37,7 @@ import {EndSessionDialog} from 'resource:///org/gnome/shell/ui/endSessionDialog.
 
 import {GlassSurface, glassParamsFromSettings} from '../lib/glass.js';
 import {easeInOut, easeOut, greetingOrder, paintLogo, paintWord} from '../lib/bootArt.js';
+import {hideDesktop, revealDesktop} from '../lib/reveal.js';
 import {t} from '../lib/i18n.js';
 
 const MESSAGES = {
@@ -371,57 +372,43 @@ export class BootShutdown {
     _mist(overlay) {
         const slow = this._slow;
         const plate = overlay.plate;
-        // A light, slightly cold veil on the blurred wallpaper.
-        plate?.setGlass({tint: [0.92, 0.95, 1.0, 0.26]});
-        plate?.setBlur(64);
-        plate?.ease({opacity: 255, duration: 420 * slow, mode: Clutter.AnimationMode.EASE_OUT_QUAD});
-        overlay.base.ease({opacity: 0, duration: 420 * slow, mode: Clutter.AnimationMode.EASE_OUT_QUAD});
+        // The veil: the wallpaper, frosted and slightly pale, over the black.
+        plate?.setGlass({tint: [0.92, 0.95, 1.0, 0.24]});
+        plate?.setBlur(48);
+        plate?.ease({opacity: 255, duration: Math.round(280 * slow), mode: Clutter.AnimationMode.EASE_OUT_QUAD});
+        overlay.base.ease({opacity: 0, duration: Math.round(280 * slow), mode: Clutter.AnimationMode.EASE_OUT_QUAD});
 
-        // A pale haze that hangs from the top and drifts up as it thins, like
-        // fog lifting off the desktop.
+        // A thin haze that thins and drifts up as the veil lifts.
         const monitor = Main.layoutManager.primaryMonitor;
         const haze = new St.Widget({reactive: false, x: 0, y: 0, width: monitor.width,
-            height: Math.round(monitor.height * 0.75), opacity: 0, style_class: 'gnomac-boot-haze'});
+            height: Math.round(monitor.height * 0.7), opacity: 0, style_class: 'gnomac-boot-haze'});
         overlay.actor.add_child(haze);
-        haze.ease({opacity: 255, duration: 500 * slow, mode: Clutter.AnimationMode.EASE_OUT_QUAD});
+        haze.ease({opacity: 255, duration: Math.round(280 * slow), mode: Clutter.AnimationMode.EASE_OUT_QUAD});
 
-        const panel = Main.panel;
-        const dock = this._dockActor();
-        const items = this._dockItems();
-        this._after(300, () => {
+        // The same reveal as an unlock: the veil's blur and opacity ease out
+        // together while the desktop is revealed underneath.
+        this._after(200, () => {
             if (this._boot !== overlay || this._skipped)
                 return;
-            haze.ease({translation_y: -70, opacity: 0, duration: 1500 * slow,
-                mode: Clutter.AnimationMode.EASE_IN_OUT_QUAD});
-            if (this._chromeHidden) {
-                // The menu bar settles down from just above its place.
-                panel.translation_y = -10;
-                panel.ease({opacity: 255, translation_y: 0, duration: 950 * slow,
-                    mode: Clutter.AnimationMode.EASE_OUT_CUBIC});
-                if (dock) {
-                    // The dock rises from below the screen with a soft overshoot...
-                    dock.ease({translation_y: 0, opacity: 255, duration: 1050 * slow, delay: 250 * slow,
-                        mode: Clutter.AnimationMode.EASE_OUT_BACK});
-                    // ...and its icons pop in one after another, left to right.
-                    items.forEach((item, i) => {
-                        item.set_pivot_point(0.5, 1);
-                        item.ease({opacity: 255, scale_x: 1, scale_y: 1, translation_y: 0, duration: 520 * slow,
-                            delay: (520 + i * 45) * slow, mode: Clutter.AnimationMode.EASE_OUT_BACK});
-                    });
-                }
-            }
-            this._tween(overlay.actor, 1250, p => {
+            haze.ease({translation_y: -48, opacity: 0, duration: Math.round(520 * slow),
+                mode: Clutter.AnimationMode.EASE_OUT_QUAD});
+            if (this._chromeHidden)
+                revealDesktop(this._extension, {slow});
+            this._tween(overlay.actor, 520, p => {
                 if (!plate)
                     return;
-                plate.setBlur(Math.max(1, Math.round(64 * (1 - easeOut(p)))));
-                plate.opacity = Math.round(255 * (1 - p) ** 1.4);
+                const eased = easeOut(p);
+                plate.setBlur(Math.max(1, Math.round(48 * (1 - eased))));
+                plate.opacity = Math.round(255 * (1 - eased));
             }, () => {
-                if (this._boot === overlay) {
-                    this._stopAll();
-                    overlay.destroy();
-                    this._boot = null;
-                    this._restoreChrome();
-                }
+                this._after(160, () => {
+                    if (this._boot === overlay) {
+                        this._stopAll();
+                        overlay.destroy();
+                        this._boot = null;
+                        this._restoreChrome();
+                    }
+                });
             });
         });
     }
@@ -518,17 +505,13 @@ export class BootShutdown {
     }
 
     _hideChrome() {
+        hideDesktop(this._extension);
         const dock = this._dockActor();
         Main.panel.opacity = 0;
         if (dock) {
             dock.opacity = 0;
             // Below the bottom edge: the dock "rises" into view.
-            dock.translation_y = Math.max(120, dock.height + 40);
-        }
-        for (const item of this._dockItems()) {
-            item.opacity = 0;
-            item.set_scale(0.55, 0.55);
-            item.translation_y = 16;
+            dock.translation_y = 24;
         }
         this._chromeHidden = true;
     }
@@ -540,6 +523,9 @@ export class BootShutdown {
         Main.panel.remove_all_transitions();
         Main.panel.opacity = 255;
         Main.panel.translation_y = 0;
+        global.window_group.remove_all_transitions();
+        global.window_group.opacity = 255;
+        global.window_group.set_scale(1, 1);
         const dock = this._dockActor();
         if (dock) {
             dock.remove_all_transitions();

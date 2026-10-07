@@ -232,6 +232,7 @@ export default class GnomacPreferences extends ExtensionPreferences {
         styleRow2.connect('notify::selected', () => settings.set_string('boot-style', bootStyles[styleRow2.selected]));
         boot.add(styleRow2);
         spin(boot, 'boot-hello-words', 'Nombre de mots d’accueil', 1, 8, 1);
+        toggle(boot, 'enable-unlock-animation', 'Transition de déverrouillage', 'L’écran de verrouillage se dissout et le bureau est révélé, au lieu du glissement de GNOME');
         const bootModes = ['auto', 'always', 'never'];
         const bootRow = new Adw.ComboRow({
             title: 'Logo au démarrage de la session',
