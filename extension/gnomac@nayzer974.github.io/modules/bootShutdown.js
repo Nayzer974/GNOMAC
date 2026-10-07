@@ -37,7 +37,7 @@ import {EndSessionDialog} from 'resource:///org/gnome/shell/ui/endSessionDialog.
 
 import {GlassSurface, glassParamsFromSettings} from '../lib/glass.js';
 import {easeInOut, easeOut, greetingOrder, paintLogo, paintWord} from '../lib/bootArt.js';
-import {hideDesktop, revealDesktop} from '../lib/reveal.js';
+import {hideDesktop, removeRevealBlur, revealDesktop} from '../lib/reveal.js';
 import {t} from '../lib/i18n.js';
 
 const MESSAGES = {
@@ -393,7 +393,7 @@ export class BootShutdown {
             haze.ease({translation_y: -48, opacity: 0, duration: Math.round(520 * slow),
                 mode: Clutter.AnimationMode.EASE_OUT_QUAD});
             if (this._chromeHidden)
-                revealDesktop(this._extension, {slow});
+                revealDesktop(this._extension, {slow, onDone: () => this._restoreChrome()});
             this._tween(overlay.actor, 520, p => {
                 if (!plate)
                     return;
@@ -403,10 +403,8 @@ export class BootShutdown {
             }, () => {
                 this._after(160, () => {
                     if (this._boot === overlay) {
-                        this._stopAll();
                         overlay.destroy();
                         this._boot = null;
-                        this._restoreChrome();
                     }
                 });
             });
@@ -517,6 +515,7 @@ export class BootShutdown {
     }
 
     _restoreChrome() {
+        removeRevealBlur();
         if (!this._chromeHidden)
             return;
         this._chromeHidden = false;
