@@ -155,15 +155,15 @@ export class Updater {
         if (!GLib.file_test(script, GLib.FileTest.EXISTS)) {
             script = GLib.build_filenamev([GLib.get_user_data_dir(), 'gnomac-src', 'scripts', 'update.sh']);
         }
-        if (!GLib.file_test(script, GLib.FileTest.EXISTS)) {
-            Main.notify('GNOMAC', t('The GNOMAC source folder was not found: run the install command again.',
-                'Le dossier source de GNOMAC est introuvable : relance la commande d’installation.'));
-            return;
-        }
         if (!automatic)
             Main.notify('GNOMAC', t('Updating…', 'Mise à jour en cours…'));
         try {
-            const proc = Gio.Subprocess.new(['bash', script], Gio.SubprocessFlags.NONE);
+            // No source folder (it was a temporary copy that is gone): the
+            // updater script is fetched from GitHub and downloads the source itself.
+            const argv = GLib.file_test(script, GLib.FileTest.EXISTS)
+                ? ['bash', script]
+                : ['bash', '-c', 'curl -fsSL https://raw.githubusercontent.com/Nayzer974/GNOMAC/main/scripts/update.sh | bash'];
+            const proc = Gio.Subprocess.new(argv, Gio.SubprocessFlags.NONE);
             proc.wait_check_async(null, (p, res) => {
                 try {
                     p.wait_check_finish(res);

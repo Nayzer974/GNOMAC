@@ -26,6 +26,8 @@ except Exception:
 PY
 )"
 SRC="${SRC:-${XDG_DATA_HOME:-$HOME/.local/share}/gnomac-src}"
+# The recorded folder may be a temporary copy that is gone (e.g. /tmp): use the default one.
+[[ -f "$SRC/install.sh" ]] || SRC="${XDG_DATA_HOME:-$HOME/.local/share}/gnomac-src"
 
 if [[ -d "$SRC/.git" ]] && command -v git >/dev/null; then
   git -C "$SRC" fetch --quiet origin main
