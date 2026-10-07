@@ -312,9 +312,19 @@ Le script copie l'extension dans `/usr/share/gnome-shell/extensions`, le fond da
 
 ---
 
+## Icônes du bureau et étagère de l'encoche
+
+Les fichiers de ton dossier **Bureau** s'affichent sur le fond d'écran, comme sur macOS : clic pour sélectionner (Ctrl pour en ajouter), **double-clic pour ouvrir**, **glisser pour déplacer** (accroche à une grille, position mémorisée) ou **déposer sur l'encoche** pour le garder sur l'étagère, clic droit pour ouvrir, renommer, copier le chemin, garder sur l'étagère ou mettre à la corbeille. Clic droit sur le bureau : **Nouveau dossier** et **Coller** (fichiers copiés dans Fichiers). Le dossier est surveillé : ce qui est ajouté ou supprimé ailleurs apparaît aussitôt. L'étagère de l'encoche accepte aussi **Coller des fichiers**, et un clic droit sur un élément le copie sur le bureau ou le retire.
+
+Limite réelle : sous Wayland, GNOME Shell **ne peut pas recevoir un glisser-déposer qui part d'une autre application** (la fenêtre Fichiers). Pour amener un fichier de Fichiers au bureau ou à l'encoche : *copier* dans Fichiers, puis *Coller* (menu du bureau ou bouton de l'étagère).
+
+## Écran de connexion toujours à jour (optionnel)
+
+`sudo ./gdm/install-gdm.sh --auto-sync` (ou la question de l'installation express) installe un petit service système : quand une mise à jour de GNOMAC est installée, il recopie l'extension dans le dossier lu par l'écran de connexion. Il ne copie que le dossier de l'extension, refuse les liens symboliques, la rend propriétaire root et la remplace d'un coup. **Attention** : l'écran de connexion exécute ce code, donc n'active cette option que sur une machine où tu es le seul utilisateur de confiance. Retrait : `sudo ./gdm/install-gdm.sh --remove`. Le démarrage animé (Plymouth) demande de reconstruire l'initramfs et reste une mise à jour manuelle.
+
 ## Mises à jour automatiques
 
-GNOMAC regarde sur GitHub, toutes les 6 heures (et peu après la connexion), si une nouvelle version existe. Quand c'est le cas, une notification **« Nouvelle mise à jour disponible »** s'affiche, avec les boutons **Mettre à jour**, **Plus tard** et **Nouveautés**. Réglable (Préférences › Mises à jour) : *me prévenir* (par défaut), *installer automatiquement*, ou *ne rien faire*. Tes réglages et ton `user.css` ne sont jamais touchés. Les nouveautés du thème s'appliquent à la **prochaine connexion** (Wayland ne recharge pas le shell à chaud). L'écran de connexion et le démarrage (installés avec `sudo`) se rafraîchissent en relançant `sudo ./gdm/install-gdm.sh` depuis le dossier source. À la main : `~/.local/share/gnomac-src/scripts/update.sh`, ou Spotlight › « Rechercher des mises à jour GNOMAC ». Le journal est dans `~/.config/gnomac/update.log`.
+GNOMAC regarde sur GitHub, toutes les 6 heures (et peu après la connexion), si une nouvelle version existe. Quand c'est le cas, une notification **« Nouvelle mise à jour disponible »** s'affiche, avec les boutons **Mettre à jour**, **Plus tard** et **Nouveautés**. Réglable (Préférences › Mises à jour) : *me prévenir* (par défaut), *installer automatiquement*, ou *ne rien faire*. Tes réglages et ton `user.css` ne sont jamais touchés. Les nouveautés du thème s'appliquent à la **prochaine connexion** (Wayland ne recharge pas le shell à chaud). L'écran de connexion se rafraîchit tout seul avec l'option *auto-sync* ci-dessus (sinon : `sudo ./gdm/install-gdm.sh`), le démarrage Plymouth à la main. À la main : `~/.local/share/gnomac-src/scripts/update.sh`, ou Spotlight › « Rechercher des mises à jour GNOMAC ». Le journal est dans `~/.config/gnomac/update.log`.
 
 Tous tes appareils reçoivent la mise à jour de la même façon : il suffit que GNOMAC y soit installé avec la commande express.
 

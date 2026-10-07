@@ -3,6 +3,7 @@
 #
 #   sudo ./gdm/install-gdm.sh                       install, using your current wallpaper
 #   sudo ./gdm/install-gdm.sh --wallpaper IMAGE     install, with this image behind the login
+#   sudo ./gdm/install-gdm.sh --auto-sync           also keep the login screen up to date by itself (see below)
 #   sudo ./gdm/install-gdm.sh --check               show what is installed, change nothing
 #   sudo ./gdm/install-gdm.sh --remove              put the stock login screen back
 #
@@ -27,6 +28,9 @@ SRC="$ROOT/extension/$UUID"
 DST="/usr/share/gnome-shell/extensions/$UUID"
 SHARE="/usr/share/gnomac"
 ETC="/etc/gnomac"
+SYNC_SCRIPT="$SHARE/sync-login.sh"
+SYNC_PATH_UNIT="/etc/systemd/system/gnomac-gdm-sync.path"
+SYNC_SERVICE_UNIT="/etc/systemd/system/gnomac-gdm-sync.service"
 DB="/etc/dconf/db/gdm.d/90-gnomac"
 PROFILE="/etc/dconf/profile/gdm"
 
@@ -42,6 +46,11 @@ check() {
   grep -q '"gdm"' "$DST/metadata.json" 2>/dev/null && ok "metadata lists the gdm session mode" \
     || bad "metadata.json has no \"gdm\" in session-modes"
   [[ -f "$DST/schemas/gschemas.compiled" ]] && ok "schema compiled" || bad "schema not compiled in $DST/schemas"
+  if systemctl is-enabled gnomac-gdm-sync.path >/dev/null 2>&1; then
+    ok "auto-sync on: the login screen follows your GNOMAC updates"
+  else
+    echo "  - auto-sync is off (enable it with: sudo $0 --auto-sync)"
+  fi
   [[ -f "$ETC/login.conf" ]] && ok "settings: $ETC/login.conf" || bad "no $ETC/login.conf (defaults are used)"
   [[ -f "$SHARE/login.jpg" ]] && ok "wallpaper: $SHARE/login.jpg" || bad "no wallpaper at $SHARE/login.jpg (GNOME's background stays)"
   if [[ -s "$DB" ]] && grep -q "$UUID" "$DB"; then ok "GDM enables the extension: $DB"; else bad "$DB is missing or empty"; fi
@@ -58,9 +67,15 @@ check() {
 
 [[ $EUID -eq 0 ]] || die "Run this with sudo."
 
+AUTO_SYNC=0
+if [[ "${1:-}" == "--auto-sync" ]]; then AUTO_SYNC=1; shift; fi
+
 case "${1:-}" in
   --check) check; exit $FAILED ;;
   --remove)
+    systemctl disable --now gnomac-gdm-sync.path 2>/dev/null || true
+    rm -f "$SYNC_PATH_UNIT" "$SYNC_SERVICE_UNIT"
+    systemctl daemon-reload 2>/dev/null || true
     rm -rf "$DST" "$SHARE" "$DB"
     echo ":: Your settings in $ETC (login.conf, login.css) were kept; delete the folder to remove them."
     if grep -qs 'GNOMAC' "$PROFILE"; then
@@ -140,6 +155,39 @@ dconf update
 
 # Write everything to disk now: a file still in the cache when the machine is
 # reset (typical for a virtual machine) comes back empty on btrfs.
+sync
+# ---------------------------------------------------------------- auto sync (opt-in)
+if (( AUTO_SYNC )); then
+  [[ -n "${SUDO_USER:-}" ]] || die "--auto-sync needs to be run with sudo from your own account."
+  AS_HOME="$(getent passwd "$SUDO_USER" | cut -d: -f6)"
+  info "Auto-sync: the login screen will follow your GNOMAC updates"
+  echo "   This lets $SUDO_USER's GNOMAC folder be copied, as root, to $DST each time"
+  echo "   an update is installed. The login screen runs that code: only enable it on a"
+  echo "   machine where you are the only user you trust. Undo: --remove."
+  install -m 0755 "$ROOT/gdm/sync-login.sh" "$SYNC_SCRIPT"
+  cat > "$SYNC_SERVICE_UNIT" <<UNIT
+[Unit]
+Description=Copy the GNOMAC extension to the GDM login screen
+
+[Service]
+Type=oneshot
+ExecStart=$SYNC_SCRIPT $SUDO_USER
+UNIT
+  cat > "$SYNC_PATH_UNIT" <<UNIT
+[Unit]
+Description=Watch for a GNOMAC update (login screen sync)
+
+[Path]
+PathChanged=$AS_HOME/.config/gnomac/installed.json
+Unit=gnomac-gdm-sync.service
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+  systemctl daemon-reload
+  systemctl enable --now gnomac-gdm-sync.path
+fi
+
 sync
 echo
 check

@@ -49,12 +49,13 @@ b "GNOMAC · express install"
 echo "  macOS 27 look and feel for GNOME. About two minutes."
 echo
 
-WITH_DEPS=0; WITH_ICONS=0; WITH_CURSORS=0; WITH_PLY=0; WITH_GDM=0
+WITH_DEPS=0; WITH_ICONS=0; WITH_CURSORS=0; WITH_PLY=0; WITH_GDM=0; WITH_SYNC=0
 ask "Install the needed packages with pacman (Inter font, git, curl…)?" y && WITH_DEPS=1
 ask "Add the macOS-style cursors (WhiteSur)?" n && WITH_CURSORS=1
 ask "Add the macOS-style icon theme (MacTahoe)?" n && WITH_ICONS=1
 ask "Install the boot splash (the logo at start-up, needs sudo)?" y && WITH_PLY=1
 ask "Install the macOS login screen (needs sudo)?" y && WITH_GDM=1
+(( WITH_GDM )) && ask "Keep the login screen up to date automatically (a root service copies your GNOMAC folder after each update: trust it only on your own machine)?" n && WITH_SYNC=1
 echo
 
 # 1. The extension, window controls and your settings backup.
@@ -83,7 +84,9 @@ if (( WITH_GDM )); then
   if [[ "$(basename "$(readlink -f /etc/systemd/system/display-manager.service 2>/dev/null)")" == gdm*.service ]] \
      || command -v gdm >/dev/null; then
     info "Login screen: sudo will ask for your password."
-    if sudo "$ROOT/gdm/install-gdm.sh"; then
+    sync_flag=()
+    (( WITH_SYNC )) && sync_flag=(--auto-sync)
+    if sudo "$ROOT/gdm/install-gdm.sh" "${sync_flag[@]}"; then
       ok "Login screen installed"
     else
       warn "Login screen: see the ✗ lines above."

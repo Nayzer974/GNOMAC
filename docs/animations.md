@@ -6,7 +6,7 @@ Durées de base (`lib/glassTokens.js`) : rapide 180 ms, normale 320 ms, lente 52
 
 ## Déverrouillage (`modules/lockScreen.js` + `lib/reveal.js`)
 
-Une seule chronologie, environ 660 ms. GNOME fait glisser tout l'écran de verrouillage vers le haut ; GNOMAC le remplace par :
+Une seule chronologie, environ 1,1 s en deux temps : le bureau sort d'un **flou** et devient net, puis **ses éléments se posent un par un**. GNOME fait glisser tout l'écran de verrouillage vers le haut ; GNOMAC le remplace par :
 
 ```
 0 ms        mot de passe accepté
@@ -15,10 +15,14 @@ Une seule chronologie, environ 660 ms. GNOME fait glisser tout l'écran de verro
 40–280      l'horloge monte de 10 px et s'efface
 0–520       le flou et l'assombrissement du fond d'écran diminuent (sortie cubique)
 140–520     la couche de verrouillage se dissout et découvre le bureau
-120–540     les fenêtres sont révélées (98,5 % → 100 %, opacité)
-160–540     la barre de menus se pose (opacité, descend de 8 px)
-210–660     le dock apparaît : monte de 24 px, 97 % → 100 %, son verre se matérialise
-660         fin : plus rien ne bouge
+0–480       le fond d'écran sort d'un flou de 30 px et devient net (sortie cubique)
+100–500     les fenêtres apparaissent
+220–600     la barre de menus se pose (opacité, descend de 8 px)
+260–680     le dock : sa plaque monte de 24 px, son verre se matérialise
+320 + 38/icône   les icônes du dock montent l'une après l'autre
+400 + 45/widget  les widgets montent l'un après l'autre
+440 + 35/icône   les icônes du bureau montent l'une après l'autre
+~1100       fin : les effets de flou temporaires sont retirés, plus rien ne bouge
 ```
 
 Réglable : *Préférences › Démarrage et extinction › Transition de déverrouillage*. En cas d'erreur, le chemin d'origine de GNOME prend le relais (on n'est jamais bloqué).
