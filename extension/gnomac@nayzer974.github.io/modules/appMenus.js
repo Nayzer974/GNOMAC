@@ -15,7 +15,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 
-import {sendShortcut, shortcutLabel} from '../lib/keys.js';
+import {cancelShortcuts, sendShortcut, shortcutLabel} from '../lib/keys.js';
 import {t} from '../lib/i18n.js';
 
 const focusWindow = () => global.display.focus_window;
@@ -228,6 +228,7 @@ export class AppMenus {
     }
 
     disable() {
+        cancelShortcuts();
         this._extension.onNotchResize = null;
         if (this._laterId) {
             global.compositor.get_laters().remove(this._laterId);

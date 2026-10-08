@@ -34,6 +34,8 @@ const tilesOf = (extension, owner) => (owner === 'widgets' ? extension.widgets?.
 const blurTargets = () => (Main.layoutManager._bgManagers ?? []).map(m => m.backgroundActor).filter(Boolean);
 
 export function removeRevealBlur() {
+    blurTimeline?.stop();
+    blurTimeline = null;
     for (const actor of blurTargets()) {
         try {
             actor.remove_effect_by_name(EFFECT_NAME);
@@ -79,6 +81,12 @@ export function hideDesktop(extension) {
     }
 }
 
+// Everything at its final state, the temporary blur removed (also used by the
+// start-up when it ends or is skipped).
+export function settleDesktop(extension) {
+    settleAll(extension);
+}
+
 function settleAll(extension) {
     removeRevealBlur();
     Main.panel.remove_all_transitions();
@@ -108,9 +116,64 @@ function settleAll(extension) {
     }
 }
 
+let active = null;
+let blurTimeline = null;
+
+// The reveal in progress, if any: its end timer is dropped and its owner is
+// told it is over (an unlock must always complete).
+function finishActiveReveal() {
+    blurTimeline?.stop();
+    blurTimeline = null;
+    const reveal = active;
+    active = null;
+    if (!reveal)
+        return;
+    if (reveal.timer)
+        GLib.source_remove(reveal.timer);
+    reveal.onDone?.();
+}
+
+// The wallpaper comes out of its blur over `duration` ms, after `delay`. The
+// effects are driven by one timeline on the stage, never on an actor the mode
+// change could stop. A new radius means blurring the whole wallpaper again, the
+// costliest thing here: while the blur is wide it changes in steps of 3 px
+// (invisible), only near sharp does it follow pixel by pixel.
+export function unblurWallpaper(duration, delay = 0) {
+    const effects = blurTargets().map(a => a.get_effect(EFFECT_NAME)).filter(Boolean);
+    blurTimeline?.stop();
+    if (!effects.length)
+        return;
+    // From wherever the blur is now (a reveal cut short by a skip must not jump
+    // back to the full blur).
+    const fromRadius = Math.max(...effects.map(effect => effect.radius));
+    const fromBrightness = Math.min(...effects.map(effect => effect.brightness));
+    const timeline = new Clutter.Timeline({actor: global.stage, duration: Math.max(1, duration), delay});
+    blurTimeline = timeline;
+    let lastRadius = -1;
+    timeline.connect('new-frame', () => {
+        const eased = 1 - (1 - timeline.get_progress()) ** 3;
+        const wide = Math.max(0, Math.round(fromRadius * (1 - eased)));
+        const radius = wide > 12 ? Math.round(wide / 3) * 3 : wide;
+        for (const effect of effects) {
+            if (radius !== lastRadius)
+                effect.radius = radius;
+            effect.brightness = fromBrightness + (1 - fromBrightness) * eased;
+        }
+        lastRadius = radius;
+    });
+    timeline.connect('completed', () => {
+        if (blurTimeline === timeline)
+            blurTimeline = null;
+    });
+    timeline.start();
+}
+
 // `slow` stretches every duration (tests). Instant with reduced motion.
 // Returns the total duration in ms (already scaled).
 export function revealDesktop(extension, {slow = 1, onDone = null} = {}) {
+    // A reveal still running is finished first (its owner is told), never left
+    // with a timer that would cut the new one short.
+    finishActiveReveal();
     const animate = St.Settings.get().enable_animations;
     if (!animate) {
         settleAll(extension);
@@ -124,26 +187,8 @@ export function revealDesktop(extension, {slow = 1, onDone = null} = {}) {
         return {delay: ms(delay), duration: ms(duration), mode: OUT};
     };
 
-    // 1. Blur -> normal. The effects are driven by one timeline on the stage,
-    // never on an actor the mode change could stop.
-    const effects = blurTargets().map(a => a.get_effect(EFFECT_NAME)).filter(Boolean);
-    const timeline = new Clutter.Timeline({actor: global.stage, duration: ms(BLUR_MS)});
-    // A new radius means blurring the whole wallpaper again, the costliest thing
-    // here: while the blur is wide it changes in steps of 3 px (invisible),
-    // only near sharp does it follow pixel by pixel.
-    let lastRadius = -1;
-    timeline.connect('new-frame', () => {
-        const eased = 1 - (1 - timeline.get_progress()) ** 3;
-        const wide = Math.max(0, Math.round(BLUR_RADIUS * (1 - eased)));
-        const radius = wide > 12 ? Math.round(wide / 3) * 3 : wide;
-        for (const effect of effects) {
-            if (radius !== lastRadius)
-                effect.radius = radius;
-            effect.brightness = 0.92 + 0.08 * eased;
-        }
-        lastRadius = radius;
-    });
-    timeline.start();
+    // 1. Blur -> normal.
+    unblurWallpaper(ms(BLUR_MS));
     end = ms(BLUR_MS);
     global.window_group.ease({opacity: 255, ...plan(100, 400)});
 
@@ -172,10 +217,15 @@ export function revealDesktop(extension, {slow = 1, onDone = null} = {}) {
 
     // One timer for the end: everything is pinned to its final state and the
     // blur effects are removed, so nothing keeps moving or costing anything.
-    GLib.timeout_add(GLib.PRIORITY_DEFAULT, end + 80, () => {
+    const reveal = {onDone, timer: 0};
+    reveal.timer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, end + 80, () => {
+        reveal.timer = 0;
+        if (active === reveal)
+            active = null;
         settleAll(extension);
         onDone?.();
         return GLib.SOURCE_REMOVE;
     });
+    active = reveal;
     return end;
 }

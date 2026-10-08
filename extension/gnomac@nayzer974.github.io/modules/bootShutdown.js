@@ -38,8 +38,11 @@ import {EndSessionDialog} from 'resource:///org/gnome/shell/ui/endSessionDialog.
 import {GlassSurface, glassParamsFromSettings} from '../lib/glass.js';
 import {easeInOut, easeOut, greetingOrder, paintLogo, paintWord} from '../lib/bootArt.js';
 import {LensSurface} from '../lib/lensEffect.js';
-import {hideDesktop, removeRevealBlur, revealDesktop} from '../lib/reveal.js';
+import {hideDesktop, removeRevealBlur, revealDesktop, settleDesktop, unblurWallpaper} from '../lib/reveal.js';
 import {t} from '../lib/i18n.js';
+
+// How long the cover takes to dissolve.
+const fadeMs = quick => (quick ? 500 : 750);
 
 // How long the lens takes to cover the screen.
 const LENS_MS = 900;
@@ -325,14 +328,21 @@ export class BootShutdown {
         const next = () => {
             if (this._boot !== overlay || this._skipped)
                 return;
-            if (lens)
+            if (lens) {
                 this._lens(overlay);
-            else if (mist)
+            } else if (mist) {
                 this._mist(overlay);
-            else if (hello)
-                this._hello(overlay);
-            else
-                this._reveal(overlay, classic);
+            } else {
+                // The dock, widgets and desktop icons were built after the cover
+                // went up: hide them too, under the cover, so that the reveal
+                // brings them in.
+                if (this._chromeHidden)
+                    this._hideChrome();
+                if (hello)
+                    this._hello(overlay);
+                else
+                    this._reveal(overlay, classic);
+            }
         };
 
         if (mist || lens) {
@@ -553,6 +563,10 @@ export class BootShutdown {
         const panel = Main.panel;
         const dock = this._dockActor();
         if (this._chromeHidden) {
+            // The wallpaper under the cover comes out of its blur as the cover
+            // goes (it used to snap sharp at the very end), the windows follow.
+            unblurWallpaper(Math.round(fadeMs(quick) * slow), Math.round(160 * slow));
+            global.window_group.ease({opacity: 255, duration: Math.round(500 * slow), delay: Math.round(160 * slow)});
             panel.ease({opacity: 255, duration: 650 * slow, delay: 250 * slow});
             if (dock) {
                 dock.ease({translation_y: 0, opacity: 255, duration: 850 * slow, delay: 300 * slow,
@@ -564,7 +578,7 @@ export class BootShutdown {
                 });
             }
         }
-        const fade = quick ? 500 : 750;
+        const fade = fadeMs(quick);
         overlay.logoArea.ease({opacity: 0, scale_x: 1.35, scale_y: 1.35, duration: 520 * slow,
             mode: Clutter.AnimationMode.EASE_IN_CUBIC});
         overlay.actor.ease({opacity: 0, duration: fade * slow, delay: 160 * slow,
@@ -605,24 +619,11 @@ export class BootShutdown {
         if (!this._chromeHidden)
             return;
         this._chromeHidden = false;
-        Main.panel.remove_all_transitions();
-        Main.panel.opacity = 255;
-        Main.panel.translation_y = 0;
-        global.window_group.remove_all_transitions();
-        global.window_group.opacity = 255;
+        // Menu bar, windows, dock and its icons, widgets and desktop icons: all
+        // at their final state (some may never have been brought in, e.g. when
+        // the animation is skipped).
+        settleDesktop(this._extension);
         global.window_group.set_scale(1, 1);
-        const dock = this._dockActor();
-        if (dock) {
-            dock.remove_all_transitions();
-            dock.opacity = 255;
-            dock.translation_y = 0;
-        }
-        for (const item of this._dockItems()) {
-            item.remove_all_transitions();
-            item.opacity = 255;
-            item.set_scale(1, 1);
-            item.translation_y = 0;
-        }
     }
 
     // ------------------------------------------------------------ shutdown

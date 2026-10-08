@@ -30,7 +30,7 @@ B. le fond se dissout dans le bureau (t = 0 au début de B)
 ~1100       fin : les effets de flou temporaires sont retirés, plus rien ne bouge
 ```
 
-Pourquoi deux temps : avant, la reconstruction du bureau avait lieu à t = 0, pendant que les animations démarraient. Elles sont calées sur l'horloge, donc quand la première image arrivait elles étaient déjà presque finies : l'écran de verrouillage semblait sauter au bureau, et seul le dock (qui démarre plus tard) s'animait. Maintenant la reconstruction est cachée entre A et B.
+Pourquoi deux temps : avant, la reconstruction du bureau avait lieu à t = 0, pendant que les animations démarraient. Elles sont calées sur l'horloge, donc quand la première image arrivait elles étaient déjà presque finies : l'écran de verrouillage semblait sauter au bureau, et seul le dock (qui démarre plus tard) s'animait. Maintenant la reconstruction est cachée entre A et B, et le module d'écran de verrouillage n'est plus coupé puis relancé à chaque verrouillage/déverrouillage (il reste, seuls dock, barre, widgets… sont construits ou retirés).
 
 Réglable : *Préférences › Démarrage et extinction › Transition de déverrouillage*. En cas d'erreur, le chemin d'origine de GNOME prend le relais (on n'est jamais bloqué).
 
@@ -100,3 +100,7 @@ Le nouveau fond sort d'un **cercle** qui grandit depuis le centre de l'écran (6
 Après le mot de passe de connexion, un disque de verre s'ouvre au centre d'un écran noir (900 ms, sortie cubique), le fond d'écran se courbe sur son bord, puis le disque fond dans le bureau (révélation de `lib/reveal.js`, lancée à mi-course).
 
 Ce qui la faisait ramer : le disque était une `GlassSurface` **redimensionnée à chaque image**, jusqu'à un carré de plus de 2000 px de côté, avec deux effets hors-écran (flou + shader de verre). Chaque redimensionnement réallouait leurs textures, le shader de verre (régions, gradient, anneau de flou) est bien plus lourd qu'un disque, et ~30 uniformes étaient réécrits par image. Maintenant : `LensSurface` garde la taille de l'écran, le fond est peint une seule fois dans sa texture, un petit shader dessine le disque (courbure du bord avec dispersion de couleur, filet de lumière, reflet de Fresnel ; un seul échantillon au cœur du disque) et **seul le rayon change** pendant l'ouverture. Dans la révélation, le flou du fond ne change plus que par pas de 3 px tant qu'il est large (chaque changement refait le flou de tout le fond).
+
+## Démarrage : fin d'animation commune
+
+Pour tous les styles, à la fin (ou si on clique pour passer), le bureau est remis à son état final d'un bloc (`settleDesktop` dans `lib/reveal.js` : barre, fenêtres, dock et ses icônes, widgets, icônes du bureau, flou temporaire retiré). Pour « Hello » et « Classique », le fond du bureau sort de son flou pendant que le cache se dissout (il devenait net d'un coup à la toute fin), et le dock, les widgets et les icônes, construits après le cache, sont cachés avant la révélation pour pouvoir arriver.

@@ -120,19 +120,27 @@ export default class GnomacExtension extends Extension {
         this._settings = null;
     }
 
-    _start() {
+    // Whether a module runs in the current session mode. Only modules flagged
+    // `locked` run while the screen is locked, and the login module runs alone
+    // in GDM's shell.
+    _shouldRun({key, locked: allowedLocked, greeter: forGreeter}) {
+        const locked = Main.sessionMode.isLocked;
+        const greeter = Main.sessionMode.currentMode === 'gdm';
+        if (!this._settings.get_boolean(key) || (locked && !allowedLocked))
+            return false;
+        return greeter === !!forGreeter;
+    }
+
+    // `keep`: modules (classes) that are already running and stay as they are.
+    _start(keep = new Set()) {
         this._forceAnimations();
         adaptive.start();
         displayInfo.start();
         glassPerformance.refreshHz = () => displayInfo.refreshHz;
         glassPerformance.start(this.getSettings());
-        const locked = Main.sessionMode.isLocked;
-        const greeter = Main.sessionMode.currentMode === 'gdm';
-        for (const {key, Module, locked: allowedLocked, greeter: forGreeter} of MODULES) {
-            if (!this._settings.get_boolean(key) || (locked && !allowedLocked))
-                continue;
-            // The login screen runs the login module alone, a session never runs it.
-            if (greeter !== !!forGreeter)
+        for (const entry of MODULES) {
+            const {key, Module} = entry;
+            if (keep.has(Module) || !this._shouldRun(entry))
                 continue;
             const module = new Module(this);
             try {
@@ -147,15 +155,20 @@ export default class GnomacExtension extends Extension {
         }
     }
 
-    _stop() {
+    _stop(keep = new Set()) {
+        const kept = [];
         for (const module of this._modules.reverse()) {
+            if (keep.has(module.constructor)) {
+                kept.unshift(module);
+                continue;
+            }
             try {
                 module.disable();
             } catch (e) {
                 logError(e, 'GNOMAC: error while disabling a module');
             }
         }
-        this._modules = [];
+        this._modules = kept;
         this._releaseAnimations();
     }
 
@@ -181,14 +194,22 @@ export default class GnomacExtension extends Extension {
         }
     }
 
-    // Locking and unlocking switch the set of running modules right away.
+    // Locking and unlocking switch the set of running modules right away. The
+    // lock screen module runs in both modes: it stays, so a lock or an unlock
+    // only builds or removes what changes (the rebuild at unlock was the pause
+    // in the transition) and the lock screen's own state is not torn down.
     _reload() {
         if (this._reloadId) {
             GLib.source_remove(this._reloadId);
             this._reloadId = 0;
         }
-        this._stop();
-        this._start();
+        const keep = new Set();
+        for (const entry of MODULES) {
+            if (entry.locked && this._shouldRun(entry) && this._modules.some(m => m.constructor === entry.Module))
+                keep.add(entry.Module);
+        }
+        this._stop(keep);
+        this._start(keep);
     }
 
     _scheduleReload() {

@@ -70,6 +70,10 @@ export class WindowLayout {
     }
 
     disable() {
+        if (this._tileTimer) {
+            GLib.source_remove(this._tileTimer);
+            this._tileTimer = 0;
+        }
         for (const key of this._bound)
             Main.wm.removeKeybinding(key);
         this._bound = [];
@@ -278,7 +282,10 @@ export class WindowLayout {
     _choose(id) {
         this.closePalette();
         // The palette held the focus: tile once the window has it back.
-        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 60, () => {
+        if (this._tileTimer)
+            GLib.source_remove(this._tileTimer);
+        this._tileTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 60, () => {
+            this._tileTimer = 0;
             this.tile(id);
             return GLib.SOURCE_REMOVE;
         });

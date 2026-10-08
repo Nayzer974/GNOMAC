@@ -14,6 +14,15 @@ function getDevice() {
     return device;
 }
 
+// Shortcuts waiting for the window to take the focus back.
+const pending = new Set();
+
+export function cancelShortcuts() {
+    for (const id of pending)
+        GLib.source_remove(id);
+    pending.clear();
+}
+
 const MODIFIERS = {
     ctrl: Clutter.KEY_Control_L,
     shift: Clutter.KEY_Shift_L,
@@ -25,7 +34,7 @@ const MODIFIERS = {
 function parse(combo) {
     const parts = combo.split('+');
     const key = parts.pop();
-    const mods = parts.map(m => MODIFIERS[m.toLowerCase()]);
+    const mods = parts.map(m => MODIFIERS[m.toLowerCase()]).filter(Boolean);
     let keyval = Clutter[`KEY_${key}`];
     if (keyval === undefined && key.length === 1)
         keyval = Clutter.unicode_to_keysym(key.charCodeAt(0));
@@ -37,7 +46,8 @@ export function sendShortcut(combo, delay = 140) {
     const {mods, keyval} = parse(combo);
     if (!keyval)
         return;
-    GLib.timeout_add(GLib.PRIORITY_DEFAULT, delay, () => {
+    const id = GLib.timeout_add(GLib.PRIORITY_DEFAULT, delay, () => {
+        pending.delete(id);
         const dev = getDevice();
         let time = GLib.get_monotonic_time();
         for (const mod of mods)
@@ -48,6 +58,7 @@ export function sendShortcut(combo, delay = 140) {
             dev.notify_keyval(time++, mod, Clutter.KeyState.RELEASED);
         return GLib.SOURCE_REMOVE;
     });
+    pending.add(id);
 }
 
 // "ctrl+shift+z" -> "⇧⌃Z", the macOS way of writing shortcuts.
