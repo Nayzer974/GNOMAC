@@ -547,7 +547,9 @@ export class DynamicIsland {
     _syncFullscreen() {
         if (!this.island || this._islandGone)
             return;
-        const fullscreen = this._cfg.hideFullscreen &&
+        // Over a full-screen window: always for the one the full-screen shortcut
+        // made (modules/fullscreen.js), else if the setting says so.
+        const fullscreen = (this._cfg.hideFullscreen || !!this._extension.trueFullscreen) &&
             global.display.get_monitor_in_fullscreen(Main.layoutManager.primaryIndex);
         this.island.visible = !fullscreen && !Main.overview.visible;
     }

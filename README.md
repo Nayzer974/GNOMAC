@@ -236,6 +236,7 @@ Le même guide est dans l'interface : tape **guide** dans Spotlight.
 | `Super + Ctrl + Entrée` | Remplir l'écran |
 | `Super + Ctrl + C` | Centrer la fenêtre |
 | `Super + Ctrl + T` | Palette : moitiés, quarts, tiers, remplir, centrer |
+| `Super + Ctrl + F` (ou `Super + F11`) | **Vrai plein écran** sur la fenêtre active, même celles qui n'ont pas de bouton plein écran ; la barre, le dock et l'encoche s'effacent. Même raccourci pour en sortir |
 | `Super + Ctrl + M` | Stage Manager : la fenêtre active reste au centre, les autres vont dans une bande de cartes à gauche ; un clic sur une carte la ramène |
 | `Super + Tab` | Changer d'application (sélecteur en verre) |
 | `Super + Q` | Quitter l'application de la fenêtre active (toutes ses fenêtres) |

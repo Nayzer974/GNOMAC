@@ -61,6 +61,14 @@
       <default>true</default>
       <summary>macOS status symbols (Wi-Fi, battery, Control Center) in the menu bar</summary>
     </key>
+    <key name="enable-fullscreen" type="b">
+      <default>true</default>
+      <summary>Full-screen shortcut that works on any window (Super+Ctrl+F)</summary>
+    </key>
+    <key name="fullscreen-shortcut" type="as">
+      <default><![CDATA[['<Super><Control>f', '<Super>F11']]]></default>
+      <summary>Keyboard shortcuts that toggle true full screen on the focused window</summary>
+    </key>
     <key name="enable-wallpaper-picker" type="b">
       <default>true</default>
       <summary>Wallpaper carousel (Super+W) with circle reveal</summary>

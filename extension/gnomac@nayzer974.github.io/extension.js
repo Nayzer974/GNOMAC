@@ -14,6 +14,7 @@ import {DesktopIcons} from './modules/desktopIcons.js';
 import {Dock} from './modules/dock.js';
 import {DynamicIsland} from './modules/dynamicIsland.js';
 import {Gaps} from './modules/gaps.js';
+import {TrueFullscreen} from './modules/fullscreen.js';
 import {GlassDebug} from './modules/glassDebug.js';
 import {GlassMenus} from './modules/glassMenus.js';
 import {Launchpad} from './modules/launchpad.js';
@@ -65,6 +66,7 @@ const MODULES = [
     {key: 'enable-widgets', Module: Widgets},
     {key: 'enable-desktop-icons', Module: DesktopIcons},
     {key: 'enable-wallpaper-picker', Module: WallpaperPicker},
+    {key: 'enable-fullscreen', Module: TrueFullscreen},
     {key: 'enable-menubar-icons', Module: MenuBarIcons},
     {key: 'enable-appearance', Module: Appearance},
     {key: 'enable-window-layout', Module: WindowLayout},

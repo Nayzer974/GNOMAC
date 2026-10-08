@@ -96,3 +96,9 @@ Si l'application reste introuvable (nom de source qui ne ressemble à aucune app
 ### Le bouton « Nouveautés » d'une mise à jour disponible
 
 Il ouvre **la carte « Nouveautés » sur le bureau**, pas une page web (l'ancienne page était la page de diff du dernier commit sur GitHub : illisible, et elle demande un navigateur). Dans l'ordre : les notes de la nouvelle version (`whatsnew.json` sur GitHub) que tu n'as pas encore vues ; sinon les titres des commits depuis ta version installée (API de comparaison de GitHub) ; en dernier recours seulement, la liste des commits sur le web. Ces notes ne comptent pas comme « vues » : la carte revient une fois la mise à jour installée.
+
+## Vrai plein écran (`Super + Ctrl + F`)
+
+GNOME n'a **aucun raccourci** de plein écran par défaut, et la plupart des applications n'y passent que par leur propre bouton ou F11 (Fichiers, Réglages, un terminal… n'en ont pas du tout). `modules/fullscreen.js` le demande **au gestionnaire de fenêtres lui-même** : ça marche sur la fenêtre qui a le focus, quelle que soit l'application. Raccourcis : `Super + Ctrl + F` (comme Contrôle + Commande + F sur Mac) et `Super + F11` ; le même raccourci en sort, comme le fait la fenêtre elle-même.
+
+Une fenêtre en plein écran couvre son écran : la barre de menus, le dock et la bande du Stage Manager s'effacent (suivi de GNOME), et **l'encoche aussi, même si son réglage « Masquer en plein écran » est coupé** (seulement pour une fenêtre mise en plein écran par ce raccourci). Si une fenêtre refuse (certaines boîtes de dialogue), une notification le dit. Les raccourcis se changent avec `fullscreen-shortcut` (dconf), et le module se coupe dans les préférences (« Plein écran partout »). Non testé sur un vrai bureau.

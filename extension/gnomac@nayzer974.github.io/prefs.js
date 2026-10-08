@@ -76,6 +76,7 @@ export default class GnomacPreferences extends ExtensionPreferences {
 
         const modules = group('Modules');
         toggle(modules, 'enable-dock', 'Dock');
+        toggle(modules, 'enable-fullscreen', 'Plein écran partout', 'Super + Ctrl + F (ou Super + F11) : vrai plein écran sur n’importe quelle fenêtre, même celles qui n’ont pas de bouton ; barre, dock et encoche s’effacent. Même raccourci pour en sortir.');
         toggle(modules, 'enable-spotlight', 'Spotlight', 'Super + Espace : apps, calculs, actions système, recherche web');
         toggle(modules, 'enable-glass-menus', 'Menus en verre', 'Tous les menus et le Centre de contrôle en Liquid Glass');
         toggle(modules, 'enable-window-animations', 'Animations des fenêtres', 'Ouverture, fermeture et effet Génie vers le dock');
