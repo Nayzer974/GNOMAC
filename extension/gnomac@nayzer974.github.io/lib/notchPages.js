@@ -4,6 +4,7 @@
 import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
+import Pango from 'gi://Pango';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
@@ -148,7 +149,7 @@ const TOGGLES = [
         set: on => run(['bluetoothctl', 'power', on ? 'on' : 'off']),
     },
     {
-        id: 'dnd', icon: 'notifications-disabled-symbolic', label: t('Do Not Disturb', 'Ne pas déranger'), color: COLORS.purple,
+        id: 'dnd', icon: 'notifications-disabled-symbolic', label: t('Do Not Disturb', 'Ne pas déranger'), short: t('Silent', 'Silence'), color: COLORS.purple,
         settings: ['org.gnome.desktop.notifications', 'show-banners', true],
     },
     {
@@ -176,18 +177,22 @@ const ACTIONS = [
         run: () => Shell.AppSystem.get_default().lookup_app('org.gnome.Settings.desktop')?.activate()},
 ];
 
-function chip(def) {
+// A tile. `compact` uses the short name when the tile has one (the strip on
+// the Home page is narrow).
+function chip(def, compact = false) {
+    const label = compact && def.short ? def.short : def.label;
     if (def.run) {
         // Plain action: no state, just the press feel.
         const column = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL,
             x_align: Clutter.ActorAlign.CENTER});
         column.add_child(new St.Icon({icon_name: def.icon, icon_size: 18, x_align: Clutter.ActorAlign.CENTER}));
-        column.add_child(new St.Label({text: def.label, style_class: 'gnomac-chip-label',
-            x_align: Clutter.ActorAlign.CENTER}));
+        const name = new St.Label({text: label, style_class: 'gnomac-chip-label', x_align: Clutter.ActorAlign.CENTER});
+        name.clutter_text.ellipsize = Pango.EllipsizeMode.END;
+        column.add_child(name);
         const button = new St.Button({style_class: 'gnomac-chip', child: column, can_focus: false});
         return press(button);
     }
-    return colorChip({icon: def.icon, label: def.label, color: def.color ?? COLORS.blue});
+    return colorChip({icon: def.icon, label, color: def.color ?? COLORS.blue});
 }
 
 export class ActionsPage {
@@ -273,6 +278,7 @@ export class ClipboardPage {
             const row = new St.Button({style_class: 'gnomac-notch-clip-row', can_focus: false,
                 label: text.replace(/\s+/g, ' ').slice(0, 70), x_align: Clutter.ActorAlign.FILL});
             row.connect('clicked', () => copyText(text));
+            row.get_child?.()?.clutter_text?.set({ellipsize: Pango.EllipsizeMode.END});
             this._list.add_child(row);
         }
     }
@@ -295,11 +301,12 @@ export class IdleHome {
         this.actor.add_child(this.time);
         this.actor.add_child(this.date);
         this._actions = new ActionsPage(onDone);
-        // Only the first four tiles: Wi-Fi, Bluetooth, DND, dark mode.
-        this._strip = new St.BoxLayout({style_class: 'gnomac-notch-idle-chips'});
+        // Four tiles (Do Not Disturb, Dark Mode, Screenshot, Lock) in four equal columns: a tile never takes the width of its text.
+        this._strip = new St.Widget({style_class: 'gnomac-notch-idle-chips', x_expand: true,
+            layout_manager: new Clutter.GridLayout({column_spacing: 6, column_homogeneous: true})});
         this._chips = [];
-        for (const def of [TOGGLES[2], TOGGLES[3], ACTIONS[0], ACTIONS[1]]) {
-            const button = chip(def);
+        [TOGGLES[2], TOGGLES[3], ACTIONS[0], ACTIONS[1]].forEach((def, column) => {
+            const button = chip(def, true);
             if (def.run) {
                 button.connect('clicked', () => {
                     onDone();
@@ -318,8 +325,8 @@ export class IdleHome {
                 });
                 this._chips.push([def, button]);
             }
-            this._strip.add_child(button);
-        }
+            this._strip.layout_manager.attach(button, column, 0, 1, 1);
+        });
         this.actor.add_child(this._strip);
     }
 

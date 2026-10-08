@@ -16,13 +16,15 @@ import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
 import Pango from 'gi://Pango';
+import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import * as Mpris from 'resource:///org/gnome/shell/ui/mpris.js';
 
 import {ActionsPage, ClipboardPage, IdleHome, StatsPage} from '../lib/notchPages.js';
 import {startClipboard, stopClipboard} from '../lib/clipboardHistory.js';
+import {coverFile, destroyCovers} from '../lib/coverArt.js';
+import {MprisWatcher} from '../lib/mprisClient.js';
 import {cascade, press, slideIn} from '../lib/motion.js';
 import {MonthCalendar, PomodoroTimer, Shelf} from '../lib/notchViews.js';
 import {Spring, getTicker} from '../lib/spring.js';
@@ -37,18 +39,19 @@ const SIZES = {
     // not over it, and menus that would overlap are hidden by AppMenus.
     date: {width: 230, height: 78},
     media: {width: 400, height: 132},
-    dashboard: {width: 560, height: 206},
+    dashboard: {width: 560, height: 228},
     notice: {width: 400, height: 78},
     hud: {width: 300, height: 34},
 };
 const WORKSPACE_MS = 1400;
 const BARS = 4;
 
-function coverStyle(url, size) {
-    const base = `width: ${size}px; height: ${size}px; border-radius: ${size / 2}px;`;
-    if (!url || !url.startsWith('file://'))
-        return `${base} background-color: rgba(255,255,255,0.16);`;
-    return `${base} background-image: url("${url}"); background-size: cover;`;
+// A cover (a file in the cache) or, without one, a soft gradient.
+function artStyle(file, size, radius) {
+    const base = `width: ${size}px; height: ${size}px; border-radius: ${radius}px;`;
+    if (!file)
+        return `${base} background-gradient-direction: vertical; background-gradient-start: rgba(92, 94, 230, 0.85); background-gradient-end: rgba(36, 38, 64, 0.95);`;
+    return `${base} background-image: url("${file}"); background-size: cover;`;
 }
 
 function formatTime(us) {
@@ -157,23 +160,32 @@ const Island = GObject.registerClass({
         }
         this.add_child(this.rest);
 
-        // Media card.
-        this.media = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL,
-            style_class: 'gnomac-notch-media'});
-        const top = new St.BoxLayout({style_class: 'gnomac-notch-media-top'});
-        this.mediaArt = new St.Widget({reactive: true, y_align: Clutter.ActorAlign.CENTER});
-        const text = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL, x_expand: true,
+        // Player card (the dashboard's Home page while something plays): the
+        // cover on the left, on the right the app, the title, the artist, the
+        // progress bar and the transport controls.
+        this.mediaArt = new St.Widget({style_class: 'gnomac-notch-art', reactive: true,
+            y_align: Clutter.ActorAlign.CENTER, layout_manager: new Clutter.BinLayout()});
+        // Without a cover the player's own icon sits on the gradient.
+        this.mediaArtIcon = new St.Icon({icon_size: 56, x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER, x_expand: true, y_expand: true,
+            style_class: 'gnomac-notch-art-icon'});
+        this.mediaArt.add_child(this.mediaArtIcon);
+
+        const info = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL, x_expand: true,
+            y_align: Clutter.ActorAlign.CENTER, style_class: 'gnomac-notch-player-info'});
+        const head = new St.BoxLayout({style_class: 'gnomac-notch-player-head'});
+        this.appIcon = new St.Icon({icon_size: 14, y_align: Clutter.ActorAlign.CENTER,
+            style_class: 'gnomac-notch-player-icon'});
+        this.appName = new St.Label({style_class: 'gnomac-notch-player-app', x_expand: true,
             y_align: Clutter.ActorAlign.CENTER});
+        this.appName.clutter_text.ellipsize = Pango.EllipsizeMode.END;
+        [this.mediaBars, this.mediaBarActors] = bars(BARS);
+        for (const child of [this.appIcon, this.appName, this.mediaBars])
+            head.add_child(child);
         this.title = new St.Label({style_class: 'gnomac-notch-title'});
         this.title.clutter_text.ellipsize = Pango.EllipsizeMode.END;
         this.artist = new St.Label({style_class: 'gnomac-notch-subtitle'});
         this.artist.clutter_text.ellipsize = Pango.EllipsizeMode.END;
-        text.add_child(this.title);
-        text.add_child(this.artist);
-        [this.mediaBars, this.mediaBarActors] = bars(BARS);
-        this.appIcon = new St.Icon({icon_size: 18, y_align: Clutter.ActorAlign.CENTER});
-        for (const child of [this.mediaArt, text, this.mediaBars, this.appIcon])
-            top.add_child(child);
 
         const progress = new St.BoxLayout({style_class: 'gnomac-notch-progress'});
         this.elapsed = new St.Label({style_class: 'gnomac-notch-time', y_align: Clutter.ActorAlign.CENTER});
@@ -190,15 +202,18 @@ const Island = GObject.registerClass({
 
         const controls = new St.BoxLayout({style_class: 'gnomac-notch-controls',
             x_align: Clutter.ActorAlign.CENTER});
-        this.prevButton = this._control('media-skip-backward-symbolic', 18);
+        this.prevButton = this._control('media-skip-backward-symbolic', 20);
         this.playButton = this._control('media-playback-pause-symbolic', 22);
-        this.nextButton = this._control('media-skip-forward-symbolic', 18);
+        this.playButton.add_style_class_name('play');
+        this.nextButton = this._control('media-skip-forward-symbolic', 20);
         for (const child of [this.prevButton, this.playButton, this.nextButton])
             controls.add_child(child);
+        for (const child of [head, this.title, this.artist, progress, controls])
+            info.add_child(child);
 
         // The player rows live on the dashboard's Home page; `media` stays
         // as an (unused) empty container so older code paths keep working.
-        this._playerRows = [top, progress, controls];
+        this._playerRows = [this.mediaArt, info];
         this.media = new St.Widget({visible: false});
         this.add_child(this.media);
 
@@ -233,8 +248,7 @@ const Island = GObject.registerClass({
             style_class: 'gnomac-notch-dashboard'});
         this.pages = new St.Widget({layout_manager: new Clutter.BinLayout(), x_expand: true, y_expand: true});
         this.homePage = new St.BoxLayout({style_class: 'gnomac-notch-home'});
-        this.homePlayer = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL, x_expand: true,
-            style_class: 'gnomac-notch-home-player'});
+        this.homePlayer = new St.BoxLayout({x_expand: true, style_class: 'gnomac-notch-home-player'});
         this.calendar = new MonthCalendar();
         for (const row of this._playerRows)
             this.homePlayer.add_child(row);
@@ -311,7 +325,8 @@ const Island = GObject.registerClass({
     _control(iconName, size) {
         return press(new St.Button({
             style_class: 'gnomac-island-control',
-            child: new St.Icon({icon_name: iconName, icon_size: size}),
+            child: new St.Icon({icon_name: iconName, icon_size: size, x_align: Clutter.ActorAlign.CENTER,
+                y_align: Clutter.ActorAlign.CENTER}),
             can_focus: true,
         }), {down: 0.82});
     }
@@ -321,8 +336,10 @@ export class DynamicIsland {
     constructor(extension) {
         this._extension = extension;
         this._settings = extension.getSettings();
-        this._players = new Set();
+        this._watcher = null;
         this._player = null;
+        this._coverUrl = null;
+        this._coverPath = null;
         this._mode = 'rest';
         this._noticeUntil = 0;
         this._workspaceUntil = 0;
@@ -459,16 +476,14 @@ export class DynamicIsland {
         this.island.nextButton.connect('clicked', () => this._skip(1));
         this._wireSeek(this.island.track);
         this.island.mediaArt.connect('button-release-event', () => {
-            this._player?.raise();
+            this._raisePlayer();
             return Clutter.EVENT_STOP;
         });
 
-        this._source = new Mpris.MprisSource();
         this._watchCharging();
-        this._connect(this._source, 'player-added', (_s, player) => this._addPlayer(player));
-        this._connect(this._source, 'player-removed', (_s, player) => this._removePlayer(player));
-        for (const player of this._source.players)
-            this._addPlayer(player);
+        // Every MPRIS player, straight over D-Bus (see lib/mprisClient.js).
+        this._watcher = new MprisWatcher(player => this._onPlayersChanged(player));
+        this._watcher.start();
 
         this._connect(Main.messageTray, 'source-added', (_tray, source) => this._watchSource(source));
         for (const source of Main.messageTray.getSources?.() ?? [])
@@ -680,15 +695,14 @@ export class DynamicIsland {
             } catch {}
         }
         this._signals = [];
-        for (const player of this._players)
-            player.disconnectObject?.(this);
-        this._players.clear();
+        this._watcher?.stop();
+        this._watcher = null;
+        destroyCovers();
         this._player = null;
         if (this._pollTimeout) {
             GLib.source_remove(this._pollTimeout);
             this._pollTimeout = 0;
         }
-        this._source = null;
         if (this.island) {
             if (!this._islandGone) {
                 this.island.remove_all_transitions();
@@ -703,33 +717,53 @@ export class DynamicIsland {
         this._signals.push([object, object.connect(signal, callback)]);
     }
 
-    _addPlayer(player) {
-        if (this._players.has(player))
+    // A player appeared, changed or went: the island follows the best one.
+    _onPlayersChanged(player) {
+        if (!this._watcher || this._islandGone)
             return;
-        this._players.add(player);
-        player.connectObject('changed', () => this._onPlayerChanged(player), this);
-        this._onPlayerChanged(player);
-    }
-
-    _removePlayer(player) {
-        player.disconnectObject?.(this);
-        this._players.delete(player);
-        if (this._player === player)
-            this._player = [...this._players][0] ?? null;
-        this._update();
-    }
-
-    _onPlayerChanged(player) {
-        if (player === this._player || !this._player)
+        const best = this._watcher.best(this._player);
+        if (best !== this._player) {
+            this._player = best;
+            this._coverUrl = null;
+            this._coverPath = null;
+            this._position = 0;
+            this._length = 0;
             this._pollSoon();
-        if (player.status === 'Playing' || !this._player)
-            this._player = player;
+        } else if (player === this._player) {
+            this._pollSoon();
+        }
         this._update();
     }
 
     _hasMedia() {
-        const p = this._player;
-        return !!p && p.canPlay && (p.status === 'Playing' || p.status === 'Paused');
+        return !!this._player?.hasMedia;
+    }
+
+    // The player's own icon (Spotify, Firefox…): from its desktop entry, else
+    // from the name it registered on the bus.
+    _playerIcon(player) {
+        const apps = Shell.AppSystem.get_default();
+        const names = [player.desktopEntry, player.busName.replace('org.mpris.MediaPlayer2.', '').replace(/\.instance.*$/, '')]
+            .filter(Boolean);
+        for (const name of names) {
+            const app = apps.lookup_app(`${name}.desktop`) ?? apps.lookup_app(name) ??
+                apps.lookup_app(`org.${name}.desktop`);
+            if (app)
+                return app.get_icon();
+        }
+        return null;
+    }
+
+    _raisePlayer() {
+        const player = this._player;
+        if (!player)
+            return;
+        player.raise().then(raised => {
+            if (raised || !player.desktopEntry)
+                return;
+            // Players without Raise: the application of the same name.
+            Shell.AppSystem.get_default().lookup_app(`${player.desktopEntry}.desktop`)?.activate();
+        });
     }
 
     // Plugging the charger in (or unplugging it) shows a short notice in the
@@ -771,25 +805,6 @@ export class DynamicIsland {
         } catch {}
     }
 
-    // A call on the current player's MPRIS interface, straight over D-Bus.
-    _playerCall(method, parameters = null, done = null) {
-        const busName = this._player?._busName;
-        if (!busName) {
-            return false;
-        }
-        Gio.DBus.session.call(busName, '/org/mpris/MediaPlayer2', 'org.mpris.MediaPlayer2.Player',
-            method, parameters, null, Gio.DBusCallFlags.NONE, 1500, null, (conn, res) => {
-                try {
-                    conn.call_finish(res);
-                    done?.(true);
-                } catch (e) {
-                    logError(e, `GNOMAC island: player ${method}`);
-                    done?.(false);
-                }
-            });
-        return true;
-    }
-
     _togglePlay() {
         const player = this._player;
         if (!player)
@@ -797,51 +812,43 @@ export class DynamicIsland {
         // The icon answers at once; the player's own signal confirms it.
         const playing = player.status === 'Playing';
         this.island.playButton.child.icon_name = playing ? 'media-playback-start-symbolic' : 'media-playback-pause-symbolic';
-        if (!this._playerCall('PlayPause'))
-            player.playPause();
-        this._pollSoon();
+        player.playPause().then(() => this._pollSoon());
     }
 
     // Previous / next track; when the player has none (a browser tab, a
-    // podcast) the buttons skip 10 seconds instead, so they never do nothing.
+    // podcast) the buttons jump 10 seconds instead, so they never do nothing.
     _skip(direction) {
         const player = this._player;
         if (!player)
             return;
         const canTrack = direction > 0 ? player.canGoNext : player.canGoPrevious;
-        if (canTrack) {
-            if (!this._playerCall(direction > 0 ? 'Next' : 'Previous'))
-                direction > 0 ? player.next() : player.previous();
-        } else {
+        if (canTrack)
+            (direction > 0 ? player.next() : player.previous()).then(() => this._pollSoon());
+        else
             this._seekBy(direction * 10 * 1e6);
-        }
-        this._pollSoon();
     }
 
     _seekBy(offsetUs) {
-        if (!this._playerCall('Seek', new GLib.Variant('(x)', [Math.round(offsetUs)])))
+        const player = this._player;
+        if (!player)
             return;
+        // The bar moves at once; the player confirms when asked again.
         this._position = Math.max(0, this._livePosition() + offsetUs);
         this._positionAt = GLib.get_monotonic_time();
         this._syncProgress();
+        player.seekBy(offsetUs).then(() => this._pollSoon());
     }
 
     _seekTo(fraction) {
+        const player = this._player;
         const length = this._length;
-        const trackId = this._player?._playerProxy?.Metadata?.['mpris:trackid'];
-        if (!length)
+        if (!player || !length)
             return;
         const target = Math.round(Math.min(1, Math.max(0, fraction)) * length);
-        const id = trackId?.deepUnpack?.() ?? trackId;
-        const sent = id
-            ? this._playerCall('SetPosition', new GLib.Variant('(ox)', [String(id), target]))
-            : false;
-        if (!sent)
-            this._seekBy(target - this._livePosition());
         this._position = target;
         this._positionAt = GLib.get_monotonic_time();
         this._syncProgress();
-        this._pollSoon();
+        player.setPosition(target).then(() => this._pollSoon());
     }
 
     // Click or drag on the progress bar.
@@ -905,27 +912,18 @@ export class DynamicIsland {
         });
     }
 
-    // GNOME's MprisPlayer does not track the position; ask the player.
-    _pollPosition() {
+    // Players do not announce the position while it moves: ask.
+    async _pollPosition() {
         const player = this._player;
-        const busName = player?._busName;
-        if (!busName)
+        if (!player)
             return;
-        Gio.DBus.session.call(busName, '/org/mpris/MediaPlayer2', 'org.freedesktop.DBus.Properties',
-            'Get', new GLib.Variant('(ss)', ['org.mpris.MediaPlayer2.Player', 'Position']),
-            null, Gio.DBusCallFlags.NONE, 500, null, (conn, res) => {
-                try {
-                    const [value] = conn.call_finish(res).deepUnpack();
-                    this._position = Number(value.deepUnpack());
-                } catch {
-                    this._position = 0;
-                }
-                this._positionAt = GLib.get_monotonic_time();
-                const metadata = player._playerProxy?.Metadata ?? {};
-                const length = metadata['mpris:length'];
-                this._length = length ? Number(length.deepUnpack?.() ?? length) : 0;
-                this._syncProgress();
-            });
+        const position = await player.fetchPosition();
+        if (this._player !== player || this._islandGone || !this.island)
+            return;
+        this._position = position;
+        this._positionAt = GLib.get_monotonic_time();
+        this._length = player.length;
+        this._syncProgress();
     }
 
     _watchSource(source) {
@@ -1015,11 +1013,13 @@ export class DynamicIsland {
 
         island.calendar.update();
         island.showTab(this._cfg.tabs.includes(this._tab) ? this._tab : this._cfg.firstTab);
-        // The player's place on Home: the player when something plays,
-        // the clock and chips otherwise.
-        island.homePlayer.visible = this._hasMedia();
-        island.idleHome.actor.visible = !this._hasMedia();
-        if (this._mode === 'dashboard' && this._tab === 'home' && !this._hasMedia())
+        // The Home page: while something plays it is the player and nothing
+        // else (no calendar); otherwise the clock and chips, with the calendar.
+        const media = this._hasMedia();
+        island.homePlayer.visible = media;
+        island.calendar.actor.visible = !media;
+        island.idleHome.actor.visible = !media;
+        if (this._mode === 'dashboard' && this._tab === 'home' && !media)
             island.idleHome.update();
         island.ring.visible = island.timer.running && this._mode === 'rest' && this._cfg.showRing;
         const unread = this._unread();
@@ -1027,23 +1027,67 @@ export class DynamicIsland {
         island.badgeLabel.text = String(unread);
 
         const player = this._player;
-        const media = this._hasMedia();
         island.restArt.visible = media && this._cfg.showMedia;
         island.bars.visible = media && this._cfg.showMedia;
         if (player && media) {
-            island.restArt.set_style(coverStyle(player.trackCoverUrl, 16));
-            island.mediaArt.set_style(coverStyle(player.trackCoverUrl, 40));
-            island.title.text = player.trackTitle || t('Unknown title', 'Titre inconnu');
-            island.artist.text = (player.trackArtists ?? []).join(', ');
-            island.appIcon.gicon = player.app?.get_icon?.() ?? null;
-            island.appIcon.visible = !!island.appIcon.gicon;
+            this._syncCover(player);
+            island.title.text = player.title || t('Unknown title', 'Titre inconnu');
+            island.artist.text = player.artists.join(', ') || player.album;
+            island.artist.visible = !!island.artist.text;
+            island.appName.text = player.identity;
+            const gicon = this._playerIcon(player);
+            island.appIcon.gicon = gicon;
+            island.appIcon.visible = !!gicon;
             island.playButton.child.icon_name = player.status === 'Playing'
                 ? 'media-playback-pause-symbolic'
                 : 'media-playback-start-symbolic';
-            // Without track changes the buttons skip 10 s, so they stay live.
-            island.prevButton.opacity = player.canGoPrevious ? 255 : 170;
-            island.nextButton.opacity = player.canGoNext ? 255 : 170;
+            // A player with no track to skip (a browser tab) gets a 10 second
+            // jump on these buttons instead of dead ones.
+            const back = player.canGoPrevious;
+            const forward = player.canGoNext;
+            island.prevButton.child.icon_name = back ? 'media-skip-backward-symbolic' : 'media-seek-backward-symbolic';
+            island.nextButton.child.icon_name = forward ? 'media-skip-forward-symbolic' : 'media-seek-forward-symbolic';
+            island.prevButton.reactive = island.nextButton.reactive = player.canSeek || player.canGoNext;
+            island.prevButton.opacity = island.nextButton.opacity = island.prevButton.reactive ? 255 : 120;
         }
+    }
+
+    // The cover: found once per track (a web address is fetched into the
+    // cache first, see lib/coverArt.js), then painted everywhere it shows.
+    _syncCover(player) {
+        const url = player.artUrl;
+        if (url !== this._coverUrl) {
+            this._coverUrl = url;
+            this._coverPath = null;
+            if (url) {
+                coverFile(url).then(path => {
+                    if (this._coverUrl !== url || this._islandGone || !this.island)
+                        return;
+                    this._coverPath = path;
+                    this._paintCover(player);
+                });
+            }
+            this._paintCover(player);
+        } else if (this._paintedPlayer !== player) {
+            this._paintCover(player);
+        }
+    }
+
+    _paintCover(player) {
+        const island = this.island;
+        if (!island || this._islandGone)
+            return;
+        this._paintedPlayer = player;
+        const file = this._coverPath;
+        island.mediaArt.set_style(artStyle(file, 112, 18));
+        island.restArt.set_style(artStyle(file, 16, 8));
+        // No cover: the player's icon (or a note) on the gradient.
+        const gicon = this._playerIcon(player);
+        island.mediaArtIcon.visible = !file;
+        if (gicon)
+            island.mediaArtIcon.gicon = gicon;
+        else
+            island.mediaArtIcon.icon_name = 'audio-x-generic-symbolic';
     }
 
     _syncProgress() {

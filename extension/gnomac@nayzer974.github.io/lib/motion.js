@@ -9,6 +9,7 @@
 //   Dynamic Island does when its content changes.
 
 import Clutter from 'gi://Clutter';
+import Pango from 'gi://Pango';
 import St from 'gi://St';
 
 import {Spring, getTicker} from './spring.js';
@@ -74,8 +75,11 @@ export function colorChip({icon, label, color, onToggle}) {
     const image = new St.Icon({icon_name: icon, icon_size: 18, x_align: Clutter.ActorAlign.CENTER});
     image.set_pivot_point(0.5, 0.5);
     column.add_child(image);
-    column.add_child(new St.Label({text: label, style_class: 'gnomac-chip-label',
-        x_align: Clutter.ActorAlign.CENTER}));
+    // A long name ("Do Not Disturb") shortens with an ellipsis instead of
+    // touching the edges of its tile.
+    const name = new St.Label({text: label, style_class: 'gnomac-chip-label', x_align: Clutter.ActorAlign.CENTER});
+    name.clutter_text.ellipsize = Pango.EllipsizeMode.END;
+    column.add_child(name);
     body.add_child(fill);
     body.add_child(column);
     root.set_child(body);

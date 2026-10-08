@@ -74,3 +74,10 @@ gsettings set org.gnome.desktop.peripherals.touchpad click-method areas   # ou f
 ```
 
 Pour voir l'état actuel : `gsettings list-recursively org.gnome.desktop.peripherals.touchpad`. Non testé sur un vrai pavé tactile.
+
+## Encoche (île dynamique) : lecteur multimédia et texte
+
+* **Pendant une lecture** (musique, vidéo), la page « Accueil » est **le lecteur et rien d'autre** : plus de calendrier. À gauche la pochette (112 px, coins arrondis, ombre), à droite l'application, le titre, l'artiste, la barre de progression (clic ou glisser pour avancer), et les commandes (précédent, lecture/pause en pastille blanche, suivant). Un clic sur la pochette ramène la fenêtre du lecteur. Sans lecture : grande horloge, puces (Silence, Mode sombre, Capture, Verrouiller) et calendrier.
+* **Pochettes** : Spotify et les navigateurs donnent une adresse web (ou une image encodée), pas un fichier ; `lib/coverArt.js` la télécharge une fois dans `~/.cache/gnomac/covers/` (effacée après 7 jours) et l'encoche l'affiche, y compris dans la ligne repliée. Sans pochette : l'icône du lecteur sur un dégradé.
+* **Commandes** : `lib/mprisClient.js` parle directement aux lecteurs MPRIS. Il lit ce que chaque lecteur sait faire : un onglet YouTube n'a pas de piste suivante ni précédente, et ses boutons deviennent **−10 s / +10 s** (icônes de saut) au lieu de ne rien faire ; lecture/pause essaie `PlayPause`, puis `Play` ou `Pause` si le lecteur ignore le premier. S'il y a plusieurs lecteurs, l'encoche suit celui qui joue (le dernier à avoir démarré), sinon le dernier utilisé, sans sauter de l'un à l'autre.
+* **Texte** : une échelle de couleurs pour tout l'encoche (blanc, 66 % pour le secondaire, 45 % pour le tertiaire), des chiffres à chasse fixe, des corps de texte plus grands (aucun sous 8 pt), des puces avec marge et **noms longs raccourcis par une ellipse** au lieu de toucher le bord (« Mode sombre », « Ne pas déranger »). La rangée de puces de l'accueil est en quatre colonnes égales.
