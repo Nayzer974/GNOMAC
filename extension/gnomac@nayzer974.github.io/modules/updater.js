@@ -24,7 +24,10 @@ import {t} from '../lib/i18n.js';
 const REPO = 'Nayzer974/GNOMAC';
 const API = `https://api.github.com/repos/${REPO}/commits/main`;
 const INSTALLED = GLib.build_filenamev([GLib.get_user_config_dir(), 'gnomac', 'installed.json']);
-const FIRST_CHECK_SECONDS = 90;
+// The check runs at every start of the session (the network may not be up yet,
+// so a failed first try is repeated), then every `update-hours` hours.
+const FIRST_CHECK_SECONDS = 20;
+const RETRY_SECONDS = [30, 60, 120, 240];
 
 export function readInstalled() {
     try {
@@ -55,6 +58,10 @@ export class Updater {
             GLib.source_remove(this._timeoutId);
             this._timeoutId = 0;
         }
+        if (this._retryId) {
+            GLib.source_remove(this._retryId);
+            this._retryId = 0;
+        }
         this._session?.abort();
         this._session = null;
         this._source?.destroy();
@@ -66,14 +73,17 @@ export class Updater {
             GLib.source_remove(this._timeoutId);
         this._timeoutId = GLib.timeout_add_seconds(GLib.PRIORITY_LOW, seconds, () => {
             this._timeoutId = 0;
-            this.check();
+            const startup = !this._started;
+            this._started = true;
+            this.check({startup});
             this._schedule(this._settings.get_int('update-hours') * 3600);
             return GLib.SOURCE_REMOVE;
         });
     }
 
     // `manual`: the user asked, so say the result even when there is nothing new.
-    check({manual = false} = {}) {
+    // `startup`: the check of a new session; a version the user already said "later" to is announced again.
+    check({manual = false, startup = false, attempt = 0} = {}) {
         const mode = this._settings.get_string('update-mode');
         if (!this._session || (!manual && (mode === 'off' || !this._settings.get_boolean('enable-updater'))))
             return;
@@ -91,9 +101,17 @@ export class Updater {
                     message: (json.commit?.message ?? '').split('\n')[0],
                     url: json.html_url,
                     date: json.commit?.committer?.date ?? '',
-                }, manual);
+                }, manual, startup);
             } catch (e) {
-                // Offline or rate-limited: try again at the next check.
+                // Offline (the network is often not up yet at login) or
+                // rate-limited: try again soon, a few times, then at the next check.
+                if (!manual && startup && attempt < RETRY_SECONDS.length && this._session) {
+                    this._retryId = GLib.timeout_add_seconds(GLib.PRIORITY_LOW, RETRY_SECONDS[attempt], () => {
+                        this._retryId = 0;
+                        this.check({startup, attempt: attempt + 1});
+                        return GLib.SOURCE_REMOVE;
+                    });
+                }
                 if (manual)
                     Main.notify('GNOMAC', t('Could not check for updates.', 'Impossible de chercher des mises à jour.'));
                 console.log(`GNOMAC updater: ${e.message}`);
@@ -101,7 +119,7 @@ export class Updater {
         });
     }
 
-    _onLatest(latest, manual) {
+    _onLatest(latest, manual, startup = false) {
         this._settings.set_string('update-latest', latest.sha);
         const installed = readInstalled();
         const current = installed?.sha ?? '';
@@ -112,7 +130,7 @@ export class Updater {
             return;
         }
         const mode = this._settings.get_string('update-mode');
-        if (!manual && this._settings.get_string('update-dismissed') === latest.sha)
+        if (!manual && !startup && this._settings.get_string('update-dismissed') === latest.sha)
             return;
         if (mode === 'auto' && !manual)
             this.install(latest, true);
