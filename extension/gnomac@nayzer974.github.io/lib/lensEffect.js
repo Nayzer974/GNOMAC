@@ -42,6 +42,8 @@ uniform float bend;      // refraction at the edge, px
 uniform float chroma;
 uniform vec4 tint;
 uniform vec2 light_dir;
+uniform float shadow;    // darkness of the soft shadow cast outside the disc (0 = none)
+uniform float shadow_w;  // its width, px
 
 // 0 inside, 1 at the edge: a circular bevel, the slope at the edge softened.
 float circular_lens(float din, float w) {
@@ -58,6 +60,8 @@ vec2 v = uv * size - centre;
 float dist = length(v);
 float d = dist - radius;
 cogl_color_out = vec4(0.0);
+// The disc lifts off what is under it: a soft shadow just outside the edge.
+float sh = d > 0.0 ? shadow * pow(clamp(1.0 - d / shadow_w, 0.0, 1.0), 2.0) : 0.0;
 if (d < 1.5) {
     float mask = 1.0 - smoothstep(-1.0, 0.5, d);
     float din = max(-d, 0.0);
@@ -90,24 +94,40 @@ if (d < 1.5) {
         cogl_color_out = vec4(col * mask, mask);
     }
 }
+cogl_color_out.a = cogl_color_out.a + sh * (1.0 - cogl_color_out.a);
 `;
 
-const LensEffect = GObject.registerClass(
+export const LensEffect = GObject.registerClass(
 class LensEffect extends GLSLEffect {
     _init(centre) {
         super._init();
         this._loc = {};
-        for (const name of ['size', 'centre', 'radius', 'rim_w', 'bend', 'chroma', 'tint', 'light_dir'])
+        for (const name of ['size', 'centre', 'radius', 'rim_w', 'bend', 'chroma', 'tint', 'light_dir', 'shadow', 'shadow_w'])
             this._loc[name] = this.get_uniform_location(name);
         this.set_uniform_float(this._loc.centre, 2, centre);
         this.set_uniform_float(this._loc.chroma, 1, [CHROMA]);
         this.set_uniform_float(this._loc.tint, 4, TINT);
         this.set_uniform_float(this._loc.light_dir, 2, [Math.cos(LIGHT_ANGLE), -Math.sin(LIGHT_ANGLE)]);
+        this.setShadow(0, 1);
         this.setRadius(1);
     }
 
     buildPipeline() {
         this.add_glsl_snippet(HOOK, DECLARATIONS, CODE, false);
+    }
+
+    // The glass tint, rgba. The boot lens has a faint one; the wallpaper picker
+    // none, so that the picture in the disc is exactly the picture it lands on.
+    setTint(tint) {
+        this.set_uniform_float(this._loc.tint, 4, tint);
+        this.queue_repaint();
+    }
+
+    // A soft shadow outside the disc: `strength` 0..1, `width` in px.
+    setShadow(strength, width) {
+        this.set_uniform_float(this._loc.shadow, 1, [strength]);
+        this.set_uniform_float(this._loc.shadow_w, 1, [Math.max(1, width)]);
+        this.queue_repaint();
     }
 
     setRadius(radius) {
@@ -125,6 +145,9 @@ class LensEffect extends GLSLEffect {
         super.vfunc_paint_target(node, paintContext);
     }
 });
+
+// The disc as an effect for any actor (the boot lens and the wallpaper picker
+// use it): setRadius() is the only thing to change while it grows.
 
 // The wallpaper, monitor-sized, seen through the disc. `centre` is in actor
 // pixels. Put it on a stage-sized overlay whose origin is the monitor's.

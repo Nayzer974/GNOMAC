@@ -8,7 +8,6 @@ import Cogl from 'gi://Cogl';
 import GdkPixbuf from 'gi://GdkPixbuf';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
-import GObject from 'gi://GObject';
 import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
@@ -18,7 +17,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {Spring, getTicker} from '../lib/spring.js';
 import {t} from '../lib/i18n.js';
 import {Easing} from '../lib/motionTokens.js';
-import {GLSLEffect} from '../lib/shaderEffect.js';
+import {LensEffect} from '../lib/lensEffect.js';
 
 const SHORTCUT_KEY = 'wallpaper-shortcut';
 const CARD_W = 220;
@@ -26,42 +25,11 @@ const CARD_H = 300;
 const STEP = 120;
 const VISIBLE = 6;
 const IMAGE = /\.(jpe?g|png|webp)$/i;
-const REVEAL_MS = 650;
+const REVEAL_MS = 850;
+const CAROUSEL_Y = -20;              // the carousel sits 20 px above the middle of the screen
+const START_RADIUS = CARD_W * 0.55; // the bubble starts as big as the chosen card
+const SETTLE_ZOOM = 0.06;           // the new picture settles from 106 % to 100 %
 const BG_FADE_MS = 1000; // GNOME's own wallpaper crossfade (background.js)
-
-const HOOK = Shell.SnippetHook?.FRAGMENT ?? Cogl.SnippetHook.FRAGMENT;
-
-// Circle mask: shows the actor only inside a growing radius.
-const CircleReveal = GObject.registerClass(
-class CircleReveal extends GLSLEffect {
-    _init() {
-        super._init();
-        this._size = this.get_uniform_location('size');
-        this._radius = this.get_uniform_location('radius');
-        this.setRadius(0);
-    }
-
-    buildPipeline() {
-        this.add_glsl_snippet(HOOK,
-            'uniform vec2 size; uniform float radius;',
-            `vec2 p = cogl_tex_coord_in[0].st * size - size * 0.5;
-             float a = 1.0 - smoothstep(radius - 2.0, radius, length(p));
-             cogl_color_out *= a;`,
-            false);
-    }
-
-    setRadius(radius) {
-        this.set_uniform_float(this._radius, 1, [radius]);
-        this.queue_repaint();
-    }
-
-    vfunc_paint_target(node, ctx) {
-        const actor = this.get_actor();
-        if (actor)
-            this.set_uniform_float(this._size, 2, [actor.width, actor.height]);
-        super.vfunc_paint_target(node, ctx);
-    }
-});
 
 function listWallpapers() {
     const home = GLib.get_home_dir();
@@ -268,7 +236,7 @@ export class WallpaperPicker {
         const fade = this._fade.value;
         this._root.opacity = Math.round(255 * Math.min(1, fade));
         const cx = monitor.width / 2;
-        const cy = monitor.height / 2 - 20;
+        const cy = monitor.height / 2 + CAROUSEL_Y;
         const offset = this._offset.value;
         this._cards.forEach((card, i) => {
             const d = i - offset;
@@ -303,8 +271,32 @@ export class WallpaperPicker {
         const item = this._items[this._index];
         if (!item)
             return;
-        this.close();
-        this.reveal(item.path);
+        this.reveal(item.path, this._dismissForApply());
+    }
+
+    // The carousel hands over to the reveal: input is released at once, the
+    // cards around the chosen one, the title and the hint leave, and the
+    // chosen card and the dark backdrop stay until the bubble takes over (see
+    // _growCircle). Returns what is left to dissolve.
+    _dismissForApply() {
+        getTicker().remove(this._tick);
+        if (this._grab) {
+            Main.popModal(this._grab);
+            this._grab = null;
+        }
+        const root = this._root;
+        const chosen = this._cards[this._index];
+        const others = this._cards.filter(card => card !== chosen);
+        // It stays on screen a moment, but no longer takes clicks.
+        root.reactive = false;
+        this._root = null;
+        this._cards = [];
+        for (const actor of [...others, this._title, this._hint])
+            actor?.ease({opacity: 0, duration: 140, mode: Clutter.AnimationMode.EASE_OUT_QUAD});
+        // The chosen card is the bubble's seed: it grows a little, ready to burst.
+        chosen?.ease({scale_x: chosen.scale_x * 1.04, scale_y: chosen.scale_y * 1.04, duration: 160,
+            mode: Clutter.AnimationMode.EASE_OUT_QUAD});
+        return {root, chosen};
     }
 
     // The new wallpaper grows out of a circle in the middle of the screen,
@@ -316,8 +308,9 @@ export class WallpaperPicker {
     // that cached texture. GNOME gets ONE settings change (three changes made it
     // load the wallpaper three times), and the shader is dropped as soon as the
     // circle covers the screen.
-    reveal(path) {
+    reveal(path, leaving = null) {
         this._endReveal();
+        this._leaving = leaving;
         const monitor = Main.layoutManager.primaryMonitor;
         const cancellable = new Gio.Cancellable();
         this._loading = cancellable;
@@ -326,6 +319,7 @@ export class WallpaperPicker {
                 return;
             this._loading = null;
             if (!image || !St.Settings.get().enable_animations) {
+                this._dropLeaving(true);
                 this._applyWallpaper(path);
                 return;
             }
@@ -333,7 +327,21 @@ export class WallpaperPicker {
         });
     }
 
+    // The carousel kept for the reveal: dissolved, or destroyed at once.
+    _dropLeaving(animate) {
+        const leaving = this._leaving;
+        this._leaving = null;
+        if (!leaving?.root)
+            return;
+        if (animate)
+            leaving.root.ease({opacity: 0, duration: 200, mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+                onStopped: () => leaving.root.destroy()});
+        else
+            leaving.root.destroy();
+    }
+
     _endReveal() {
+        this._dropLeaving(false);
         this._loading?.cancel();
         this._loading = null;
         for (const id of this._revealSources ?? [])
@@ -405,33 +413,63 @@ export class WallpaperPicker {
         });
     }
 
+    // The chosen card bursts into a bubble of glass: a disc of the new picture
+    // that starts as big as the card, at the card's place, and grows until it
+    // covers the screen. Its rim bends the picture like a lens and casts a soft
+    // shadow on the old wallpaper, the picture settles from 106 % to 100 % as
+    // it lands, and while it grows the dark backdrop of the carousel lifts and
+    // the card melts into it. Under the windows, over the old wallpaper.
     _growCircle(path, monitor, image) {
+        const leaving = this._leaving;
+        this._leaving = null;
         // The picture can be a little larger than the monitor (cover): the frame
-        // clips it, the picture stays centred so the circle starts mid-screen.
+        // clips it. The bubble is centred where the carousel's card is.
+        const cx = monitor.width / 2;
+        const cy = monitor.height / 2 + CAROUSEL_Y;
         const frame = new St.Widget({clip_to_allocation: true,
             x: monitor.x, y: monitor.y, width: monitor.width, height: monitor.height});
         const picture = new Clutter.Actor({content: image.content,
             content_gravity: Clutter.ContentGravity.RESIZE_FILL,
             x: Math.round((monitor.width - image.width) / 2), y: Math.round((monitor.height - image.height) / 2),
             width: Math.round(image.width), height: Math.round(image.height)});
+        picture.set_pivot_point(0.5, 0.5);
         frame.add_child(picture);
-        const effect = new CircleReveal();
+        const effect = new LensEffect([cx - picture.x, cy - picture.y]);
+        effect.setTint([0, 0, 0, 0]);
+        effect.setShadow(0.32, 80);
         picture.add_effect(effect);
         global.window_group.insert_child_above(frame, Main.layoutManager._backgroundGroup);
         this._reveal = frame;
 
-        const diagonal = Math.hypot(image.width, image.height) / 2 + 4;
+        // Far enough to cover the farthest corner, with the settle zoom's margin.
+        const end = (Math.hypot(Math.max(cx, monitor.width - cx), Math.max(cy, monitor.height - cy)) + 8) *
+            (1 + SETTLE_ZOOM);
+        const start = START_RADIUS;
+        // The backdrop and the card dissolve over the first part of the growth.
+        if (leaving?.root) {
+            leaving.root.ease({opacity: 0, duration: Math.round(REVEAL_MS * 0.55),
+                mode: Clutter.AnimationMode.EASE_IN_OUT_QUAD, onStopped: () => leaving.root.destroy()});
+            leaving.chosen?.ease({opacity: 0, scale_x: leaving.chosen.scale_x * 1.25,
+                scale_y: leaving.chosen.scale_y * 1.25, duration: 280, mode: Clutter.AnimationMode.EASE_OUT_QUAD});
+        }
+
         const timeline = new Clutter.Timeline({actor: frame, duration: REVEAL_MS});
         this._revealTimeline = timeline;
         timeline.connect('new-frame', () => {
-            effect.setRadius(diagonal * Easing.easeOut(timeline.get_progress()));
+            const p = timeline.get_progress();
+            effect.setRadius(start + (end - start) * Easing.easeOut(p));
+            // The shadow fades as the bubble leaves the screen.
+            effect.setShadow(0.32 * (1 - Easing.easeInOut(Math.min(1, p * 1.25))), 80);
+            const zoom = 1 + SETTLE_ZOOM * (1 - Easing.easeOutQuart(p));
+            picture.set_scale(zoom, zoom);
         });
         timeline.connect('completed', () => {
             if (this._revealTimeline !== timeline)
                 return;
             this._revealTimeline = null;
-            // The circle covers everything: no more shader, a plain texture.
+            // The bubble covers everything: no more shader, a plain texture.
             picture.remove_effect(effect);
+            picture.set_scale(1, 1);
             // Listen first, then change the wallpaper.
             this._releaseWhenLoaded(frame);
             this._applyWallpaper(path);

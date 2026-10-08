@@ -93,7 +93,14 @@ globalThis.GNOMAC_UNLOCK_SPEED = 8   // 8 fois plus lent, jusqu'au prochain rech
 
 ## Sélecteur de fond d'écran : la bulle (`modules/wallpaperPicker.js`)
 
-Le nouveau fond sort d'un **cercle** qui grandit depuis le centre de l'écran (650 ms, sortie cubique), puis GNOME prend le relais. Pour que ce soit fluide : l'image est **décodée hors de la boucle principale**, déjà réduite à la taille de l'écran (avant, le décodage d'un JPEG 4K par le CSS gelait le shell) ; elle est envoyée une seule fois en texture ; le cercle est une passe de shader sur cette texture en cache ; le shader est retiré dès que le cercle couvre l'écran ; GNOME reçoit **un seul** changement de réglage (trois changements lui faisaient charger le fond trois fois) ; la superposition disparaît quand GNOME a fini son fondu (signal `changed` du gestionnaire de fonds), pas après un délai fixe.
+`Entrée` sur une carte : la carte choisie grossit un peu, les autres cartes, le titre et l'aide s'effacent (140 ms), puis la carte **éclate en bulle** de verre : un disque du nouveau fond d'écran, de la taille de la carte et à sa place, grandit jusqu'à couvrir l'écran (850 ms, sortie cubique). Pendant ce temps :
+
+* le bord de la bulle **courbe l'image** comme une lentille (avec une légère dispersion des couleurs et un filet de lumière), c'est le même effet que la lentille de démarrage (`lib/lensEffect.js`),
+* la bulle projette une **ombre douce** sur l'ancien fond, qui s'efface quand elle quitte l'écran,
+* le nouveau fond **se pose** : il part à 106 % et revient à 100 % (sortie quartique),
+* le fond sombre du carrousel s'éclaircit (470 ms) et la carte se fond dans la bulle.
+
+Sous les fenêtres, au-dessus de l'ancien fond. Ce qui la rend fluide : l'image est **décodée hors de la boucle principale**, déjà réduite à la taille de l'écran (avant, le décodage d'un JPEG 4K par le CSS gelait le shell) ; elle est envoyée une seule fois en texture ; la bulle est une passe de shader sur cette texture en cache (seuls le rayon, l'ombre et le zoom changent) ; le shader est retiré dès qu'elle couvre l'écran ; GNOME reçoit **un seul** changement de réglage (trois changements lui faisaient charger le fond trois fois) ; la superposition disparaît quand GNOME a fini son fondu (signal `changed` du gestionnaire de fonds), pas après un délai fixe. Sans animations (accessibilité), le fond change d'un coup.
 
 ## Démarrage « Lentille » : la bulle du fond d'écran (`modules/bootShutdown.js` + `lib/lensEffect.js`)
 
