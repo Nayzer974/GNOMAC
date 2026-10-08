@@ -598,17 +598,17 @@
 
     <key name="glass-blur" type="i">
       <range min="0" max="100"/>
-      <default>14</default>
+      <default>5</default>
       <summary>Backdrop blur radius</summary>
     </key>
     <key name="glass-refraction" type="d">
       <range min="0" max="60"/>
-      <default>38</default>
+      <default>40</default>
       <summary>Edge refraction strength in pixels</summary>
     </key>
     <key name="glass-chroma" type="d">
       <range min="0" max="8"/>
-      <default>3.5</default>
+      <default>4</default>
       <summary>Chromatic dispersion at the edges in pixels</summary>
     </key>
     <key name="glass-rim" type="d">

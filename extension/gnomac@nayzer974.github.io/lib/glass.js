@@ -64,6 +64,23 @@ vec4 g_tint;
 vec4 g_a;
 vec4 g_b;
 
+// Circular lens profile from the Liquid Glass reference (Aghajari / ShojiWM):
+// din = distance inside the edge in px, w = rim width in px. 0 inside, 1 at
+// the edge, with the singular slope at the edge regularised.
+float circular_lens(float din, float w) {
+    float x = 1.0 - clamp(din / w, 0.0, 1.0);
+    float e = clamp(2.0 / w, 0.0001, 0.5);
+    float top = sqrt(1.0 + e);
+    return (top - sqrt(max(1.0 - x * x, 0.0) + e)) / (top - sqrt(e));
+}
+
+// The ideal circle is infinitely steep at the rim: average over one pixel so
+// the last row does not shimmer.
+float filtered_lens(float din, float w) {
+    return 0.25 * (circular_lens(din - 0.375, w) + circular_lens(din - 0.125, w) +
+                   circular_lens(din + 0.125, w) + circular_lens(din + 0.375, w));
+}
+
 float sd_round_rect(vec2 p, vec2 b, float r) {
     vec2 q = abs(p) - b + vec2(r);
     return min(max(q.x, q.y), 0.0) + length(max(q, 0.0)) - r;
@@ -132,7 +149,11 @@ if (d < 1.5) {
 
 // Outward surface normal from the SDF gradient (forward differences).
 vec2 g = vec2(scene_sd(px + vec2(1.0, 0.0)) - d, scene_sd(px + vec2(0.0, 1.0)) - d);
-vec2 n = length(g) > 0.0001 ? normalize(g) : vec2(0.0);
+float gmag = length(g);
+vec2 n = gmag > 0.0001 ? g / gmag : vec2(0.0);
+// Where two parts of a group melt together the gradient loses length (the
+// normals oppose): the lens is attenuated there instead of pointing nowhere.
+float coherence = smoothstep(0.15, 0.85, gmag);
 
 // The bezel is a convex lens: flat in the middle, and over the rim width the
 // surface curves like a quarter circle, so the lens is weak just inside and
@@ -141,35 +162,36 @@ vec2 n = length(g) > 0.0001 ? normalize(g) : vec2(0.0);
 float rim_w = max(thickness, 2.0);
 float din = max(-d, 0.0);
 float depth = clamp(din / rim_w, 0.0, 1.0);
-float xr = 1.0 - depth;
-// Circular profile 1 - sqrt(1 - x^2), regularised so its slope at the very
-// edge stays finite (no singular pixel row): same endpoints, softer tip.
-float soft_e = 2.0 / rim_w;
-float prof = (sqrt(1.0 + soft_e) - sqrt(max(1.0 - xr * xr + soft_e, 0.0))) / (sqrt(1.0 + soft_e) - sqrt(soft_e));
-// Dispersion has its own, narrower profile (outer half of the rim only).
-float x2 = 1.0 - clamp(din / (rim_w * 0.5), 0.0, 1.0);
-float prof2 = 1.0 - sqrt(max(1.0 - x2 * x2, 0.0));
+// Circular profile, filtered; dispersion has its own, narrower profile
+// (outer half of the rim only).
+float prof = filtered_lens(din, rim_w);
+float prof2 = filtered_lens(din, max(rim_w * 0.5, 1.0));
+// The displacement never exceeds the rim width (no folding past the edge).
+float strength = min(g_b.x, rim_w * 1.25);
 // While the glass forms, lensing, specular and fresnel start strong and settle:
 // it materialises instead of fading.
 float forming = 1.0 + (1.0 - form) * form_boost * g_b.w;
-vec2 shift = -n * prof * g_b.x * forming / size;
-vec2 split = n * prof2 * chroma * forming / size;
+vec2 shift = -n * prof * coherence * strength * forming / size;
+vec2 split = n * prof2 * coherence * chroma * forming / size;
 
 vec3 col;
 vec3 backdrop = texture2D(tex, uv).rgb;
 col.r = texture2D(tex, clamp(uv + shift + split, 0.0, 1.0)).r;
 col.g = texture2D(tex, clamp(uv + shift, 0.0, 1.0)).g;
 col.b = texture2D(tex, clamp(uv + shift - split, 0.0, 1.0)).b;
-// Where the lens compresses the background hardest, a few extra taps soften
-// what would otherwise alias into a stripe.
-if (prof > 0.2) {
-    vec2 o = n * 1.4 * prof / size;
-    vec2 t = vec2(-n.y, n.x) * 1.4 * prof / size;
-    vec3 soft = texture2D(tex, clamp(uv + shift + o, 0.0, 1.0)).rgb +
-                texture2D(tex, clamp(uv + shift - o, 0.0, 1.0)).rgb +
-                texture2D(tex, clamp(uv + shift + t, 0.0, 1.0)).rgb +
-                texture2D(tex, clamp(uv + shift - t, 0.0, 1.0)).rgb;
-    col = mix(col, soft * 0.25, 0.45 * smoothstep(0.2, 0.7, prof));
+// The background is blurrier right at the edge: the glass is thickest there
+// and what it magnifies is out of focus. Eight taps in a ring, wider and
+// stronger the closer to the edge (the reference mixes in a second, blurrier
+// copy of the scene for the same effect).
+if (prof > 0.08) {
+    float radius_px = 4.5 * prof;
+    vec3 soft = vec3(0.0);
+    for (int i = 0; i < 8; i++) {
+        float a = 0.785398 * float(i);
+        vec2 o = vec2(cos(a), sin(a)) * radius_px / size;
+        soft += texture2D(tex, clamp(uv + shift + o, 0.0, 1.0)).rgb;
+    }
+    col = mix(col, soft * 0.125, 0.75 * smoothstep(0.08, 0.6, prof));
 }
 
 // Tahoe glass makes what is behind it a little more vivid.
@@ -190,6 +212,11 @@ float lobe2 = pow(max(dot(n, -light_dir), 0.0), 2.0) * 0.5;
 float rim_light = band * (0.12 + 0.42 * (lobe1 + lobe2)) * g_b.y;
 // A broad, very faint inset glow along the bevel on the lit side.
 float inset_glow = exp(-din / max(rim_w * 0.4, 3.0)) * 0.05 * (lobe1 + 0.25);
+// The bevel's inner band: where the lip turns into the flat middle, a little
+// light on the side facing the light.
+float bevel = max(rim_w * 0.4, 4.0);
+float inner_band = exp(-pow((din - bevel * 0.5) / (bevel * 0.45), 2.0)) * coherence;
+inset_glow += inner_band * 0.07 * lobe1;
 
 // Fresnel: the surface catches more light towards its edges, as glass does at
 // grazing angles. Faint, visible only when looking closely.
@@ -197,7 +224,7 @@ float fres = pow(1.0 - depth, fresnel_power) * g_a.z * forming;
 
 // Soft sheen on the upper part of the surface.
 float top = clamp(1.0 - uv.y * 2.2, 0.0, 1.0);
-float sheen_light = top * top * g_a.w * 0.08 * forming;
+float sheen_light = top * top * g_a.w * 0.05 * forming;
 
 // Inner shadow: the glass looks thick, the edges darken a touch.
 float inner = smoothstep(0.0, max(thickness * 1.6, 8.0), -d);
@@ -211,7 +238,8 @@ if (pointer.x >= 0.0) {
     lit = glow * exp(-dist * dist / (2.0 * 70.0 * 70.0));
 }
 
-col = col + vec3(rim_light + inset_glow + sheen_light + fres * 0.30 + lit * 0.14) * (1.0 - col);
+// Mostly neutral light (slightly cool), never a coloured outline.
+col = col + vec3(0.94, 0.97, 1.0) * (rim_light + inset_glow + sheen_light + fres * 0.30 + lit * 0.14) * (1.0 - col);
 int dm = int(debug_mode + 0.5);
 if (dm == 1) col = backdrop;
 else if (dm == 2) col = vec3(0.5 + 0.5 * (shift.x * size.x) / max(g_b.x, 1.0), 0.5 + 0.5 * (shift.y * size.y) / max(g_b.x, 1.0), 0.5);
@@ -330,7 +358,7 @@ export function glassParamsFromSettings(settings, radius) {
     const tinted = settings.get_boolean('glass-tinted');
     const dark = settings.get_boolean('glass-dark');
     const base = tinted ? [0.19, 0.36, 0.86] : (dark ? [0.07, 0.07, 0.09] : [0.97, 0.97, 0.98]);
-    const alpha = tinted ? Math.min(0.9, 0.3 + intensity * 0.55) : Math.min(0.85, 0.04 + intensity * 0.5);
+    const alpha = tinted ? Math.min(0.9, 0.3 + intensity * 0.55) : Math.min(0.85, 0.01 + intensity * 0.16);
     const q = qualityOf(settings);
     const params = {
         radius,
@@ -359,7 +387,7 @@ export function clearGlassParams(settings, radius) {
         chroma: base.chroma * 1.4,
         sheen: 1.2,
         saturation: 1.25,
-        tint: [...base.tint.slice(0, 3), base.tint[3] * 0.45],
+        tint: [...base.tint.slice(0, 3), Math.max(0.12, base.tint[3] * 0.6)],
     };
 }
 

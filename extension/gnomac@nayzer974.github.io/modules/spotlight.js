@@ -179,7 +179,7 @@ export class Spotlight {
         this._card.set_pivot_point(0.5, 0.0);
         this._glass = new GlassSurface({
             backdrop: 'windows',
-            blur: Math.max(this._settings.get_int('glass-blur'), 24),
+            blur: Math.max(this._settings.get_int('glass-blur'), 9),
             glass: {
                 ...clearGlassParams(this._settings, RADIUS),
                 refraction: this._settings.get_double('glass-refraction') * 1.2,

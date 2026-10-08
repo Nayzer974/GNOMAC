@@ -242,3 +242,18 @@ Soyons honnêtes sur l'écart avec le matériau d'Apple :
 * `lib/shaderEffect.js` : base commune des shaders. GNOME 51 a retiré `Shell.GLSLEffect` ; la même API est fournie au-dessus de `Clutter.OffscreenEffect` + snippets Cogl (le shader est inchangé). Vérifié en VM sous GNOME 51 : le verre du Dock s'affiche. Rendu comparé à GNOME 50.5 : **non comparé image par image**.
 * Plafond batterie (`lib/glassPerformance.js`, UPower) : en décharge, sous 20 % → HIGH au plus, sous 10 % → MEDIUM ; sur secteur, sans batterie ou sans réponse fiable : aucun plafond (affiché `N/A`). La fonction `batteryCap` n'a **pas** été exercée sur une vraie batterie (la VM n'en a pas de fiable pour ce test).
 * Fréquence : les seuils FPS du gestionnaire de qualité sont mis à l'échelle de la fréquence réelle (`lib/display.js`).
+
+## Réécriture d'après le dépôt de référence (true-liquid-glass-shojiwm)
+
+Le défaut de la version précédente : un fond **très flouté** (flou 30) et une teinte claire par-dessus donnaient un panneau « flou + voile », la lentille ne se voyait presque pas. Le dépôt de référence fait l'inverse : un fond presque net (flou 4, 2 passes), **aucune teinte notable**, et une **lentille forte sur le bord**. Repris ici :
+
+* **Profil circulaire filtré** : `1 − √(1 − x²)` régularisé, évalué en 4 points par pixel (comme `filteredCircularLens`), pour la réfraction et, avec une largeur moitié, pour la dispersion.
+* **Déplacement plafonné** à la largeur du rebord (1,25 ×), le long de la normale vers l'intérieur.
+* **Cohérence aux jointures** : la longueur du gradient de la distance (qui baisse là où deux formes d'un groupe fusionnent) atténue la lentille au lieu de la laisser pointer au hasard.
+* **Flou de bord** : 8 lectures en anneau, d'autant plus larges et fortes qu'on est près du bord (la référence mélange une seconde copie plus floue ; nous n'avons qu'une copie du fond, donc l'effet est approché par ces lectures).
+* **Lumière** : deux lobes, filet neutre légèrement froid (`0.94, 0.97, 1.0`), bande intérieure du biseau.
+* **Réglages par défaut** : flou 5 (était 30), réfraction 40 px (14), dispersion 4 (1,5), teinte 0,01 + 0,16 × intensité (≈ 6 % au lieu de ≈ 19 %). Spotlight et le centre de notifications gardent un flou minimal de 9 pour rester lisibles.
+
+Ce que nous ne faisons pas, et qui est inutile ici : le jump flooding de la référence sert à retrouver la distance au bord d'une forme **quelconque** à partir d'un masque. Nos formes sont des rectangles arrondis (et leurs unions douces) : la distance et la normale sont **calculées exactement**, sans cette chaîne de passes.
+
+Rendu comparé à la vidéo de la référence : **non** (la vidéo n'a pas pu être regardée). Les captures de la VM (rendu logiciel) montrent le fond d'écran et le titre d'une fenêtre se plier et se comprimer contre les bords des panneaux, intérieur lisible.

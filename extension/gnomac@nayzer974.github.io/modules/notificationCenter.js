@@ -161,7 +161,7 @@ export class NotificationCenter {
             width: WIDTH, height});
         this._glass = new GlassSurface({
             backdrop: 'windows',
-            blur: Math.max(this._settings.get_int('glass-blur'), 22),
+            blur: Math.max(this._settings.get_int('glass-blur'), 9),
             glass: clearGlassParams(this._settings, RADIUS),
         });
         this._glass.set_size(WIDTH, height);
