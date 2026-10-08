@@ -2268,3 +2268,19 @@
 .gnomac-nc-close:hover { background-color: rgba(255, 255, 255, 0.2); color: white; }
 .gnomac-nc-empty { color: rgba(255, 255, 255, 0.55); padding: 40px 0; font-size: 11pt; }
 .gnomac-notch-shelf-buttons { spacing: 8px; }
+
+/* ---------- What's new ---------- */
+.gnomac-update-button { padding: 0 6px; }
+.gnomac-wn-card { border-radius: 30px; }
+.gnomac-wn-content { padding: 24px 26px 20px 26px; spacing: 12px; }
+.gnomac-wn-title { font-size: 19pt; font-weight: 800; color: rgba(255, 255, 255, 0.97); }
+.gnomac-wn-list { spacing: 7px; padding-right: 8px; }
+.gnomac-wn-release { font-size: 12pt; font-weight: 700; color: rgba(255, 255, 255, 0.9); padding-top: 10px; }
+.gnomac-wn-heading { font-size: 9.5pt; font-weight: 800; color: rgba(255, 255, 255, 0.55); padding-top: 8px; }
+.gnomac-wn-item { font-size: 10.5pt; color: rgba(255, 255, 255, 0.92); }
+.gnomac-wn-button {
+    padding: 8px 22px; border-radius: 16px;
+    background-color: rgba(255, 255, 255, 0.22);
+    color: white; font-weight: 700;
+}
+.gnomac-wn-button:hover { background-color: rgba(255, 255, 255, 0.32); }

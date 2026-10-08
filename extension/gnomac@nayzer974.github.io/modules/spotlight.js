@@ -47,6 +47,8 @@ function systemActionEntries(extension) {
             'system-lock-screen-symbolic', () => import('../lib/gdmInstall.js').then(m => m.installLoginScreen(false))),
         entry(t('Check the Login Screen', 'Vérifier l’écran de connexion'), ['login', 'gdm', 'connexion', 'verifier', 'vérifier', 'check'],
             'system-lock-screen-symbolic', () => import('../lib/gdmInstall.js').then(m => m.checkLoginScreen())),
+        entry(t('What’s New in GNOMAC', 'Nouveautés de GNOMAC'), ['nouveautes', 'nouveautés', 'whats', 'new', 'changelog', 'version'],
+            'starred-symbolic', () => extension?.updater?.showWhatsNew(true)),
         entry(t('Notification Center', 'Centre de notifications'), ['notifications', 'notification', 'centre', 'center', 'cloche'],
             'preferences-system-notifications-symbolic', () => extension?.notificationCenter?.toggle()),
         entry(t('GNOMAC Diagnostics', 'GNOMAC Diagnostics'), ['diagnostics', 'diagnostic', 'gnomac', 'gpu', 'info', 'system'],

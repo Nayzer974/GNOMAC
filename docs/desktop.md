@@ -34,3 +34,9 @@ C'est le shell **de GDM**, un autre programme que votre bureau : il ne change qu
 ## Déverrouillage
 
 Après le mot de passe, GNOME déverrouille par le signal `Unlock` de logind, qui appelle `deactivate(false)`. L'animation n'était déclenchée que pour `deactivate(true)` : le vrai déverrouillage l'ignorait et le bureau apparaissait d'un coup. Elle s'exécute maintenant dans les deux cas (vérifié en VM avec `deactivate(false)` : la barre et les fenêtres apparaissent par la révélation de `lib/reveal.js`).
+
+## Mises à jour : bouton et écran « Nouveautés »
+
+* **Bouton** dans la barre de menus (icône de mise à jour, réglage `update-button`) : un clic cherche une mise à jour tout de suite ; l'icône tourne pendant la requête et la réponse arrive en notification (« à jour », ou « Nouvelle mise à jour disponible » avec Mettre à jour / Plus tard). Un point rouge signale qu'une version plus récente existe.
+* **Écran « Nouveautés de GNOMAC »** : une carte de verre qui liste les nouveautés et les corrections des versions que vous n'avez pas encore vues. Elle s'affiche **une fois**, 8 secondes après l'ouverture de la première session qui lance la nouvelle version (après une mise à jour, donc), et à la demande par *Spotlight › Nouveautés de GNOMAC*. Les notes sont le fichier `extension/gnomac@nayzer974.github.io/whatsnew.json` : **pour une nouvelle version, ajoutez une entrée avec un `id` plus grand** (nouveautés et corrections, chaque ligne en `["anglais", "français"]`). Sur une première installation, seule la dernière entrée est montrée.
+* Corrigé au passage : écrire certains réglages internes (étagère, éléments du bureau, notes lues) **rechargeait toute l'extension** ; ils sont maintenant exclus du rechargement.

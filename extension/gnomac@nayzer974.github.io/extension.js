@@ -93,7 +93,7 @@ export default class GnomacExtension extends Extension {
         // Runtime state (Pomodoro timings, reminders) is read live by its
         // module: changing it must not rebuild the whole shell UI.
         this._settingsId = this._settings.connect('changed', (_s, key) => {
-            if (key.startsWith('pomodoro-') || key.startsWith('theme-') || key.startsWith('update-') || key === 'desktop-icons-layout' || key === 'glass-debug' || key === 'glass-debug-mode' || key === 'widget-reminders' || key === 'widgets-layout')
+            if (key.startsWith('pomodoro-') || key.startsWith('theme-') || key.startsWith('update-') || key === 'desktop-icons-layout' || key === 'desktop-icons-visible' || key === 'whatsnew-seen' || key === 'island-shelf' || key === 'glass-inspector' || key === 'glass-debug-groups' || key === 'glass-debug' || key === 'glass-debug-mode' || key === 'widget-reminders' || key === 'widgets-layout')
                 return;
             this._scheduleReload();
         });

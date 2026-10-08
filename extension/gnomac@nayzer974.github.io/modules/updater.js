@@ -12,14 +12,19 @@
 // Only https://api.github.com/repos/Nayzer974/GNOMAC is ever contacted for the
 // check, and the same repository is what update.sh installs from.
 
+import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import Soup from 'gi://Soup?version=3.0';
+
+import St from 'gi://St';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as MessageTray from 'resource:///org/gnome/shell/ui/messageTray.js';
 
 import {t} from '../lib/i18n.js';
+import {Easing} from '../lib/motionTokens.js';
+import {timelines} from '../lib/animationTimeline.js';
 
 const REPO = 'Nayzer974/GNOMAC';
 const API = `https://api.github.com/repos/${REPO}/commits/main`;
@@ -49,6 +54,79 @@ export class Updater {
         this._extension.updater = this;
         this._session = new Soup.Session({timeout: 12});
         this._schedule(FIRST_CHECK_SECONDS);
+        this._addButton();
+        // Once the desktop has settled: after an update, say what is new.
+        this._whatsNewId = GLib.timeout_add_seconds(GLib.PRIORITY_LOW, 8, () => {
+            this._whatsNewId = 0;
+            this.showWhatsNew(false);
+            return GLib.SOURCE_REMOVE;
+        });
+    }
+
+    // A button in the menu bar: check for an update by hand. A dot says that
+    // one is waiting. A click checks; the answer comes as a notification.
+    _addButton() {
+        if (!this._settings.get_boolean('update-button'))
+            return;
+        const content = new St.Widget({layout_manager: new Clutter.BinLayout()});
+        this._icon = new St.Icon({icon_name: 'software-update-available-symbolic', icon_size: 15,
+            x_align: Clutter.ActorAlign.CENTER, y_align: Clutter.ActorAlign.CENTER});
+        this._icon.set_pivot_point(0.5, 0.5);
+        this._dot = new St.Widget({style_class: 'gnomac-bell-dot', visible: false, reactive: false,
+            x_align: Clutter.ActorAlign.END, y_align: Clutter.ActorAlign.START});
+        content.add_child(this._icon);
+        content.add_child(this._dot);
+        this._button = new St.Button({style_class: 'panel-button gnomac-update-button', can_focus: false, reactive: true,
+            y_align: Clutter.ActorAlign.CENTER, child: content, accessible_name: t('Check for updates', 'Chercher une mise à jour')});
+        this._button.connect('clicked', () => this.check({manual: true}));
+        this._button.connect('destroy', () => (this._button = null));
+        const right = Main.panel._rightBox;
+        const anchor = Main.panel.statusArea.quickSettings?.container ?? null;
+        if (anchor && anchor.get_parent() === right)
+            right.insert_child_below(this._button, anchor);
+        else
+            right.add_child(this._button);
+        this._syncDot();
+    }
+
+    _syncDot() {
+        if (!this._dot)
+            return;
+        const latest = this._settings.get_string('update-latest');
+        const current = readInstalled()?.sha ?? '';
+        this._dot.visible = !!latest && latest !== current;
+    }
+
+    // The icon turns while GitHub is being asked.
+    _spin(on) {
+        if (!this._icon)
+            return;
+        this._spinRun?.cancel();
+        this._spinRun = null;
+        if (!on) {
+            this._icon.rotation_angle_z = 0;
+            return;
+        }
+        this._spinRun = timelines.run({
+            duration: 900, easing: Easing.linear,
+            onFrame: (_e, raw) => (this._icon.rotation_angle_z = 360 * raw),
+            onDone: () => {
+                this._icon.rotation_angle_z = 0;
+                if (this._checking)
+                    this._spin(true);
+            },
+        });
+    }
+
+    // After an update: the notes of the releases not seen yet. `force` (from
+    // Spotlight) shows the latest ones even if they were seen.
+    showWhatsNew(force) {
+        import('../lib/whatsNew.js').then(m => {
+            const releases = m.loadReleases(this._extension);
+            const list = force ? releases.slice(0, 3) : m.releasesToShow(releases, this._settings.get_int('whatsnew-seen'));
+            if (list.length)
+                m.showWhatsNew(this._extension, list);
+        }).catch(e => logError(e, 'GNOMAC updater: what is new'));
     }
 
     disable() {
@@ -58,6 +136,14 @@ export class Updater {
             GLib.source_remove(this._timeoutId);
             this._timeoutId = 0;
         }
+        if (this._whatsNewId) {
+            GLib.source_remove(this._whatsNewId);
+            this._whatsNewId = 0;
+        }
+        this._spinRun?.cancel();
+        this._button?.destroy();
+        this._button = null;
+        import('../lib/whatsNew.js').then(m => m.closeWhatsNew()).catch(() => {});
         if (this._retryId) {
             GLib.source_remove(this._retryId);
             this._retryId = 0;
@@ -87,10 +173,14 @@ export class Updater {
         const mode = this._settings.get_string('update-mode');
         if (!this._session || (!manual && (mode === 'off' || !this._settings.get_boolean('enable-updater'))))
             return;
+        this._checking = true;
+        if (manual)
+            this._spin(true);
         const message = Soup.Message.new('GET', API);
         message.request_headers.append('User-Agent', 'GNOMAC-updater');
         message.request_headers.append('Accept', 'application/vnd.github+json');
         this._session.send_and_read_async(message, GLib.PRIORITY_LOW, null, (session, result) => {
+            this._checking = false;
             try {
                 const bytes = session.send_and_read_finish(result);
                 if (message.get_status() !== Soup.Status.OK)
@@ -121,6 +211,7 @@ export class Updater {
 
     _onLatest(latest, manual, startup = false) {
         this._settings.set_string('update-latest', latest.sha);
+        this._syncDot();
         const installed = readInstalled();
         const current = installed?.sha ?? '';
         const newer = latest.sha && current !== latest.sha;
@@ -198,6 +289,7 @@ export class Updater {
     }
 
     _notifyDone() {
+        this._syncDot();
         const notification = new MessageTray.Notification({
             source: this._notifySource(),
             title: t('GNOMAC is updated', 'GNOMAC est à jour'),

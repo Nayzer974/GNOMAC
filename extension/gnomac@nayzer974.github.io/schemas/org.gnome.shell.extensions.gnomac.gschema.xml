@@ -433,6 +433,14 @@
       <default>false</default>
       <summary>Show the Liquid Glass debug overlay (surfaces, quality, brightness)</summary>
     </key>
+    <key name="whatsnew-seen" type="i">
+      <default>0</default>
+      <summary>The newest release notes already shown (whatsnew.json)</summary>
+    </key>
+    <key name="update-button" type="b">
+      <default>true</default>
+      <summary>A button in the menu bar to check for updates by hand</summary>
+    </key>
     <key name="island-shelf" type="as">
       <default>[]</default>
       <summary>Files kept on the notch shelf (URIs)</summary>

@@ -1,0 +1,25 @@
+[
+  {
+    "id": 1,
+    "title": ["GNOMAC · Liquid Glass, bureau, notifications", "GNOMAC · Liquid Glass, bureau, notifications"],
+    "features": [
+      ["Liquid Glass rebuilt: a real lens at the edges, almost no blur, a thin bright rim", "Liquid Glass refait : une vraie lentille sur les bords, presque pas de flou, un fin liseré lumineux"],
+      ["Notification Center: a bell in the menu bar opens a glass panel with every notification, Clear All and Do Not Disturb", "Centre de notifications : une cloche dans la barre de menus ouvre un panneau de verre avec toutes les notifications, Tout effacer et Ne pas déranger"],
+      ["Spotlight opens from a dot and spreads to both sides", "Spotlight s'ouvre depuis un point et s'étale des deux côtés"],
+      ["Desktop: a full right-click menu (New Folder, New Text Document, Paste, Sort By, Show Desktop Items…), selection rectangle, keyboard shortcuts", "Bureau : un vrai menu clic droit (Nouveau dossier, Nouveau document texte, Coller, Trier par, Afficher les éléments du bureau…), rectangle de sélection, raccourcis clavier"],
+      ["Icons now stay visible over video wallpapers (Hidamari)", "Les icônes restent visibles sur les fonds vidéo (Hidamari)"],
+      ["The notch shelf is kept between sessions and has an Add Files… button", "L'étagère de l'encoche est conservée entre les sessions et a un bouton Ajouter des fichiers…"],
+      ["The notch announces charging: plug in the charger and it shows the level", "L'encoche annonce la recharge : branche le chargeur et elle affiche le niveau"],
+      ["Updates: checked at every start, a button in the menu bar to check by hand, and this screen after an update", "Mises à jour : vérifiées à chaque démarrage, un bouton dans la barre de menus pour vérifier à la main, et cet écran après une mise à jour"],
+      ["Login screen: install or check it from Spotlight", "Écran de connexion : l'installer ou le vérifier depuis Spotlight"],
+      ["Works on GNOME 51", "Fonctionne sur GNOME 51"]
+    ],
+    "fixes": [
+      ["The unlock animation now plays after typing the password", "L'animation de déverrouillage se joue maintenant après le mot de passe"],
+      ["Closing a window uses the same Genie effect as minimising", "Fermer une fenêtre utilise le même effet Génie que la réduction"],
+      ["Desktop icons can be moved (the drag no longer loses the icon), clicks and trackpad taps are more reliable", "Les icônes du bureau se déplacent (le glisser ne perd plus l'icône), les clics et les tapes du trackpad sont plus fiables"],
+      ["Island player: the progress bar starts from the left and follows the music, click it to seek, pause and skip work", "Lecteur de l'encoche : la barre de progression part de la gauche et suit la musique, un clic avance ou recule, pause et suivant fonctionnent"],
+      ["Update button: no more \"source folder not found\"", "Mise à jour : plus de « dossier source introuvable »"]
+    ]
+  }
+]
