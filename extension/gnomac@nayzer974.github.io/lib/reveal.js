@@ -128,12 +128,20 @@ export function revealDesktop(extension, {slow = 1, onDone = null} = {}) {
     // never on an actor the mode change could stop.
     const effects = blurTargets().map(a => a.get_effect(EFFECT_NAME)).filter(Boolean);
     const timeline = new Clutter.Timeline({actor: global.stage, duration: ms(BLUR_MS)});
+    // A new radius means blurring the whole wallpaper again, the costliest thing
+    // here: while the blur is wide it changes in steps of 3 px (invisible),
+    // only near sharp does it follow pixel by pixel.
+    let lastRadius = -1;
     timeline.connect('new-frame', () => {
         const eased = 1 - (1 - timeline.get_progress()) ** 3;
+        const wide = Math.max(0, Math.round(BLUR_RADIUS * (1 - eased)));
+        const radius = wide > 12 ? Math.round(wide / 3) * 3 : wide;
         for (const effect of effects) {
-            effect.radius = Math.max(0, Math.round(BLUR_RADIUS * (1 - eased)));
+            if (radius !== lastRadius)
+                effect.radius = radius;
             effect.brightness = 0.92 + 0.08 * eased;
         }
+        lastRadius = radius;
     });
     timeline.start();
     end = ms(BLUR_MS);

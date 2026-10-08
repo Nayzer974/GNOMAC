@@ -37,8 +37,12 @@ import {EndSessionDialog} from 'resource:///org/gnome/shell/ui/endSessionDialog.
 
 import {GlassSurface, glassParamsFromSettings} from '../lib/glass.js';
 import {easeInOut, easeOut, greetingOrder, paintLogo, paintWord} from '../lib/bootArt.js';
+import {LensSurface} from '../lib/lensEffect.js';
 import {hideDesktop, removeRevealBlur, revealDesktop} from '../lib/reveal.js';
 import {t} from '../lib/i18n.js';
+
+// How long the lens takes to cover the screen.
+const LENS_MS = 900;
 
 const MESSAGES = {
     ConfirmedShutdown: ['Shutting down…', 'Arrêt en cours…'],
@@ -50,7 +54,7 @@ const MESSAGES = {
 // and a progress bar. Every drawn part is a Cairo area repainted from a few
 // numbers (this.logo, this.word) that the sequence animates.
 class Overlay {
-    constructor(extension, {caption = '', withPlate = false} = {}) {
+    constructor(extension, {caption = '', withPlate = false, withLens = false} = {}) {
         this._settings = extension.getSettings();
         const monitor = Main.layoutManager.primaryMonitor;
         this._monitor = monitor;
@@ -73,6 +77,15 @@ class Overlay {
             this.plate.set_size(monitor.width, monitor.height);
             this.plate.opacity = 0;
             this.actor.add_child(this.plate);
+        }
+
+        // The lens (start-up style "lens"): built now, while GNOME is still
+        // starting, so its wallpaper is loaded by the time it opens.
+        this.lens = null;
+        if (withLens) {
+            this.lens = new LensSurface(monitor, [monitor.width / 2, monitor.height * 0.47]);
+            this.lens.opacity = 0;
+            this.actor.add_child(this.lens);
         }
 
         this.base = new St.Widget({style_class: 'gnomac-boot-base', x: 0, y: 0,
@@ -275,7 +288,7 @@ export class BootShutdown {
         const {logo = true, hello = true, classic = false, immediate = false, mist = false, lens = false} = opts;
         this._stopAll();
         this._boot?.destroy();
-        const overlay = new Overlay(this._extension, {withPlate: hello || mist || lens});
+        const overlay = new Overlay(this._extension, {withPlate: hello || mist, withLens: lens});
         this._boot = overlay;
         this._skipped = false;
         // The cover is up before GNOME draws anything.
@@ -390,33 +403,22 @@ export class BootShutdown {
     // unlock (lib/reveal.js): blur to sharp, then the elements settle in.
     _lens(overlay) {
         const slow = this._slow;
-        const plate = overlay.plate;
+        const lens = overlay.lens;
         const monitor = Main.layoutManager.primaryMonitor;
-        const diagonal = Math.hypot(monitor.width, monitor.height);
-        const start = Math.round(monitor.height * 0.06);
-        const end = diagonal * 1.12;
         const centreX = monitor.width / 2;
         const centreY = monitor.height * 0.47;
-        // The lens is the plate itself (a glass surface over the wallpaper):
-        // its size and radius follow the disc.
-        plate.setGlass({tint: [0.02, 0.03, 0.06, 0.04], refraction: 90, chroma: 6, rim: 1, sheen: 0.8,
-            fresnel: 0.55, depthShade: 0.1});
-        plate.setBlur(8);
-        plate.opacity = 255;
-        // The lens is ABOVE the black cover (the cover stays around it).
-        overlay.actor.set_child_above_sibling(plate, overlay.base);
+        const start = monitor.height * 0.03;
+        // Far enough to cover the farthest corner.
+        const end = Math.hypot(Math.max(centreX, monitor.width - centreX),
+            Math.max(centreY, monitor.height - centreY)) + 8;
+        // The lens is ABOVE the black cover (the cover stays around it). It
+        // keeps the size of the screen; only its radius changes (lib/lensEffect.js).
+        overlay.actor.set_child_above_sibling(lens, overlay.base);
+        lens.setRadius(start);
+        lens.opacity = 255;
         let revealed = false;
-        const place = d => {
-            const size = Math.round(d);
-            plate.set_size(size, size);
-            plate.set_position(Math.round(centreX - size / 2), Math.round(centreY - size / 2));
-            plate.setGlass({radius: size / 2, thickness: Math.min(size * 0.45, 90)});
-            plate.setStageOrigin(monitor.x + centreX - size / 2, monitor.y + centreY - size / 2);
-        };
-        place(start);
-        this._tween(overlay.actor, 1000, p => {
-            const eased = 1 - (1 - p) ** 3;
-            place(start + (end - start) * eased);
+        this._tween(overlay.actor, LENS_MS, p => {
+            lens.setRadius(start + (end - start) * easeOut(p));
             // The desktop starts to be revealed while the lens is still opening.
             if (!revealed && p > 0.45 && this._chromeHidden) {
                 revealed = true;
@@ -425,7 +427,7 @@ export class BootShutdown {
         }, () => {
             // The lens covers the screen: it melts into the desktop.
             this._tween(overlay.actor, 320, p => {
-                plate.opacity = Math.round(255 * (1 - easeOut(p)));
+                lens.opacity = Math.round(255 * (1 - easeOut(p)));
                 overlay.base.opacity = 0;
             }, () => {
                 this._after(120, () => {
