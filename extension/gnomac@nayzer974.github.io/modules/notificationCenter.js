@@ -145,8 +145,10 @@ export class NotificationCenter {
         this._root.connect('button-press-event', (_a, event) => {
             const [x, y] = event.get_coords();
             const [px, py] = this._card.get_transformed_position();
-            if (x < px || x > px + this._card.width || y < py || y > py + this._card.height)
-                this.close();
+            // Inside the card the press belongs to what is under it (buttons, cards).
+            if (x >= px && x <= px + this._card.width && y >= py && y <= py + this._card.height)
+                return Clutter.EVENT_PROPAGATE;
+            this.close();
             return Clutter.EVENT_STOP;
         });
         this._root.connect('key-press-event', (_a, event) => {

@@ -130,8 +130,10 @@ export function showWhatsNew(extension, releases) {
     root.connect('button-press-event', (_a, event) => {
         const [x, y] = event.get_coords();
         const [cx, cy] = card.get_transformed_position();
-        if (x < cx || x > cx + card.width || y < cy || y > cy + card.height)
-            state.close();
+        // Inside the card the press belongs to what is under it (the button).
+        if (x >= cx && x <= cx + card.width && y >= cy && y <= cy + card.height)
+            return Clutter.EVENT_PROPAGATE;
+        state.close();
         return Clutter.EVENT_STOP;
     });
     root.grab_key_focus();
