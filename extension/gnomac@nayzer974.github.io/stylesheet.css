@@ -2215,6 +2215,31 @@
     caret-color: #ffffff;
 }
 
+/* A folder (or the Trash, or a Files window's hint) lights up under a dragged icon. */
+.gnomac-desk-icon:drop {
+    background-color: rgba(10, 132, 255, 0.38);
+    border-color: rgba(255, 255, 255, 0.75);
+}
+
+.gnomac-dock-item:drop {
+    background-color: rgba(255, 255, 255, 0.22);
+    border-radius: 16px;
+}
+
+.gnomac-desk-proxy {
+    background-color: rgba(255, 255, 255, 0.10);
+}
+
+.gnomac-desk-drop-hint {
+    color: #ffffff;
+    font-size: 9.5pt;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background-color: rgba(28, 28, 34, 0.82);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+}
+
 .gnomac-desk-ghost {
     border: 2px dashed rgba(255, 255, 255, 0.5);
     border-radius: 12px;

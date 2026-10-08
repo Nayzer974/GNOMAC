@@ -23,6 +23,14 @@
 // grab, so the icon keeps following when the pointer leaves it; releasing
 // anywhere drops it.
 //
+// DROP TARGETS. While an icon is dragged it is drawn above the windows, and
+// where it is released decides what happens: on the notch it goes to the shelf;
+// on the Trash of the dock it is trashed; on a folder of the desktop it is moved
+// into it; on a Files window it is moved into the folder that window shows
+// (GNOME Shell cannot talk to another application's window, so the folder is
+// found from the window's title: see _filesFolders); anywhere else it is placed
+// on the desktop grid.
+//
 // Honest limit: GNOME Shell on Wayland cannot receive a drag that starts in
 // another application (such as the Files window), so dropping from Files onto
 // the desktop is not possible; copy in Files and use "Paste" here instead.
@@ -30,7 +38,9 @@
 import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
+import Meta from 'gi://Meta';
 import Pango from 'gi://Pango';
+import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
@@ -49,6 +59,27 @@ const ATTRS = 'standard::name,standard::display-name,standard::icon,standard::is
 const SIZES = {small: 0.85, medium: 1, large: 1.25};
 const DRAG_THRESHOLD = 8;
 const DOUBLE_CLICK_MS = 500;
+// Windows of these applications are file managers a drop can go to.
+const FILE_MANAGERS = /^(org\.gnome\.nautilus|org\.gnome\.files|nemo|thunar|org\.kde\.dolphin|pcmanfm|caja)/i;
+// What Files calls the home folder in its title.
+const HOME_TITLES = new Set(['home', 'dossier personnel', 'personal folder', 'persönlicher ordner', 'carpeta personal']);
+const TRASH_TITLES = new Set(['trash', 'corbeille', 'papierkorb', 'papelera']);
+const SKIP_DIRS = new Set(['node_modules', 'snap', 'flatpak', '.git']);
+
+// A child of `folder` called `name`, or "name (1).ext", "name (2).ext"… if taken.
+function uniqueChild(folder, name) {
+    let child = folder.get_child(name);
+    if (!child.query_exists(null))
+        return child;
+    const dot = name.lastIndexOf('.');
+    const [stem, extension] = dot > 0 ? [name.slice(0, dot), name.slice(dot)] : [name, ''];
+    for (let n = 1; n < 1000; n++) {
+        child = folder.get_child(`${stem} (${n})${extension}`);
+        if (!child.query_exists(null))
+            return child;
+    }
+    return child;
+}
 
 function desktopPath() {
     const dir = GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_DESKTOP);
@@ -92,6 +123,10 @@ class IconTile {
 
     uri() {
         return this.file.get_uri();
+    }
+
+    get isFolder() {
+        return this.info.get_file_type() === Gio.FileType.DIRECTORY;
     }
 
     setSelected(selected) {
@@ -172,13 +207,14 @@ class IconTile {
             return Clutter.EVENT_STOP;
         if (!drag.moved) {
             drag.moved = true;
-            for (const {tile} of drag.starts) {
+            for (const {tile} of drag.starts)
                 tile.actor.get_parent()?.set_child_above_sibling(tile.actor, null);
-                tile.actor.ease({scale_x: 1.06, scale_y: 1.06, opacity: 220, duration: 120});
-            }
+            // What follows the pointer is drawn above the windows.
+            this.manager.beginDrag(drag.starts.map(start => start.tile));
         }
         for (const {tile, x: ox, y: oy} of drag.starts)
             tile.actor.set_position(Math.round(ox + x - drag.x), Math.round(oy + y - drag.y));
+        this.manager.syncProxies();
         this.manager.dragOver(this, x, y);
         return Clutter.EVENT_STOP;
     }
@@ -324,6 +360,7 @@ export class DesktopIcons {
             this._desk.menuProviders.delete(this._menuProvider);
             this._desk.closeMenu();
         }
+        this.endDrag();
         this._ghost?.destroy();
         this._ghost = null;
         this._band?.destroy();
@@ -669,14 +706,18 @@ export class DesktopIcons {
         }
     }
 
+    // Returns the tiles that could not be trashed.
     trash(tiles) {
+        const failed = [];
         for (const tile of tiles) {
             try {
                 tile.file.trash(null);
             } catch (e) {
+                failed.push(tile);
                 Main.notify('GNOMAC', `${t('Could not move to the Trash:', 'Mise à la corbeille impossible :')} ${e.message}`);
             }
         }
+        return failed;
     }
 
     toShelf(tiles) {
@@ -697,20 +738,173 @@ export class DesktopIcons {
         clipboard.set_content(St.ClipboardType.CLIPBOARD, 'x-special/gnome-copied-files', new GLib.Bytes(new TextEncoder().encode(text)));
     }
 
+    // ---------------------------------------------------------- dragging
+
+    // The icons being dragged are drawn by copies above everything (the real
+    // tiles live under the windows), which follow the real ones.
+    beginDrag(tiles) {
+        this.endDrag();
+        this._proxies = tiles.map(tile => {
+            const proxy = new St.BoxLayout({style_class: 'gnomac-desk-icon gnomac-desk-proxy',
+                orientation: Clutter.Orientation.VERTICAL, reactive: false,
+                width: tile.actor.width, height: tile.actor.height, opacity: 235});
+            proxy.set_pivot_point(0.5, 0.5);
+            if (tile.selected)
+                proxy.add_style_pseudo_class('selected');
+            const icon = new St.Icon({icon_size: tile.icon.icon_size, x_align: Clutter.ActorAlign.CENTER,
+                style_class: 'gnomac-desk-icon-image'});
+            if (tile.icon.gicon)
+                icon.gicon = tile.icon.gicon;
+            else
+                icon.icon_name = tile.icon.icon_name;
+            const label = new St.Label({text: tile.label.text, style_class: 'gnomac-desk-icon-label',
+                x_align: Clutter.ActorAlign.CENTER});
+            label.clutter_text.set({line_wrap: true, line_wrap_mode: Pango.WrapMode.WORD_CHAR,
+                ellipsize: Pango.EllipsizeMode.END, line_alignment: Pango.Alignment.CENTER});
+            proxy.add_child(icon);
+            proxy.add_child(label);
+            proxy.set_position(tile.actor.x, tile.actor.y);
+            Main.uiGroup.add_child(proxy);
+            proxy.ease({scale_x: 1.06, scale_y: 1.06, duration: 120, mode: Clutter.AnimationMode.EASE_OUT_QUAD});
+            tile.actor.ease({opacity: 0, duration: 90});
+            return {tile, proxy};
+        });
+    }
+
+    syncProxies() {
+        for (const {tile, proxy} of this._proxies ?? [])
+            proxy.set_position(tile.actor.x, tile.actor.y);
+    }
+
+    // The copies, the drop hint and the highlight go; `tiles` come back on the
+    // grid when the drop is not a move out of the desktop.
+    endDrag() {
+        this._setHot(null);
+        this._hint?.destroy();
+        this._hint = null;
+        for (const {proxy} of this._proxies ?? [])
+            proxy.destroy();
+        this._proxies = [];
+    }
+
+    // Where a drop at (x, y) would go, or null for the desktop itself.
+    _targetAt(x, y, moving) {
+        if (this._overNotch(x, y))
+            return {kind: 'notch'};
+        const trash = this._dockTrash();
+        if (trash && this._within(trash, x, y, 12))
+            return {kind: 'trash', actor: trash};
+        const window = this._windowAt(x, y);
+        if (window)
+            return this._isFileManager(window) ? {kind: 'files', window} : null;
+        for (const tile of this.tiles) {
+            if (tile.isFolder && !moving.has(tile.name) && tile.actor.visible && this._within(tile.actor, x, y, 0))
+                return {kind: 'folder', tile, actor: tile.actor};
+        }
+        return null;
+    }
+
+    _within(actor, x, y, pad) {
+        if (!actor?.get_stage?.() || !actor.mapped)
+            return false;
+        const [ax, ay] = actor.get_transformed_position();
+        const [aw, ah] = actor.get_transformed_size();
+        return x >= ax - pad && x <= ax + aw + pad && y >= ay - pad && y <= ay + ah + pad;
+    }
+
+    _dockTrash() {
+        const dock = this._extension._modules?.find(m => m.constructor.name === 'Dock');
+        return (dock?._items ?? []).find(item => item.kind === 'trash') ?? null;
+    }
+
+    // The topmost real window under the point, or null. The wallpaper windows
+    // of a video wallpaper are not windows for this.
+    _windowAt(x, y) {
+        const workspace = global.workspace_manager.get_active_workspace();
+        const actors = global.window_group.get_children().reverse();
+        for (const actor of actors) {
+            const window = actor.meta_window;
+            if (!window || !actor.visible || window.minimized || !window.located_on_workspace(workspace) ||
+                this._desk?._isWallpaperWindow(window))
+                continue;
+            const type = window.get_window_type();
+            if (type !== Meta.WindowType.NORMAL && type !== Meta.WindowType.DIALOG &&
+                type !== Meta.WindowType.MODAL_DIALOG)
+                continue;
+            const r = window.get_frame_rect();
+            if (x >= r.x && x <= r.x + r.width && y >= r.y && y <= r.y + r.height)
+                return window;
+        }
+        return null;
+    }
+
+    _isFileManager(window) {
+        const id = Shell.WindowTracker.get_default().get_window_app(window)?.get_id() ?? window.get_wm_class() ?? '';
+        return FILE_MANAGERS.test(id);
+    }
+
+    // Highlights the target under the pointer (one at a time).
+    _setHot(target) {
+        const next = target?.actor ?? null;
+        if (this._hot !== next) {
+            try {
+                this._hot?.remove_style_pseudo_class('drop');
+            } catch {} // the dock was rebuilt under the drag
+            next?.add_style_pseudo_class('drop');
+            this._hot = next;
+        }
+    }
+
+    // A small label that follows the pointer and says what the drop will do.
+    _showHint(text, x, y) {
+        if (!text) {
+            this._hint?.hide();
+            return;
+        }
+        if (!this._hint) {
+            this._hint = new St.Label({style_class: 'gnomac-desk-drop-hint', reactive: false});
+            Main.uiGroup.add_child(this._hint);
+        }
+        this._hint.text = text;
+        this._hint.show();
+        const [, w] = this._hint.get_preferred_width(-1);
+        this._hint.set_position(Math.round(Math.min(Math.max(8, x + 18), global.stage.width - w - 8)),
+            Math.round(y + 24));
+    }
+
+    _hintFor(target) {
+        switch (target?.kind) {
+        case 'trash':
+            return t('Move to Trash', 'Mettre à la corbeille');
+        case 'folder':
+            return t(`Move into “${target.tile.info.get_display_name()}”`, `Déplacer dans « ${target.tile.info.get_display_name()} »`);
+        case 'files': {
+            const title = target.window.get_title() ?? '';
+            return title ? t(`Move into “${title}”`, `Déplacer dans « ${title} »`) : t('Move into this folder', 'Déplacer dans ce dossier');
+        }
+        default:
+            return null;
+        }
+    }
+
     // While dragging: a ghost shows the cell the icon will take; over the
-    // notch the ghost turns into a "keep on the shelf" hint.
+    // notch, a folder, the Trash or a Files window the ghost goes and the
+    // target lights up with a hint of what the drop will do.
     dragOver(tile, x, y) {
         if (!this._ghost) {
             this._ghost = new St.Widget({style_class: 'gnomac-desk-ghost', reactive: false});
             this._layer.insert_child_below(this._ghost, tile.actor);
         }
-        const onNotch = this._overNotch(x, y);
+        const moving = new Set(this.selected().map(tl => tl.name));
+        const target = this._targetAt(x, y, moving);
+        this._setHot(target);
+        this._showHint(this._hintFor(target), x, y);
         const [col, row] = this._nearestFree(this._cellAt(x - tile.actor.width / 2, y - tile.actor.height / 2),
             this._taken(new Set([tile.name])));
         const [gx, gy] = this._point(col, row);
         this._ghost.set_size(tile.actor.width, tile.actor.height);
         this._ghost.set_position(gx, gy);
-        this._ghost.opacity = onNotch ? 0 : 255;
+        this._ghost.opacity = target ? 0 : 255;
     }
 
     _overNotch(x, y) {
@@ -723,12 +917,27 @@ export class DesktopIcons {
 
     // `tiles` are the icons that moved together; `anchor` is the one held.
     drop(_anchor, tiles, x, y) {
+        const target = this._targetAt(x, y, new Set(tiles.map(tl => tl.name)));
         this._ghost?.destroy();
         this._ghost = null;
-        if (this._overNotch(x, y)) {
+        this.endDrag();
+        switch (target?.kind) {
+        case 'notch':
             this.toShelf(tiles);
             this._placeAll(true);
             return;
+        case 'trash':
+            this._fadeOut(tiles);
+            this._failed(this.trash(tiles));
+            return;
+        case 'folder':
+            this._moveInto(tiles, target.tile.file);
+            return;
+        case 'files':
+            this._dropOnFiles(tiles, target.window, x, y);
+            return;
+        default:
+            break;
         }
         const moving = new Set(tiles.map(tl => tl.name));
         const taken = this._taken(moving);
@@ -741,6 +950,140 @@ export class DesktopIcons {
         }
         this._saveLayout();
         this._placeAll(true);
+    }
+
+    // The icons shrink into their target.
+    _fadeOut(tiles) {
+        for (const tile of tiles)
+            tile.actor.ease({opacity: 0, scale_x: 0.55, scale_y: 0.55, duration: 180,
+                mode: Clutter.AnimationMode.EASE_OUT_QUAD});
+    }
+
+    // Something went wrong for these tiles: they come back to their cell.
+    _failed(tiles) {
+        if (!tiles?.length)
+            return;
+        for (const tile of tiles)
+            tile.actor.ease({opacity: 255, scale_x: 1, scale_y: 1, duration: 160});
+        this._placeAll(true);
+    }
+
+    // Moves the dropped files into `folder` (a Gio.File). A name already there
+    // is not overwritten: the newcomer gets " (1)", " (2)"…
+    _moveInto(tiles, folder) {
+        const movable = tiles.filter(tile => {
+            const into = tile.file.equal(folder) || folder.has_prefix(tile.file);
+            if (into)
+                Main.notify('GNOMAC', t('A folder cannot be moved into itself.', 'Un dossier ne peut pas être déplacé dans lui-même.'));
+            return !into && !tile.file.get_parent()?.equal(folder);
+        });
+        // Already there (dropped back on its own folder) or impossible: back to the grid.
+        this._failed(tiles.filter(tile => !movable.includes(tile)));
+        this._fadeOut(movable);
+        for (const tile of movable) {
+            const destination = uniqueChild(folder, tile.name);
+            tile.file.move_async(destination, Gio.FileCopyFlags.NONE, GLib.PRIORITY_DEFAULT, null, null, (file, result) => {
+                try {
+                    file.move_finish(result);
+                } catch (e) {
+                    Main.notify('GNOMAC', `${t('Could not move it:', 'Déplacement impossible :')} ${e.message}`);
+                    this._failed([tile]);
+                }
+            });
+        }
+    }
+
+    // ------------------------------------------------- files window drops
+
+    _dropOnFiles(tiles, window, x, y) {
+        const folders = this._filesFolders(window);
+        if (!folders.length) {
+            Main.notify('GNOMAC', t('Could not tell which folder this window shows: copy the file and paste it there.',
+                'Impossible de savoir quel dossier cette fenêtre affiche : copie le fichier puis colle-le dedans.'));
+            this._failed(tiles);
+            return;
+        }
+        const first = folders[0];
+        if (first === 'trash') {
+            this._fadeOut(tiles);
+            this._failed(this.trash(tiles));
+            return;
+        }
+        if (folders.length === 1) {
+            if (first.equal(this._file)) {
+                this._failed(tiles);       // the desktop itself: nothing to move
+                return;
+            }
+            this._moveInto(tiles, first);
+            return;
+        }
+        // Several folders have that name: the icons go back and you choose.
+        this._failed(tiles);
+        const home = GLib.get_home_dir();
+        this._desk.popup(x, y, (_menu, add) => {
+            for (const folder of folders) {
+                const path = folder.get_path() ?? folder.get_uri();
+                add(t(`Move into ${path.replace(home, '~')}`, `Déplacer dans ${path.replace(home, '~')}`),
+                    () => this._moveInto(tiles.filter(tile => this._tiles.get(tile.name) === tile), folder));
+            }
+        });
+    }
+
+    // The folders a file manager window may be showing. GNOME Shell sees a
+    // window's title and nothing more; Files puts the folder's name in it. So:
+    // the home folder and the Trash by their names, then the user directories
+    // (Documents, Downloads…), then every folder of that name below the home
+    // folder. The caller decides when more than one comes back.
+    _filesFolders(window) {
+        const title = (window.get_title() ?? '').trim();
+        if (!title)
+            return [];
+        const lower = title.toLowerCase();
+        if (TRASH_TITLES.has(lower))
+            return ['trash'];
+        const home = GLib.get_home_dir();
+        if (HOME_TITLES.has(lower) || title === GLib.get_user_name())
+            return [Gio.File.new_for_path(home)];
+        const found = [];
+        const isDir = path => GLib.file_test(path, GLib.FileTest.IS_DIR);
+        for (const id of Object.values(GLib.UserDirectory)) {
+            if (typeof id !== 'number' || id === GLib.UserDirectory.N_DIRECTORIES)
+                continue;
+            const path = GLib.get_user_special_dir(id);
+            if (path && path !== home && GLib.path_get_basename(path).toLowerCase() === lower && isDir(path))
+                found.push(path);
+        }
+        if (!found.length) {
+            // Breadth first, a few levels, a bounded number of folders.
+            let level = [home];
+            let seen = 0;
+            for (let depth = 0; depth < 4 && level.length && seen < 4000 && found.length < 8; depth++) {
+                const next = [];
+                for (const dir of level) {
+                    let enumerator;
+                    try {
+                        enumerator = Gio.File.new_for_path(dir).enumerate_children(
+                            'standard::name,standard::type,standard::is-hidden,standard::is-symlink',
+                            Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, null);
+                    } catch {
+                        continue;
+                    }
+                    let info;
+                    while ((info = enumerator.next_file(null)) !== null && seen++ < 4000) {
+                        if (info.get_file_type() !== Gio.FileType.DIRECTORY || info.get_is_hidden() ||
+                            SKIP_DIRS.has(info.get_name()))
+                            continue;
+                        const path = GLib.build_filenamev([dir, info.get_name()]);
+                        if (info.get_name().toLowerCase() === lower)
+                            found.push(path);
+                        next.push(path);
+                    }
+                    enumerator.close(null);
+                }
+                level = next;
+            }
+        }
+        return found.slice(0, 8).map(path => Gio.File.new_for_path(path));
     }
 
     // ---------------------------------------------------------------- menus

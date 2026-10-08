@@ -9,7 +9,23 @@ Les fichiers de votre dossier Bureau s'affichent et se manipulent comme sous Win
 * **Clavier** (après un clic sur le bureau) : Entrée ouvre, F2 renomme, Suppr met à la corbeille, Ctrl+A / C / X / V, F5 actualise.
 * **Clic droit sur une icône** : Ouvrir, Renommer, Couper, Copier, Copier le chemin, Garder sur l'étagère, Mettre à la corbeille. **Clic droit sur le bureau** : Nouveau dossier, Nouveau document texte, Coller, Trier par (nom, type, date, taille), Actualiser, Tout sélectionner, **Afficher les éléments du bureau** (case à cocher), Ouvrir le dossier Bureau, Ouvrir dans le terminal, Modifier l'arrière-plan, Paramètres d'affichage, Préférences de GNOMAC. (Les menus s'ouvrent au **relâchement** du bouton, comme ceux de GNOME.)
 
-**Limite de Wayland** : le shell ne peut pas recevoir un glisser-déposer qui part d'une autre application (la fenêtre Fichiers). Pour ajouter des fichiers : copier dans Fichiers puis **Coller** (menu du bureau ou Ctrl+V), ou **Nouveau dossier / document**.
+### Déposer une icône quelque part
+
+Pendant le glisser, l'icône est dessinée **au-dessus des fenêtres** (une copie suit le pointeur) et une petite étiquette dit ce que le dépôt fera. Selon l'endroit où on relâche :
+
+| Où | Effet |
+|---|---|
+| Un **dossier du bureau** (il s'allume) | le fichier est **déplacé dedans** |
+| La **corbeille du dock** (elle s'allume) | le fichier est **mis à la corbeille** |
+| Une **fenêtre Fichiers** | le fichier est **déplacé dans le dossier qu'elle affiche** |
+| L'**encoche** | le fichier est gardé sur l'étagère |
+| Ailleurs | l'icône se place sur la grille |
+
+Un nom déjà pris dans le dossier n'est jamais écrasé : le nouveau devient « nom (1).ext ». Un dossier ne peut pas être déposé dans lui-même ; si l'opération échoue, l'icône revient à sa place avec une notification.
+
+**Fenêtre Fichiers : comment on sait quel dossier elle affiche.** Le shell ne voit d'une autre application que le titre de sa fenêtre, et Fichiers y met le nom du dossier. GNOMAC reconnaît donc : « Dossier personnel » (le dossier personnel), « Corbeille », puis les dossiers utilisateur (Documents, Téléchargements, Images…), puis tout dossier de ce nom sous le dossier personnel (4 niveaux). Si **plusieurs** dossiers portent ce nom (deux « Projets »), l'icône revient à sa place et un menu propose les chemins. Si le titre ne correspond à rien (volume externe, résultats de recherche, « Récent »), une notification invite à copier puis **Coller**. Déposer sur la fenêtre Fichiers qui affiche le Bureau ne fait rien.
+
+**Limite de Wayland** : le shell ne peut pas recevoir un glisser-déposer qui part d'une autre application (la fenêtre Fichiers) : l'inverse de ce qui précède, depuis Fichiers vers le bureau, n'est pas possible. Pour ajouter des fichiers : copier dans Fichiers puis **Coller** (menu du bureau ou Ctrl+V), ou **Nouveau dossier / document**.
 
 ## Fond d'écran vidéo (Hidamari)
 
