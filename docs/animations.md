@@ -6,15 +6,20 @@ Durées de base (`lib/glassTokens.js`) : rapide 180 ms, normale 320 ms, lente 52
 
 ## Déverrouillage (`modules/lockScreen.js` + `lib/reveal.js`)
 
-Une seule chronologie, environ 1,1 s en deux temps : le bureau sort d'un **flou** et devient net, puis **ses éléments se posent un par un**. GNOME fait glisser tout l'écran de verrouillage vers le haut ; GNOMAC le remplace par :
+Deux temps, environ 1,4 s : l'interface de verrouillage s'en va, puis le fond d'écran **se dissout dans le bureau**, qui sort d'un **flou** et devient net pendant que **ses éléments se posent un par un**. GNOME fait glisser tout l'écran de verrouillage vers le haut ; GNOMAC le remplace par :
 
 ```
+A. l'interface de verrouillage s'en va (le fond reste flou et fixe)
 0 ms        mot de passe accepté
-0–220       la zone de saisie se contracte (97 %) et s'efface
-0–240       l'avatar et le nom s'effacent
-40–280      l'horloge monte de 10 px et s'efface
-0–520       le flou et l'assombrissement du fond d'écran diminuent (sortie cubique)
-140–520     la couche de verrouillage se dissout et découvre le bureau
+0–200       la zone de saisie se contracte (97 %) et s'efface
+0–200       l'avatar et le nom s'effacent
+30–230      l'horloge monte de 10 px et s'efface
+230         GNOME quitte le mode verrouillé et RECONSTRUIT le bureau (dock, widgets,
+            verre) : quelques centaines de ms une seule fois, sur une image fixe ;
+            le bureau est masqué aussitôt, on attend une image (32 ms)
+B. le fond se dissout dans le bureau (t = 0 au début de B)
+0–400       le flou et l'assombrissement du fond d'écran diminuent (sortie cubique)
+0–380       la couche de verrouillage se dissout et découvre le bureau
 0–480       le fond d'écran sort d'un flou de 30 px et devient net (sortie cubique)
 100–500     les fenêtres apparaissent
 220–600     la barre de menus se pose (opacité, descend de 8 px)
@@ -24,6 +29,8 @@ Une seule chronologie, environ 1,1 s en deux temps : le bureau sort d'un **flou*
 440 + 35/icône   les icônes du bureau montent l'une après l'autre
 ~1100       fin : les effets de flou temporaires sont retirés, plus rien ne bouge
 ```
+
+Pourquoi deux temps : avant, la reconstruction du bureau avait lieu à t = 0, pendant que les animations démarraient. Elles sont calées sur l'horloge, donc quand la première image arrivait elles étaient déjà presque finies : l'écran de verrouillage semblait sauter au bureau, et seul le dock (qui démarre plus tard) s'animait. Maintenant la reconstruction est cachée entre A et B.
 
 Réglable : *Préférences › Démarrage et extinction › Transition de déverrouillage*. En cas d'erreur, le chemin d'origine de GNOME prend le relais (on n'est jamais bloqué).
 
@@ -83,3 +90,7 @@ Les durées ont un facteur global pour les tests : `globalThis.GNOMAC_BOOT_SPEED
 ```js
 globalThis.GNOMAC_UNLOCK_SPEED = 8   // 8 fois plus lent, jusqu'au prochain rechargement
 ```
+
+## Sélecteur de fond d'écran : la bulle (`modules/wallpaperPicker.js`)
+
+Le nouveau fond sort d'un **cercle** qui grandit depuis le centre de l'écran (650 ms, sortie cubique), puis GNOME prend le relais. Pour que ce soit fluide : l'image est **décodée hors de la boucle principale**, déjà réduite à la taille de l'écran (avant, le décodage d'un JPEG 4K par le CSS gelait le shell) ; elle est envoyée une seule fois en texture ; le cercle est une passe de shader sur cette texture en cache ; le shader est retiré dès que le cercle couvre l'écran ; GNOME reçoit **un seul** changement de réglage (trois changements lui faisaient charger le fond trois fois) ; la superposition disparaît quand GNOME a fini son fondu (signal `changed` du gestionnaire de fonds), pas après un délai fixe.

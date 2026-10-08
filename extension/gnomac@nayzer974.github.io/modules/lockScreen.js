@@ -9,6 +9,7 @@
 // patched once and every new dialog is decorated in _init.
 
 import Clutter from 'gi://Clutter';
+import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
 import St from 'gi://St';
 
@@ -21,66 +22,103 @@ import {t} from '../lib/i18n.js';
 import {hideDesktop, revealDesktop} from '../lib/reveal.js';
 
 // ---------------------------------------------------------------------------
-// The unlock transition: lock screen -> desktop, in about 600 ms, one timeline.
-// GNOME slides the whole lock screen up; here the lock UI contracts and fades,
-// the wallpaper loses its frost and brightens, and the desktop is revealed
-// underneath (menu bar, dock and windows materialise, see lib/reveal.js).
+// The unlock transition: lock screen -> desktop, in two beats.
 //
-//    0 ms  password UI starts to fade and contract (220 ms)
-//   40 ms  clock lifts and fades (240 ms)
-//    0 ms  blur and dimming of the wallpaper ease out (520 ms)
-//  140 ms  the lock layer dissolves (380 ms) and uncovers the desktop
-//  120-660 ms  menu bar, dock, windows are revealed
+//   A. the lock UI leaves (the wallpaper stays as it is, frosted):
+//        0 ms  password UI fades and contracts (200 ms)
+//       30 ms  clock lifts and fades (200 ms)
+//   -- the shell leaves the lock mode and rebuilds the desktop (dock, widgets,
+//      glass): a one-off cost of a few hundred ms. It happens HERE, on a still
+//      frame with nothing moving, and the animations of B only start after it:
+//      started before, they were time-based and had already run by the time
+//      the first frame came, so the lock screen seemed to cut to the desktop. --
+//   B. the wallpaper dissolves into the desktop:
+//        0 ms  the frost and dimming of the wallpaper ease out (400 ms)
+//        0 ms  the lock layer dissolves (380 ms) and uncovers the desktop
+//      100-... menu bar, dock, windows are revealed (lib/reveal.js)
 // Ease-out curves, no bounce, no overshoot.
 // ---------------------------------------------------------------------------
-function unlockTransition(shield, dialog, extension, done, slow = 1) {
+const LEAVE_MS = 200;
+const FRAME_MS = 32; // let the rebuilt (and hidden) desktop be drawn once before B
+const DISSOLVE_MS = 380;
+const FROST_MS = 400;
+
+function unlockTransition(shield, dialog, extension, done, slow = 1, rebuild = () => {}) {
     const ms = v => Math.round(v * slow);
     const group = shield._lockDialogGroup;
     const OUT = Clutter.AnimationMode.EASE_OUT_QUAD;
 
-    // The desktop underneath starts hidden, then is revealed.
-    hideDesktop(extension);
-
+    // A. The lock UI leaves.
     if (dialog) {
-        const fadeOut = (actor, extra = {}) => actor?.ease({opacity: 0, duration: ms(220), mode: OUT, ...extra});
+        const fadeOut = actor => actor?.ease({opacity: 0, duration: ms(LEAVE_MS), mode: OUT});
         if (dialog._promptBox) {
             dialog._promptBox.set_pivot_point(0.5, 0.5);
-            dialog._promptBox.ease({opacity: 0, scale_x: 0.97, scale_y: 0.97, duration: ms(220), mode: OUT});
+            dialog._promptBox.ease({opacity: 0, scale_x: 0.97, scale_y: 0.97, duration: ms(LEAVE_MS), mode: OUT});
         }
         fadeOut(dialog._gnomacRest);
         fadeOut(dialog._otherUserButton);
-        dialog._clock?.ease({opacity: 0, translation_y: -10, duration: ms(240), delay: ms(40), mode: OUT});
-
-        // Wallpaper: blur and dimming ease out together with the UI.
-        const widgets = [...(dialog._backgroundGroup ?? [])];
-        const starts = widgets.map(w => {
-            const effect = w.get_effect('blur');
-            return effect ? {effect, radius: effect.radius, brightness: effect.brightness} : null;
-        }).filter(Boolean);
-        if (starts.length) {
-            const timeline = new Clutter.Timeline({actor: group, duration: ms(520)});
-            timeline.connect('new-frame', () => {
-                const eased = 1 - (1 - timeline.get_progress()) ** 3;
-                for (const {effect, radius, brightness} of starts) {
-                    effect.set({radius: Math.max(1, Math.round(radius * (1 - eased))),
-                        brightness: brightness + (1 - brightness) * eased});
-                }
-            });
-            timeline.start();
-        }
+        dialog._clock?.ease({opacity: 0, translation_y: -10, duration: ms(LEAVE_MS), delay: ms(30), mode: OUT});
     }
 
-    group.set_pivot_point(0.5, 0.5);
-    group.ease({opacity: 0, duration: ms(380), delay: ms(140), mode: OUT});
+    const dissolve = () => {
+        // B. The wallpaper dissolves into the desktop (already hidden, see below).
+        if (dialog) {
+            const widgets = [...(dialog._backgroundGroup ?? [])];
+            const starts = widgets.map(w => {
+                const effect = w.get_effect('blur');
+                return effect ? {effect, radius: effect.radius, brightness: effect.brightness} : null;
+            }).filter(Boolean);
+            if (starts.length) {
+                const timeline = new Clutter.Timeline({actor: group, duration: ms(FROST_MS)});
+                timeline.connect('new-frame', () => {
+                    const eased = 1 - (1 - timeline.get_progress()) ** 3;
+                    for (const {effect, radius, brightness} of starts) {
+                        effect.set({radius: Math.max(1, Math.round(radius * (1 - eased))),
+                            brightness: brightness + (1 - brightness) * eased});
+                    }
+                });
+                timeline.start();
+            }
+        }
 
-    revealDesktop(extension, {slow, onDone: () => {
-        done();
-        // The next lock starts from a clean layer.
-        group.remove_all_transitions();
-        group.opacity = 255;
-        group.translation_y = 0;
-        group.set_scale(1, 1);
-    }});
+        group.set_pivot_point(0.5, 0.5);
+        group.ease({opacity: 0, duration: ms(DISSOLVE_MS), mode: OUT});
+
+        revealDesktop(extension, {slow, onDone: () => {
+            done();
+            // The next lock starts from a clean layer.
+            group.remove_all_transitions();
+            group.opacity = 255;
+            group.translation_y = 0;
+            group.set_scale(1, 1);
+        }});
+    };
+
+    const beats = [];
+    const later = (delay, fn) => {
+        const id = GLib.timeout_add(GLib.PRIORITY_DEFAULT, delay, () => {
+            beats.splice(beats.indexOf(id), 1);
+            fn();
+            return GLib.SOURCE_REMOVE;
+        });
+        beats.push(id);
+    };
+    // Rebuild the desktop once the lock UI is gone, hide it, wait one frame, go.
+    later(ms(LEAVE_MS + 30), () => {
+        try {
+            rebuild();
+            hideDesktop(extension);
+        } catch (e) {
+            logError(e, 'GNOMAC unlock transition');
+            done();
+            return;
+        }
+        later(FRAME_MS, dissolve);
+    });
+    return () => {
+        for (const id of beats.splice(0))
+            GLib.source_remove(id);
+    };
 }
 
 const TOP = 0.075; // clock distance from the top, fraction of the height
@@ -225,9 +263,6 @@ export class LockScreen {
                 this._hideLockScreen(false);
                 this._lockDialogGroup.remove_all_transitions();
                 this._lockDialogGroup.translation_y = 0;
-                // Leaving the unlock-dialog mode rebuilds the desktop modules.
-                if (Main.sessionMode.currentMode === 'unlock-dialog')
-                    Main.sessionMode.popMode('unlock-dialog');
                 this.emit('wake-up-screen');
                 dialog?.popModal();
                 if (this._grab) {
@@ -236,8 +271,36 @@ export class LockScreen {
                 }
                 this._longLightbox.lightOff();
                 this._shortLightbox.lightOff();
-                unlockTransition(this, dialog, extension, () => this._completeDeactivate(),
-                    Number(globalThis.GNOMAC_UNLOCK_SPEED) || 1);
+                // Leaving the unlock-dialog mode rebuilds the desktop modules: the
+                // transition does it once the lock UI has left (see above).
+                const rebuild = () => {
+                    // The rebuild disables and enables this module again: it is
+                    // no longer "disabled in the middle of the transition".
+                    self._cancelUnlock = null;
+                    if (Main.sessionMode.currentMode === 'unlock-dialog')
+                        Main.sessionMode.popMode('unlock-dialog');
+                };
+                let finished = false;
+                const done = () => {
+                    finished = true;
+                    self._cancelUnlock = null;
+                    this._completeDeactivate();
+                };
+                const cancel = unlockTransition(this, dialog, extension, done,
+                    Number(globalThis.GNOMAC_UNLOCK_SPEED) || 1, rebuild);
+                // Disabled in the middle of the transition: never leave the user locked in.
+                self._cancelUnlock = () => {
+                    self._cancelUnlock = null;
+                    cancel();
+                    if (finished)
+                        return;
+                    try {
+                        rebuild();
+                    } catch (e) {
+                        logError(e, 'GNOMAC unlock transition');
+                    }
+                    done();
+                };
             } catch (e) {
                 logError(e, 'GNOMAC unlock transition');
                 // Never leave the user locked in: finish the plain way.
@@ -309,6 +372,7 @@ export class LockScreen {
     }
 
     disable() {
+        this._cancelUnlock?.();
         if (this._savedShield) {
             ScreenShield.prototype._continueDeactivate = this._savedShield._continueDeactivate;
             this._savedShield = null;

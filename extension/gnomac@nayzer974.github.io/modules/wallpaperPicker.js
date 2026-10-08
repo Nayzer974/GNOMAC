@@ -5,6 +5,7 @@
 
 import Clutter from 'gi://Clutter';
 import Cogl from 'gi://Cogl';
+import GdkPixbuf from 'gi://GdkPixbuf';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
@@ -16,6 +17,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {Spring, getTicker} from '../lib/spring.js';
 import {t} from '../lib/i18n.js';
+import {Easing} from '../lib/motionTokens.js';
 import {GLSLEffect} from '../lib/shaderEffect.js';
 
 const SHORTCUT_KEY = 'wallpaper-shortcut';
@@ -24,8 +26,8 @@ const CARD_H = 300;
 const STEP = 120;
 const VISIBLE = 6;
 const IMAGE = /\.(jpe?g|png|webp)$/i;
-const REVEAL_MS = 1100;
-const REVEAL_DELAY_MS = 120; // let the image texture load first
+const REVEAL_MS = 650;
+const BG_FADE_MS = 1000; // GNOME's own wallpaper crossfade (background.js)
 
 const HOOK = Shell.SnippetHook?.FRAGMENT ?? Cogl.SnippetHook.FRAGMENT;
 
@@ -111,8 +113,7 @@ export class WallpaperPicker {
     disable() {
         Main.wm.removeKeybinding(SHORTCUT_KEY);
         this.close(false);
-        this._reveal?.destroy();
-        this._reveal = null;
+        this._endReveal();
         if (this._extension.wallpaperPicker === this)
             this._extension.wallpaperPicker = null;
     }
@@ -308,49 +309,169 @@ export class WallpaperPicker {
 
     // The new wallpaper grows out of a circle in the middle of the screen,
     // over the old one and under the windows, then GNOME takes over.
+    //
+    // Kept cheap on purpose: the picture is decoded off the main loop, already
+    // scaled to the monitor (a 4K JPEG decoded by the CSS background froze the
+    // shell), uploaded once as a texture, and the circle is one shader pass over
+    // that cached texture. GNOME gets ONE settings change (three changes made it
+    // load the wallpaper three times), and the shader is dropped as soon as the
+    // circle covers the screen.
     reveal(path) {
+        this._endReveal();
         const monitor = Main.layoutManager.primaryMonitor;
-        this._reveal?.destroy();
-        const overlay = new St.Widget({
-            style: `background-image: url("file://${path}"); background-size: cover; background-position: center;`,
-            x: monitor.x, y: monitor.y, width: monitor.width, height: monitor.height,
+        const cancellable = new Gio.Cancellable();
+        this._loading = cancellable;
+        this._loadCover(path, monitor, cancellable, image => {
+            if (cancellable.is_cancelled())
+                return;
+            this._loading = null;
+            if (!image || !St.Settings.get().enable_animations) {
+                this._applyWallpaper(path);
+                return;
+            }
+            this._growCircle(path, monitor, image);
         });
-        const effect = new CircleReveal();
-        overlay.add_effect(effect);
-        global.window_group.insert_child_above(overlay, Main.layoutManager._backgroundGroup);
-        this._reveal = overlay;
+    }
 
-        const diagonal = Math.hypot(monitor.width, monitor.height) / 2 + 4;
-        const timeline = new Clutter.Timeline({actor: overlay, duration: REVEAL_MS});
+    _endReveal() {
+        this._loading?.cancel();
+        this._loading = null;
+        for (const id of this._revealSources ?? [])
+            GLib.source_remove(id);
+        this._revealSources = [];
+        if (this._revealTimeline) {
+            this._revealTimeline.stop();
+            this._revealTimeline = null;
+        }
+        if (this._bgChangedIds) {
+            for (const [manager, id] of this._bgChangedIds)
+                manager.disconnect(id);
+            this._bgChangedIds = null;
+        }
+        this._reveal?.destroy();
+        this._reveal = null;
+    }
+
+    // Decodes `path` at the size that covers the monitor (like GNOME's "zoom"),
+    // in a worker thread. `done` gets {content, width, height} or null.
+    _loadCover(path, monitor, cancellable, done) {
+        let info;
+        try {
+            info = GdkPixbuf.Pixbuf.get_file_info(path);
+        } catch {
+            info = null;
+        }
+        if (!info?.[0] || info[1] < 1 || info[2] < 1) {
+            done(null);
+            return;
+        }
+        const [, sourceW, sourceH] = info;
+        const scale = monitor.geometry_scale ?? 1;
+        const cover = Math.max(monitor.width * scale / sourceW, monitor.height * scale / sourceH);
+        // Never decode above the picture's own size: the texture is stretched.
+        const decode = Math.min(cover, 1);
+        const image = {width: sourceW * cover / scale, height: sourceH * cover / scale};
+        Gio.File.new_for_path(path).read_async(GLib.PRIORITY_DEFAULT, cancellable, (file, res) => {
+            let stream;
+            try {
+                stream = file.read_finish(res);
+            } catch {
+                done(null);
+                return;
+            }
+            GdkPixbuf.Pixbuf.new_from_stream_at_scale_async(stream,
+                Math.max(1, Math.round(sourceW * decode)), Math.max(1, Math.round(sourceH * decode)),
+                false, cancellable, (_source, result) => {
+                    try {
+                        const pixbuf = GdkPixbuf.Pixbuf.new_from_stream_finish(result);
+                        stream.close(null);
+                        const content = new St.ImageContent({
+                            preferred_width: pixbuf.get_width(), preferred_height: pixbuf.get_height()});
+                        content.set_bytes(pixbuf.read_pixel_bytes(),
+                            pixbuf.get_has_alpha() ? Cogl.PixelFormat.RGBA_8888 : Cogl.PixelFormat.RGB_888,
+                            pixbuf.get_width(), pixbuf.get_height(), pixbuf.get_rowstride());
+                        done({content, ...image});
+                    } catch (e) {
+                        if (!cancellable.is_cancelled())
+                            logError(e, 'GNOMAC wallpaper picker: picture not loaded');
+                        done(null);
+                    }
+                });
+        });
+    }
+
+    _growCircle(path, monitor, image) {
+        // The picture can be a little larger than the monitor (cover): the frame
+        // clips it, the picture stays centred so the circle starts mid-screen.
+        const frame = new St.Widget({clip_to_allocation: true,
+            x: monitor.x, y: monitor.y, width: monitor.width, height: monitor.height});
+        const picture = new Clutter.Actor({content: image.content,
+            content_gravity: Clutter.ContentGravity.RESIZE_FILL,
+            x: Math.round((monitor.width - image.width) / 2), y: Math.round((monitor.height - image.height) / 2),
+            width: Math.round(image.width), height: Math.round(image.height)});
+        frame.add_child(picture);
+        const effect = new CircleReveal();
+        picture.add_effect(effect);
+        global.window_group.insert_child_above(frame, Main.layoutManager._backgroundGroup);
+        this._reveal = frame;
+
+        const diagonal = Math.hypot(image.width, image.height) / 2 + 4;
+        const timeline = new Clutter.Timeline({actor: frame, duration: REVEAL_MS});
+        this._revealTimeline = timeline;
         timeline.connect('new-frame', () => {
-            const p = timeline.get_progress();
-            // Ease in and out so the circle is seen growing, not popping.
-            const eased = p < 0.5 ? 4 * p ** 3 : 1 - (-2 * p + 2) ** 3 / 2;
-            effect.setRadius(diagonal * eased);
+            effect.setRadius(diagonal * Easing.easeOut(timeline.get_progress()));
         });
         timeline.connect('completed', () => {
-            // A newer reveal replaced this one: it owns the wallpaper now.
-            if (this._reveal !== overlay)
+            if (this._revealTimeline !== timeline)
                 return;
-            const uri = Gio.File.new_for_path(path).get_uri();
-            const bg = new Gio.Settings({schema_id: 'org.gnome.desktop.background'});
-            bg.set_string('picture-uri', uri);
-            bg.set_string('picture-uri-dark', uri);
-            bg.set_string('picture-options', 'zoom');
-            // Let GNOME load the new background before letting go.
-            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 700, () => {
-                if (this._reveal === overlay) {
-                    overlay.ease({opacity: 0, duration: 250,
-                        onStopped: () => overlay.destroy()});
-                    this._reveal = null;
-                }
+            this._revealTimeline = null;
+            // The circle covers everything: no more shader, a plain texture.
+            picture.remove_effect(effect);
+            this._applyWallpaper(path);
+            this._releaseWhenLoaded(frame);
+        });
+        timeline.start();
+    }
+
+    // One settings transaction, so GNOME loads the wallpaper once.
+    _applyWallpaper(path) {
+        const uri = Gio.File.new_for_path(path).get_uri();
+        const bg = new Gio.Settings({schema_id: 'org.gnome.desktop.background'});
+        bg.delay();
+        bg.set_string('picture-options', 'zoom');
+        bg.set_string('picture-uri', uri);
+        bg.set_string('picture-uri-dark', uri);
+        bg.apply();
+    }
+
+    // GNOME loads the new wallpaper, then crossfades it in over its own
+    // BG_FADE_MS. The overlay shows the same picture, so it is dropped once
+    // that is over (or after a fallback delay if GNOME never says).
+    _releaseWhenLoaded(frame) {
+        const later = (ms, fn) => {
+            const id = GLib.timeout_add(GLib.PRIORITY_DEFAULT, ms, () => {
+                this._revealSources = this._revealSources.filter(source => source !== id);
+                fn();
                 return GLib.SOURCE_REMOVE;
             });
-        });
-        GLib.timeout_add(GLib.PRIORITY_DEFAULT, REVEAL_DELAY_MS, () => {
-            if (this._reveal === overlay)
-                timeline.start();
-            return GLib.SOURCE_REMOVE;
-        });
+            this._revealSources.push(id);
+        };
+        let armed = false;
+        const arm = delay => {
+            if (armed)
+                return;
+            armed = true;
+            later(delay, () => {
+                if (this._reveal !== frame)
+                    return;
+                this._reveal = null;
+                frame.ease({opacity: 0, duration: 200, onStopped: () => frame.destroy()});
+            });
+        };
+        this._bgChangedIds = [];
+        for (const manager of Main.layoutManager._bgManagers ?? []) {
+            this._bgChangedIds.push([manager, manager.connect('changed', () => arm(BG_FADE_MS + 100))]);
+        }
+        later(BG_FADE_MS + 1600, () => arm(0));
     }
 }
