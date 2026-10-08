@@ -428,6 +428,46 @@ export default class GnomacPreferences extends ExtensionPreferences {
         themeResetRow.add_suffix(resetTheme);
         theme.add(themeResetRow);
 
+        // The trackpad is GNOME's: these are its own settings (Settings › Mouse &
+        // Touchpad), shown here because without them a laptop trackpad cannot
+        // tap to click, tap and drag, or right-click, whatever the desktop is.
+        const schemas = Gio.SettingsSchemaSource.get_default();
+        if (schemas?.lookup('org.gnome.desktop.peripherals.touchpad', true)) {
+            const touchpad = new Gio.Settings({schema_id: 'org.gnome.desktop.peripherals.touchpad'});
+            const pad = group('Pavé tactile', 'Réglages de GNOME (Paramètres › Souris et pavé tactile), à portée de main : sans eux, un pavé tactile ne sait pas toucher pour cliquer, glisser en touchant, ni faire le clic droit');
+            const padToggle = (key, title, subtitle = null) => {
+                const row = new Adw.SwitchRow({title, subtitle});
+                touchpad.bind(key, row, 'active', Gio.SettingsBindFlags.DEFAULT);
+                pad.add(row);
+            };
+            padToggle('tap-to-click', 'Toucher pour cliquer',
+                'Un toucher léger = clic ; deux doigts = clic droit ; trois doigts = clic du milieu');
+            padToggle('tap-and-drag', 'Toucher et glisser',
+                'Toucher, puis reposer le doigt et glisser : déplace une icône, une fenêtre, une sélection (demande « Toucher pour cliquer »)');
+            padToggle('tap-and-drag-lock', 'Verrouiller le glissement',
+                'Le glissement continue quand on lève le doigt, jusqu’à un nouveau toucher');
+            const methods = ['fingers', 'areas'];
+            const methodRow = new Adw.ComboRow({title: 'Clic droit en appuyant sur le pavé',
+                subtitle: 'Avec « Toucher pour cliquer », toucher à deux doigts fait toujours le clic droit',
+                model: Gtk.StringList.new(['Appuyer à deux doigts', 'Appuyer dans le coin inférieur droit'])});
+            const showMethod = () => {
+                const index = methods.indexOf(touchpad.get_string('click-method'));
+                methodRow.selected = index < 0 ? 1 : index;
+            };
+            showMethod();
+            methodRow.connect('notify::selected', () => touchpad.set_string('click-method', methods[methodRow.selected]));
+            touchpad.connect('changed::click-method', showMethod);
+            pad.add(methodRow);
+            padToggle('natural-scroll', 'Défilement naturel', 'Le contenu suit les doigts, comme sur un Mac');
+            if (schemas.lookup('org.gnome.desktop.a11y.mouse', true)) {
+                const a11y = new Gio.Settings({schema_id: 'org.gnome.desktop.a11y.mouse'});
+                const holdRow = new Adw.SwitchRow({title: 'Appui long = clic droit',
+                    subtitle: 'Maintenir le clic gauche un instant fait le clic droit (sans bouton droit, ni deux doigts)'});
+                a11y.bind('secondary-click-enabled', holdRow, 'active', Gio.SettingsBindFlags.DEFAULT);
+                pad.add(holdRow);
+            }
+        }
+
         const updates = group('Mises à jour', 'GNOMAC regarde sur GitHub si une nouvelle version existe et te prévient par une notification');
         toggle(updates, 'enable-updater', 'Rechercher les mises à jour');
         const updateModes = ['notify', 'auto', 'off'];

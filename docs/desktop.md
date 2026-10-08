@@ -40,3 +40,21 @@ Après le mot de passe, GNOME déverrouille par le signal `Unlock` de logind, qu
 * **Bouton** dans la barre de menus (icône de mise à jour, réglage `update-button`) : un clic cherche une mise à jour tout de suite ; l'icône tourne pendant la requête et la réponse arrive en notification (« à jour », ou « Nouvelle mise à jour disponible » avec Mettre à jour / Plus tard). Un point rouge signale qu'une version plus récente existe.
 * **Écran « Nouveautés de GNOMAC »** : une carte de verre qui liste les nouveautés et les corrections des versions que vous n'avez pas encore vues. Elle s'affiche **une fois**, 8 secondes après l'ouverture de la première session qui lance la nouvelle version (après une mise à jour, donc), et à la demande par *Spotlight › Nouveautés de GNOMAC*. Les notes sont le fichier `extension/gnomac@nayzer974.github.io/whatsnew.json` : **pour une nouvelle version, ajoutez une entrée avec un `id` plus grand** (nouveautés et corrections, chaque ligne en `["anglais", "français"]`). Sur une première installation, seule la dernière entrée est montrée.
 * Corrigé au passage : écrire certains réglages internes (étagère, éléments du bureau, notes lues) **rechargeait toute l'extension** ; ils sont maintenant exclus du rechargement.
+
+## Pavé tactile
+
+GNOMAC ne gère pas le pavé tactile lui-même : le dock, les icônes, les widgets et le menu du bureau reçoivent les mêmes événements (appui, mouvement, relâchement) qu'avec une souris. Ce qui manque sur un portable tient presque toujours à trois **réglages de GNOME**, éteints par défaut sur beaucoup d'installations :
+
+* **Toucher pour cliquer** (`tap-to-click`) : le toucher léger fait le clic ; à deux doigts, le clic droit ; à trois, le clic du milieu.
+* **Toucher et glisser** (`tap-and-drag`) : toucher, reposer le doigt aussitôt et glisser. Sans lui (et sans « Toucher pour cliquer »), glisser n'est possible qu'en appuyant physiquement sur le pavé.
+* **Méthode de clic** (`click-method`) : `fingers` = appuyer à deux doigts fait le clic droit ; `areas` = appuyer dans le coin inférieur droit.
+
+`install.sh` active les deux premiers (installation neuve), et *Préférences de GNOMAC › Pavé tactile* règle tout (plus le défilement naturel et « Appui long = clic droit »). Sans passer par l'installateur :
+
+```sh
+gsettings set org.gnome.desktop.peripherals.touchpad tap-to-click true
+gsettings set org.gnome.desktop.peripherals.touchpad tap-and-drag true
+gsettings set org.gnome.desktop.peripherals.touchpad click-method areas   # ou fingers
+```
+
+Pour voir l'état actuel : `gsettings list-recursively org.gnome.desktop.peripherals.touchpad`. Non testé sur un vrai pavé tactile.

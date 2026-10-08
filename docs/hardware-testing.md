@@ -71,6 +71,6 @@ Problème ouvert sous 51 en VM : au moment de réduire une fenêtre, la boucle p
 | 60 Hz | ✅ VM seulement |
 | 90 / 120 / 144 Hz | ❌ non testé |
 | Lecteur MPRIS réel (Spotify, Firefox) | ❌ non testé (lecteur simulé : ✅) |
-| Pavé tactile | ❌ non testé |
+| Pavé tactile | ❌ non testé (GNOMAC lit les mêmes événements que pour une souris ; toucher pour cliquer, clic droit à deux doigts et toucher-glisser sont des réglages de GNOME, voir [desktop.md](desktop.md#pavé-tactile)) |
 | GNOME 50.5 | ✅ VM |
 | GNOME 51 : chargement | ✅ VM (logiciel) ; animations de fenêtres : ⚠ à vérifier |

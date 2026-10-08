@@ -49,6 +49,8 @@ else
   gsettings reset org.gnome.desktop.interface font-name || true
   gsettings reset org.gnome.desktop.interface document-font-name || true
   gsettings reset org.gnome.desktop.wm.keybindings switch-input-source || true
+  gsettings reset org.gnome.desktop.peripherals.touchpad tap-to-click || true
+  gsettings reset org.gnome.desktop.peripherals.touchpad tap-and-drag || true
 fi
 rmdir "$CONFIG/gnomac" 2>/dev/null || true
 

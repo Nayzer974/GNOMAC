@@ -31,6 +31,12 @@ KEYS = [
     "/org/gnome/desktop/interface/enable-animations",
     "/org/gnome/desktop/wm/keybindings/switch-input-source",
     "/org/gnome/desktop/wm/keybindings/switch-input-source-backward",
+    "/org/gnome/desktop/peripherals/touchpad/tap-to-click",
+    "/org/gnome/desktop/peripherals/touchpad/tap-and-drag",
+    "/org/gnome/desktop/peripherals/touchpad/tap-and-drag-lock",
+    "/org/gnome/desktop/peripherals/touchpad/click-method",
+    "/org/gnome/desktop/peripherals/touchpad/natural-scroll",
+    "/org/gnome/desktop/a11y/mouse/secondary-click-enabled",
     "/org/gnome/shell/disable-user-extensions",
 ]
 

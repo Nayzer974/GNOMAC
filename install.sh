@@ -143,6 +143,14 @@ if fc-list 2>/dev/null | grep -qi 'Inter'; then
   gsettings set org.gnome.desktop.interface document-font-name 'Inter 11'
   gsettings set org.gnome.desktop.wm.preferences titlebar-font 'Inter Bold 11'
 fi
+# A laptop trackpad: GNOME ships tap-to-click off, and then neither the light tap,
+# the two-finger tap (right click) nor tap-and-drag work. Turned on, like a Mac.
+# (Preferences > Pavé tactile changes them later; uninstall.sh puts them back.)
+if gsettings list-keys org.gnome.desktop.peripherals.touchpad >/dev/null 2>&1; then
+  info "Turning on tap to click and tap and drag for the trackpad"
+  gsettings set org.gnome.desktop.peripherals.touchpad tap-to-click true
+  gsettings set org.gnome.desktop.peripherals.touchpad tap-and-drag true
+fi
 fi
 
 # ---------------------------------------------------------------- version record
