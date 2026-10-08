@@ -212,7 +212,10 @@ export class LockScreen {
         const extension = this._extension;
         const self = this;
         shieldProto._continueDeactivate = function (animate) {
-            const wanted = animate && !this._isGreeter && St.Settings.get().enable_animations &&
+            // A password unlock arrives through logind's Unlock signal, which
+            // calls deactivate(false): `animate` is false for the real unlock, so
+            // it must not decide. What matters is that the lock screen is up.
+            const wanted = this.actor.visible && !this._isGreeter && St.Settings.get().enable_animations &&
                 extension.getSettings().get_boolean('enable-unlock-animation');
             if (!wanted)
                 return savedShield._continueDeactivate.call(this, animate);

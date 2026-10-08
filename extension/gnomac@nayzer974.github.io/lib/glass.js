@@ -134,20 +134,43 @@ if (d < 1.5) {
 vec2 g = vec2(scene_sd(px + vec2(1.0, 0.0)) - d, scene_sd(px + vec2(0.0, 1.0)) - d);
 vec2 n = length(g) > 0.0001 ? normalize(g) : vec2(0.0);
 
-// Lens profile: flat in the middle, strongly curved in the edge band.
-float depth = clamp(-d / max(thickness, 1.0), 0.0, 1.0);
-float bend = (1.0 - depth) * (1.0 - depth);
+// The bezel is a convex lens: flat in the middle, and over the rim width the
+// surface curves like a quarter circle, so the lens is weak just inside and
+// bends light very strongly at the outer edge (Snell's refraction through a
+// circular profile). din is the distance inside the edge, in pixels.
+float rim_w = max(thickness, 2.0);
+float din = max(-d, 0.0);
+float depth = clamp(din / rim_w, 0.0, 1.0);
+float xr = 1.0 - depth;
+// Circular profile 1 - sqrt(1 - x^2), regularised so its slope at the very
+// edge stays finite (no singular pixel row): same endpoints, softer tip.
+float soft_e = 2.0 / rim_w;
+float prof = (sqrt(1.0 + soft_e) - sqrt(max(1.0 - xr * xr + soft_e, 0.0))) / (sqrt(1.0 + soft_e) - sqrt(soft_e));
+// Dispersion has its own, narrower profile (outer half of the rim only).
+float x2 = 1.0 - clamp(din / (rim_w * 0.5), 0.0, 1.0);
+float prof2 = 1.0 - sqrt(max(1.0 - x2 * x2, 0.0));
 // While the glass forms, lensing, specular and fresnel start strong and settle:
 // it materialises instead of fading.
 float forming = 1.0 + (1.0 - form) * form_boost * g_b.w;
-vec2 shift = -n * bend * g_b.x * forming / size;
-vec2 split = n * bend * chroma * forming / size;
+vec2 shift = -n * prof * g_b.x * forming / size;
+vec2 split = n * prof2 * chroma * forming / size;
 
 vec3 col;
 vec3 backdrop = texture2D(tex, uv).rgb;
 col.r = texture2D(tex, clamp(uv + shift + split, 0.0, 1.0)).r;
 col.g = texture2D(tex, clamp(uv + shift, 0.0, 1.0)).g;
 col.b = texture2D(tex, clamp(uv + shift - split, 0.0, 1.0)).b;
+// Where the lens compresses the background hardest, a few extra taps soften
+// what would otherwise alias into a stripe.
+if (prof > 0.2) {
+    vec2 o = n * 1.4 * prof / size;
+    vec2 t = vec2(-n.y, n.x) * 1.4 * prof / size;
+    vec3 soft = texture2D(tex, clamp(uv + shift + o, 0.0, 1.0)).rgb +
+                texture2D(tex, clamp(uv + shift - o, 0.0, 1.0)).rgb +
+                texture2D(tex, clamp(uv + shift + t, 0.0, 1.0)).rgb +
+                texture2D(tex, clamp(uv + shift - t, 0.0, 1.0)).rgb;
+    col = mix(col, soft * 0.25, 0.45 * smoothstep(0.2, 0.7, prof));
+}
 
 // Tahoe glass makes what is behind it a little more vivid.
 float luma = dot(col, vec3(0.299, 0.587, 0.114));
@@ -159,9 +182,14 @@ vec3 tinted = col;
 // Rim light: a hairline all around, a touch brighter on the side facing the
 // light. Kept faint on purpose: a thick or bright rim reads as a cheap white
 // border, especially where it piles up in the corners.
-float band = 1.0 - smoothstep(0.0, 1.0, -d);
-float facing = dot(n, light_dir);
-float rim_light = band * (0.22 + 0.18 * max(facing, 0.0)) * g_b.y;
+// Two lobes, as on a real bevel: a bright one where the edge faces the light
+// and a fainter one on the opposite side (light that went through the glass).
+float band = 1.0 - smoothstep(0.0, 1.3, din);
+float lobe1 = pow(max(dot(n, light_dir), 0.0), 2.0);
+float lobe2 = pow(max(dot(n, -light_dir), 0.0), 2.0) * 0.5;
+float rim_light = band * (0.12 + 0.42 * (lobe1 + lobe2)) * g_b.y;
+// A broad, very faint inset glow along the bevel on the lit side.
+float inset_glow = exp(-din / max(rim_w * 0.4, 3.0)) * 0.05 * (lobe1 + 0.25);
 
 // Fresnel: the surface catches more light towards its edges, as glass does at
 // grazing angles. Faint, visible only when looking closely.
@@ -183,7 +211,7 @@ if (pointer.x >= 0.0) {
     lit = glow * exp(-dist * dist / (2.0 * 70.0 * 70.0));
 }
 
-col = col + vec3(rim_light + sheen_light + fres * 0.30 + lit * 0.14) * (1.0 - col);
+col = col + vec3(rim_light + inset_glow + sheen_light + fres * 0.30 + lit * 0.14) * (1.0 - col);
 int dm = int(debug_mode + 0.5);
 if (dm == 1) col = backdrop;
 else if (dm == 2) col = vec3(0.5 + 0.5 * (shift.x * size.x) / max(g_b.x, 1.0), 0.5 + 0.5 * (shift.y * size.y) / max(g_b.x, 1.0), 0.5);

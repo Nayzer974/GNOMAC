@@ -28,6 +28,7 @@ import {ACCENTS, CELL, CELL_GAP, MATERIALS, SIZE_SPANS, SIZE_TITLES, WIDGET_TYPE
     from '../lib/widgetTypes.js';
 import {press} from '../lib/motion.js';
 import {uiScale} from '../lib/ui.js';
+import {desktopLayer} from '../lib/desktopLayer.js';
 import {t} from '../lib/i18n.js';
 
 const RADIUS = 22;
@@ -137,7 +138,7 @@ class WidgetTile {
             drag = {x, y, ox: this.actor.x, oy: this.actor.y, moved: false};
             this._dragging = true;
             this.actor.ease({rotation_angle_z: 0, duration: 80});
-            Main.layoutManager._backgroundGroup.set_child_above_sibling(this.actor, null);
+            this.actor.get_parent()?.set_child_above_sibling(this.actor, null);
             this.actor.ease({scale_x: this.manager.scale * 1.04, scale_y: this.manager.scale * 1.04, duration: 140,
                 mode: Clutter.AnimationMode.EASE_OUT_QUAD});
             return Clutter.EVENT_STOP;
@@ -254,6 +255,8 @@ export class Widgets {
         for (const tile of this._tiles)
             tile.destroy();
         this._tiles = [];
+        desktopLayer.release('widgets-tiles');
+        desktopLayer.release('widgets-grid');
     }
 
     // -------------------------------------------------------------- layout
@@ -279,7 +282,7 @@ export class Widgets {
     }
 
     _build() {
-        const group = Main.layoutManager._backgroundGroup;
+        const group = desktopLayer.acquire('widgets-tiles').actor;
         for (const instance of this._layout) {
             const tile = new WidgetTile(this, instance);
             group.add_child(tile.actor);
@@ -433,7 +436,7 @@ export class Widgets {
         }
         if (!this._ghost) {
             this._ghost = new St.Widget({style_class: 'gnomac-widget-ghost', reactive: false});
-            Main.layoutManager._backgroundGroup.insert_child_below(this._ghost, tile.actor);
+            tile.actor.get_parent().insert_child_below(this._ghost, tile.actor);
         }
         const k = this.scale;
         const [x, y] = this._cellToPoint(target[0], target[1], tile.width);
@@ -653,24 +656,17 @@ export class Widgets {
     }
 
     _addDesktopMenuItem() {
-        // GNOME exposes the desktop menu on the background actors.
-        this._menuItems = [];
-        const monitors = Main.layoutManager._bgManagers ?? [];
-        for (const manager of monitors) {
-            const menu = manager.backgroundActor?._backgroundMenu;
-            if (!menu)
-                continue;
-            const item = new PopupMenu.PopupMenuItem(t('Edit Widgets…', 'Modifier les widgets…'));
-            item.connect('activate', () => this.startEditing());
-            menu.addMenuItem(item, 0);
-            this._menuItems.push(item);
-        }
+        // The desktop layer builds the desktop menu from its providers.
+        this._menuProvider = (_menu, add) => add(t('Edit Widgets…', 'Modifier les widgets…'), () => this.startEditing());
+        desktopLayer.acquire(this).menuProviders.add(this._menuProvider);
     }
 
     _removeDesktopMenuItem() {
-        for (const item of this._menuItems ?? [])
-            item.destroy();
-        this._menuItems = [];
+        if (this._menuProvider) {
+            desktopLayer.menuProviders.delete(this._menuProvider);
+            desktopLayer.release(this);
+            this._menuProvider = null;
+        }
     }
 
     // -------------------------------------------------------------- editing
@@ -729,9 +725,9 @@ export class Widgets {
             cr.$dispose();
         });
         if (this._tiles.length)
-            Main.layoutManager._backgroundGroup.insert_child_below(grid, this._tiles[0].actor);
+            this._tiles[0].actor.get_parent().insert_child_below(grid, this._tiles[0].actor);
         else
-            Main.layoutManager._backgroundGroup.add_child(grid);
+            desktopLayer.acquire('widgets-grid').actor.add_child(grid);
         grid.ease({opacity: 255, duration: 260});
         this._grid = grid;
     }

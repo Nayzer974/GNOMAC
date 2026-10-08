@@ -2228,3 +2228,10 @@
 .gnomac-notch-shelf-menu {
     spacing: 4px;
 }
+
+/* Desktop: selection rectangle and the desktop menu */
+.gnomac-desk-band {
+    background-color: rgba(120, 160, 255, 0.18);
+    border: 1px solid rgba(150, 185, 255, 0.7);
+    border-radius: 3px;
+}

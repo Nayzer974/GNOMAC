@@ -1,12 +1,27 @@
 // Icons on the desktop: the files and folders of your Desktop folder, shown on
-// the wallpaper and usable like on macOS:
-//   - click selects (Ctrl+click adds), double-click opens,
-//   - drag an icon to move it (it snaps to a grid and is remembered), or drop
-//     it on the notch to keep it on the shelf,
-//   - right-click: Open, Rename, Copy Path, Send to the Shelf, Move to Trash,
-//   - right-click the desktop: New Folder, Paste (files copied in Files),
+// the wallpaper and usable like on Windows / macOS:
+//   - click selects (Ctrl+click adds, drag on an empty spot draws a selection
+//     rectangle), double-click opens,
+//   - drag an icon (or several) to move it; it snaps to a grid and is
+//     remembered; drop it on the notch to keep it on the shelf,
+//   - keys: Enter open, F2 rename, Delete trash, Ctrl+A / C / X / V,
+//   - right-click an icon: Open, Rename, Copy, Cut, Copy Path, Keep on the
+//     Shelf, Move to Trash,
+//   - right-click the desktop: New Folder, New Text Document, Paste, Sort by,
+//     Refresh, Select All, Show Desktop Items, Open in Terminal, Change
+//     Background, Display Settings,
 //   - the folder is watched: files added, renamed or deleted elsewhere appear
 //     at once.
+//
+// WHERE IT LIVES. On the shared desktop layer (lib/desktopLayer.js): above the
+// wallpaper, below every window, and above a wallpaper that is itself a window
+// (Hidamari), so the icons stay visible and clickable over a video wallpaper.
+// The layer takes the desktop's clicks, so the menu is ours.
+//
+// POINTER. A click is a press and a release that stay within a few pixels
+// (trackpad taps wobble: the threshold is generous). Drags hold a pointer
+// grab, so the icon keeps following when the pointer leaves it; releasing
+// anywhere drops it.
 //
 // Honest limit: GNOME Shell on Wayland cannot receive a drag that starts in
 // another application (such as the Files window), so dropping from Files onto
@@ -21,6 +36,7 @@ import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 
+import {desktopLayer} from '../lib/desktopLayer.js';
 import {uiScale} from '../lib/ui.js';
 import {t} from '../lib/i18n.js';
 
@@ -29,8 +45,10 @@ const CELL_H = 108;
 const ICON = 58;
 const MARGIN = 14;
 const MAX_ITEMS = 240;
-const ATTRS = 'standard::name,standard::display-name,standard::icon,standard::is-hidden,thumbnail::path,standard::type';
+const ATTRS = 'standard::name,standard::display-name,standard::icon,standard::is-hidden,thumbnail::path,standard::type,standard::content-type,standard::size,time::modified';
 const SIZES = {small: 0.85, medium: 1, large: 1.25};
+const DRAG_THRESHOLD = 8;
+const DOUBLE_CLICK_MS = 500;
 
 function desktopPath() {
     const dir = GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_DESKTOP);
@@ -42,6 +60,7 @@ class IconTile {
     constructor(manager, info, file) {
         this.manager = manager;
         this.file = file;
+        this.info = info;
         this.name = info.get_name();
         this.selected = false;
         const scale = manager.scale;
@@ -84,54 +103,109 @@ class IconTile {
     }
 
     _wire() {
-        let drag = null;
-        this.actor.connect('button-press-event', (_a, event) => {
-            const button = event.get_button();
-            if (button === Clutter.BUTTON_SECONDARY) {
-                if (!this.selected)
-                    this.manager.select(this, false);
-                this.manager.openMenu(this);
-                return Clutter.EVENT_STOP;
-            }
-            if (button !== Clutter.BUTTON_PRIMARY)
-                return Clutter.EVENT_PROPAGATE;
-            const ctrl = (event.get_state() & Clutter.ModifierType.CONTROL_MASK) !== 0;
-            if (event.get_click_count() === 2) {
-                this.manager.open(this);
-                return Clutter.EVENT_STOP;
-            }
-            this.manager.select(this, ctrl);
-            const [x, y] = event.get_coords();
-            drag = {x, y, ox: this.actor.x, oy: this.actor.y, moved: false};
+        this.actor.connect('button-press-event', (_a, event) => this._onPress(event));
+        this.actor.connect('motion-event', (_a, event) => this._onMotion(event));
+        this.actor.connect('button-release-event', (_a, event) => this._onRelease(event));
+        this.actor.connect('destroy', () => this._endGrab());
+    }
+
+    _endGrab() {
+        try {
+            this._grab?.dismiss();
+        } catch {}
+        this._grab = null;
+        this._drag = null;
+    }
+
+    _onPress(event) {
+        const button = event.get_button();
+        const manager = this.manager;
+        manager.focusLayer();
+        if (button === Clutter.BUTTON_SECONDARY) {
+            if (!this.selected)
+                manager.select(this, false);
+            // Opened when the button is released, so the release does not
+            // land on the first entry.
+            this._menuAt = event.get_coords();
             return Clutter.EVENT_STOP;
-        });
-        this.actor.connect('motion-event', (_a, event) => {
-            if (!drag)
-                return Clutter.EVENT_PROPAGATE;
-            const [x, y] = event.get_coords();
-            if (!drag.moved && Math.hypot(x - drag.x, y - drag.y) < 6)
-                return Clutter.EVENT_STOP;
-            if (!drag.moved) {
-                drag.moved = true;
-                Main.layoutManager._backgroundGroup.set_child_above_sibling(this.actor, null);
-                this.actor.ease({scale_x: 1.06, scale_y: 1.06, opacity: 220, duration: 120});
-            }
-            this.actor.set_position(Math.round(drag.ox + x - drag.x), Math.round(drag.oy + y - drag.y));
-            this.manager.dragOver(this, x, y);
+        }
+        if (button !== Clutter.BUTTON_PRIMARY)
+            return Clutter.EVENT_PROPAGATE;
+        const ctrl = (event.get_state() & Clutter.ModifierType.CONTROL_MASK) !== 0;
+        const [x, y] = event.get_coords();
+        const now = GLib.get_monotonic_time() / 1000;
+        const last = manager.lastClick;
+        // Double click: GNOME's own count, or the same icon twice in a short
+        // time (a trackpad's double tap is slower and wobblier than a mouse's).
+        const double = (event.get_click_count?.() ?? 1) === 2 ||
+            (last.tile === this && now - last.time < DOUBLE_CLICK_MS && Math.hypot(x - last.x, y - last.y) < 24);
+        manager.lastClick = {tile: this, time: now, x, y};
+        if (double && !ctrl) {
+            manager.lastClick = {tile: null, time: 0, x: 0, y: 0};
+            manager.open(this);
             return Clutter.EVENT_STOP;
-        });
-        this.actor.connect('button-release-event', (_a, event) => {
-            if (!drag)
-                return Clutter.EVENT_PROPAGATE;
-            const moved = drag.moved;
-            drag = null;
-            if (moved) {
-                this.actor.ease({scale_x: 1, scale_y: 1, opacity: 255, duration: 140});
-                const [x, y] = event.get_coords();
-                this.manager.drop(this, x, y);
-            }
+        }
+        // Pressing an icon that is already part of a selection keeps the
+        // selection (so the group can be dragged); a plain click on release
+        // narrows it to this icon.
+        const keep = this.selected && !ctrl && manager.selected().length > 1;
+        if (!keep)
+            manager.select(this, ctrl);
+        const moving = manager.selected();
+        this._drag = {x, y, moved: false, wasSelected: keep, ctrl,
+            starts: moving.map(tile => ({tile, x: tile.actor.x, y: tile.actor.y}))};
+        try {
+            this._grab = global.stage.grab(this.actor);
+        } catch (e) {
+            logError(e, 'GNOMAC desktop icons: pointer grab');
+        }
+        return Clutter.EVENT_STOP;
+    }
+
+    _onMotion(event) {
+        const drag = this._drag;
+        if (!drag)
+            return Clutter.EVENT_PROPAGATE;
+        const [x, y] = event.get_coords();
+        const threshold = DRAG_THRESHOLD * uiScale();
+        if (!drag.moved && Math.hypot(x - drag.x, y - drag.y) < threshold)
             return Clutter.EVENT_STOP;
-        });
+        if (!drag.moved) {
+            drag.moved = true;
+            for (const {tile} of drag.starts) {
+                tile.actor.get_parent()?.set_child_above_sibling(tile.actor, null);
+                tile.actor.ease({scale_x: 1.06, scale_y: 1.06, opacity: 220, duration: 120});
+            }
+        }
+        for (const {tile, x: ox, y: oy} of drag.starts)
+            tile.actor.set_position(Math.round(ox + x - drag.x), Math.round(oy + y - drag.y));
+        this.manager.dragOver(this, x, y);
+        return Clutter.EVENT_STOP;
+    }
+
+    _onRelease(event) {
+        if (event.get_button() === Clutter.BUTTON_SECONDARY && this._menuAt) {
+            const [mx, my] = this._menuAt;
+            this._menuAt = null;
+            this.manager.openMenu(this, mx, my);
+            return Clutter.EVENT_STOP;
+        }
+        const drag = this._drag;
+        if (!drag)
+            return Clutter.EVENT_PROPAGATE;
+        const [x, y] = event.get_coords();
+        const starts = drag.starts;
+        const moved = drag.moved;
+        const narrow = drag.wasSelected && !moved;
+        this._endGrab();
+        if (moved) {
+            for (const {tile} of starts)
+                tile.actor.ease({scale_x: 1, scale_y: 1, opacity: 255, duration: 140});
+            this.manager.drop(this, starts.map(s => s.tile), x, y);
+        } else if (narrow) {
+            this.manager.select(this, false);
+        }
+        return Clutter.EVENT_STOP;
     }
 
     // In-place rename: the label turns into an entry.
@@ -152,6 +226,7 @@ class IconTile {
             const value = entry.text.trim();
             entry.destroy();
             this.label.show();
+            this.manager.focusLayer();
             if (commit && value && value !== this.label.text) {
                 try {
                     this.file.set_display_name(value, null);
@@ -172,6 +247,7 @@ class IconTile {
     }
 
     destroy() {
+        this._endGrab();
         this.actor.destroy();
     }
 }
@@ -182,6 +258,7 @@ export class DesktopIcons {
         this._settings = extension.getSettings();
         this._tiles = new Map();
         this._ghost = null;
+        this.lastClick = {tile: null, time: 0, x: 0, y: 0};
     }
 
     get tiles() {
@@ -195,6 +272,16 @@ export class DesktopIcons {
     enable() {
         this._extension.desktopIcons = this;
         this._dir = desktopPath();
+        // The layer exists even without a Desktop folder: the desktop menu
+        // (wallpaper, display settings) is useful on its own.
+        this._desk = desktopLayer.acquire(this);
+        this._layer = this._desk.actor;
+        this._pressHandler = event => this._onEmptyPress(event);
+        this._keyHandler = event => this._onKey(event);
+        this._menuProvider = (menu, add, separator) => this._provideMenu(menu, add, separator);
+        this._desk.pressHandlers.add(this._pressHandler);
+        this._desk.keyHandlers.add(this._keyHandler);
+        this._desk.menuProviders.add(this._menuProvider);
         if (!this._dir)
             return;
         this._file = Gio.File.new_for_path(this._dir);
@@ -207,12 +294,8 @@ export class DesktopIcons {
             logError(e, 'GNOMAC desktop icons: cannot watch the folder');
         }
         this._monitorsId = Main.layoutManager.connect('monitors-changed', () => this._placeAll());
-        this._overviewIds = [
-            Main.overview.connect('showing', () => this.tiles.forEach(tile => tile.actor.hide())),
-            Main.overview.connect('hidden', () => this.tiles.forEach(tile => tile.actor.show())),
-        ];
-        this._addDesktopMenuItems();
-        this._clearOnClick();
+        this._visibleId = this._settings.connect('changed::desktop-icons-visible', () => this._syncVisible());
+        this._syncVisible();
     }
 
     disable() {
@@ -231,25 +314,43 @@ export class DesktopIcons {
             Main.layoutManager.disconnect(this._monitorsId);
             this._monitorsId = 0;
         }
-        for (const id of this._overviewIds ?? [])
-            Main.overview.disconnect(id);
-        this._overviewIds = [];
-        for (const [object, id] of this._bgIds ?? []) {
-            try {
-                object.disconnect(id);
-            } catch {}
+        if (this._visibleId) {
+            this._settings.disconnect(this._visibleId);
+            this._visibleId = 0;
         }
-        this._bgIds = [];
-        for (const item of this._menuItems ?? [])
-            item.destroy();
-        this._menuItems = [];
-        this._menu?.destroy();
-        this._menu = null;
+        if (this._desk) {
+            this._desk.pressHandlers.delete(this._pressHandler);
+            this._desk.keyHandlers.delete(this._keyHandler);
+            this._desk.menuProviders.delete(this._menuProvider);
+            this._desk.closeMenu();
+        }
         this._ghost?.destroy();
         this._ghost = null;
+        this._band?.destroy();
+        this._band = null;
         for (const tile of this.tiles)
             tile.destroy();
         this._tiles.clear();
+        this._desk?.release(this);
+        this._desk = null;
+        this._layer = null;
+    }
+
+    focusLayer() {
+        this._desk?.focus();
+    }
+
+    _syncVisible() {
+        const visible = this._settings.get_boolean('desktop-icons-visible');
+        for (const tile of this.tiles)
+            tile.actor.visible = visible;
+        if (!visible)
+            this._desk?.closeMenu();
+    }
+
+    // The icons of the desktop (the layer itself stays, for the menu).
+    get iconsVisible() {
+        return this._settings.get_boolean('desktop-icons-visible');
     }
 
     // -------------------------------------------------------------- layout
@@ -300,10 +401,10 @@ export class DesktopIcons {
         return [col, row];
     }
 
-    _taken(exceptName) {
+    _taken(except) {
         const taken = new Set();
         for (const [name, cell] of Object.entries(this._layout)) {
-            if (name !== exceptName && this._tiles.has(name))
+            if (!except.has(name) && this._tiles.has(name))
                 taken.add(`${cell[0]},${cell[1]}`);
         }
         return taken;
@@ -320,8 +421,7 @@ export class DesktopIcons {
         return [0, 0];
     }
 
-    _nearestFree(wanted, exceptName) {
-        const taken = this._taken(exceptName);
+    _nearestFree(wanted, taken) {
         if (!taken.has(`${wanted[0]},${wanted[1]}`))
             return wanted;
         const {cols, rows} = this._bounds();
@@ -343,7 +443,7 @@ export class DesktopIcons {
 
     _placeAll(animate = false) {
         for (const tile of this.tiles) {
-            const cell = this._layout[tile.name];
+            const cell = this._layout?.[tile.name];
             if (!cell)
                 continue;
             const [x, y] = this._point(cell[0], cell[1]);
@@ -352,6 +452,25 @@ export class DesktopIcons {
             else
                 tile.actor.set_position(x, y);
         }
+    }
+
+    // Sort by name, type, date or size: the icons are laid out again, column
+    // after column from the side they start on.
+    sortBy(kind) {
+        const tiles = this.tiles;
+        const compare = {
+            name: (a, b) => a.info.get_display_name().localeCompare(b.info.get_display_name()),
+            type: (a, b) => (a.info.get_content_type() ?? '').localeCompare(b.info.get_content_type() ?? '') ||
+                a.info.get_display_name().localeCompare(b.info.get_display_name()),
+            date: (a, b) => b.info.get_modification_date_time().to_unix() - a.info.get_modification_date_time().to_unix(),
+            size: (a, b) => b.info.get_size() - a.info.get_size(),
+        }[kind];
+        const {rows} = this._bounds();
+        tiles.sort(compare).forEach((tile, i) => {
+            this._layout[tile.name] = [Math.floor(i / rows), i % rows];
+        });
+        this._saveLayout();
+        this._placeAll(true);
     }
 
     // ------------------------------------------------------------- content
@@ -388,16 +507,17 @@ export class DesktopIcons {
                 this._tiles.delete(name);
             }
         }
-        const group = Main.layoutManager._backgroundGroup;
+        const visible = this.iconsVisible;
         for (const info of infos) {
             const name = info.get_name();
             if (this._tiles.has(name))
                 continue;
             const tile = new IconTile(this, info, this._file.get_child(name));
             this._tiles.set(name, tile);
-            group.add_child(tile.actor);
+            this._layer.add_child(tile.actor);
+            tile.actor.visible = visible;
             if (!this._layout[name])
-                this._layout[name] = this._freeCell(this._taken(name));
+                this._layout[name] = this._freeCell(this._taken(new Set([name])));
             const [x, y] = this._point(...this._layout[name]);
             tile.actor.set_position(x, y);
             if (this._announced) {
@@ -427,22 +547,116 @@ export class DesktopIcons {
         tile.setSelected(additive ? !tile.selected : true);
     }
 
-    _clearOnClick() {
-        this._bgIds = [];
-        for (const manager of Main.layoutManager._bgManagers ?? []) {
-            const actor = manager.backgroundActor;
-            if (!actor)
-                continue;
-            this._bgIds.push([actor, actor.connect('button-press-event', (_a, event) => {
-                if (event.get_button() === Clutter.BUTTON_PRIMARY)
-                    this.tiles.forEach(tile => tile.setSelected(false));
-                return Clutter.EVENT_PROPAGATE;
-            })]);
-        }
+    selectAll() {
+        this.tiles.forEach(tile => tile.setSelected(true));
     }
 
-    _selected() {
+    clearSelection() {
+        this.tiles.forEach(tile => tile.setSelected(false));
+    }
+
+    selected() {
         return this.tiles.filter(tile => tile.selected);
+    }
+
+    // The desktop itself: a primary press on an empty spot clears the
+    // selection and starts a selection rectangle.
+    _onEmptyPress(event) {
+        if (event.get_button() !== Clutter.BUTTON_PRIMARY)
+            return false;
+        const [x, y] = event.get_coords();
+        const ctrl = (event.get_state() & Clutter.ModifierType.CONTROL_MASK) !== 0;
+        if (!ctrl)
+            this.clearSelection();
+        this._startBand(x, y, ctrl);
+        return true;
+    }
+
+    // Rubber band: drag on an empty spot to select what it touches.
+    _startBand(x0, y0, additive) {
+        const base = new Set(additive ? this.selected() : []);
+        let band = null;
+        let grab = null;
+        try {
+            grab = global.stage.grab(this._layer);
+        } catch (e) {
+            logError(e, 'GNOMAC desktop icons: selection grab');
+            return;
+        }
+        const motionId = this._layer.connect('motion-event', (_a, event) => {
+            const [x, y] = event.get_coords();
+            if (!band && Math.hypot(x - x0, y - y0) < DRAG_THRESHOLD * uiScale())
+                return Clutter.EVENT_STOP;
+            if (!band) {
+                band = new St.Widget({style_class: 'gnomac-desk-band', reactive: false});
+                this._layer.add_child(band);
+            }
+            const left = Math.min(x0, x);
+            const top = Math.min(y0, y);
+            const width = Math.abs(x - x0);
+            const height = Math.abs(y - y0);
+            band.set_position(left, top);
+            band.set_size(width, height);
+            for (const tile of this.tiles) {
+                const a = tile.actor;
+                const hit = a.visible && a.x < left + width && a.x + a.width > left && a.y < top + height && a.y + a.height > top;
+                tile.setSelected(hit || base.has(tile));
+            }
+            return Clutter.EVENT_STOP;
+        });
+        const releaseId = this._layer.connect('button-release-event', () => {
+            this._layer.disconnect(motionId);
+            this._layer.disconnect(releaseId);
+            band?.destroy();
+            try {
+                grab.dismiss();
+            } catch {}
+            return Clutter.EVENT_STOP;
+        });
+    }
+
+    _onKey(event) {
+        const key = event.get_key_symbol();
+        const ctrl = (event.get_state() & Clutter.ModifierType.CONTROL_MASK) !== 0;
+        const chosen = this.selected();
+        if (ctrl) {
+            switch (key) {
+            case Clutter.KEY_a:
+            case Clutter.KEY_A:
+                this.selectAll();
+                return Clutter.EVENT_STOP;
+            case Clutter.KEY_c:
+            case Clutter.KEY_C:
+                this.copy(chosen, false);
+                return Clutter.EVENT_STOP;
+            case Clutter.KEY_x:
+            case Clutter.KEY_X:
+                this.copy(chosen, true);
+                return Clutter.EVENT_STOP;
+            case Clutter.KEY_v:
+            case Clutter.KEY_V:
+                this.paste();
+                return Clutter.EVENT_STOP;
+            }
+            return Clutter.EVENT_PROPAGATE;
+        }
+        switch (key) {
+        case Clutter.KEY_Return:
+        case Clutter.KEY_KP_Enter:
+            chosen.forEach(tile => this.open(tile));
+            return Clutter.EVENT_STOP;
+        case Clutter.KEY_F2:
+            chosen[0]?.rename();
+            return Clutter.EVENT_STOP;
+        case Clutter.KEY_Delete:
+            if (chosen.length)
+                this.trash(chosen);
+            return Clutter.EVENT_STOP;
+        case Clutter.KEY_F5:
+            this._queueRefresh();
+            return Clutter.EVENT_STOP;
+        }
+        return Clutter.EVENT_PROPAGATE;
     }
 
     // -------------------------------------------------------------- actions
@@ -473,15 +687,26 @@ export class DesktopIcons {
             Main.notify('GNOMAC', t('Kept on the notch shelf.', 'Gardé sur l’étagère de l’encoche.'));
     }
 
+    // Puts the files on the clipboard the way Files does, so Ctrl+V in Files
+    // (or "Paste" here) copies or moves them.
+    copy(tiles, cut) {
+        if (!tiles.length)
+            return;
+        const text = `${cut ? 'cut' : 'copy'}\n${tiles.map(tile => tile.uri()).join('\n')}`;
+        const clipboard = St.Clipboard.get_default();
+        clipboard.set_content(St.ClipboardType.CLIPBOARD, 'x-special/gnome-copied-files', new GLib.Bytes(new TextEncoder().encode(text)));
+    }
+
     // While dragging: a ghost shows the cell the icon will take; over the
     // notch the ghost turns into a "keep on the shelf" hint.
     dragOver(tile, x, y) {
         if (!this._ghost) {
             this._ghost = new St.Widget({style_class: 'gnomac-desk-ghost', reactive: false});
-            Main.layoutManager._backgroundGroup.insert_child_below(this._ghost, tile.actor);
+            this._layer.insert_child_below(this._ghost, tile.actor);
         }
         const onNotch = this._overNotch(x, y);
-        const [col, row] = this._nearestFree(this._cellAt(x - tile.actor.width / 2, y - tile.actor.height / 2), tile.name);
+        const [col, row] = this._nearestFree(this._cellAt(x - tile.actor.width / 2, y - tile.actor.height / 2),
+            this._taken(new Set([tile.name])));
         const [gx, gy] = this._point(col, row);
         this._ghost.set_size(tile.actor.width, tile.actor.height);
         this._ghost.set_position(gx, gy);
@@ -496,70 +721,113 @@ export class DesktopIcons {
         return x >= ix && x <= ix + island.width && y >= iy && y <= iy + Math.max(island.height, 40);
     }
 
-    drop(tile, x, y) {
+    // `tiles` are the icons that moved together; `anchor` is the one held.
+    drop(_anchor, tiles, x, y) {
         this._ghost?.destroy();
         this._ghost = null;
         if (this._overNotch(x, y)) {
-            this.toShelf([tile]);
+            this.toShelf(tiles);
             this._placeAll(true);
             return;
         }
-        const [col, row] = this._nearestFree(this._cellAt(x - tile.actor.width / 2, y - tile.actor.height / 2), tile.name);
-        this._layout[tile.name] = [col, row];
+        const moving = new Set(tiles.map(tl => tl.name));
+        const taken = this._taken(moving);
+        // Each icon takes the free cell nearest to where it was dropped.
+        for (const tile of tiles) {
+            const [col, row] = this._cellAt(tile.actor.x, tile.actor.y);
+            const cell = this._nearestFree([col, row], taken);
+            taken.add(`${cell[0]},${cell[1]}`);
+            this._layout[tile.name] = cell;
+        }
         this._saveLayout();
         this._placeAll(true);
     }
 
     // ---------------------------------------------------------------- menus
 
-    openMenu(tile) {
-        this._menu?.destroy();
-        const menu = new PopupMenu.PopupMenu(tile.actor, 0.5, St.Side.TOP);
-        Main.uiGroup.add_child(menu.actor);
-        const add = (label, action) => {
-            const item = new PopupMenu.PopupMenuItem(label);
-            item.connect('activate', action);
-            menu.addMenuItem(item);
-        };
-        const chosen = this._selected();
-        add(t('Open', 'Ouvrir'), () => chosen.forEach(tl => this.open(tl)));
-        add(t('Rename…', 'Renommer…'), () => tile.rename());
-        add(t('Copy Path', 'Copier le chemin'), () =>
-            St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, chosen.map(tl => tl.file.get_path()).join('\n')));
-        add(t('Keep on the Notch Shelf', 'Garder sur l’étagère de l’encoche'), () => this.toShelf(chosen));
-        menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-        add(t('Move to Trash', 'Mettre à la corbeille'), () => this.trash(chosen));
-        menu.open(true);
-        this._menu = menu;
+    openMenu(tile, x, y) {
+        const chosen = this.selected();
+        this._desk.popup(x, y, (_menu, add, separator) => {
+            add(t('Open', 'Ouvrir'), () => chosen.forEach(tl => this.open(tl)));
+            add(t('Rename…', 'Renommer…'), () => tile.rename());
+            separator();
+            add(t('Cut', 'Couper'), () => this.copy(chosen, true));
+            add(t('Copy', 'Copier'), () => this.copy(chosen, false));
+            add(t('Copy Path', 'Copier le chemin'), () =>
+                St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, chosen.map(tl => tl.file.get_path()).join('\n')));
+            add(t('Keep on the Notch Shelf', 'Garder sur l’étagère de l’encoche'), () => this.toShelf(chosen));
+            separator();
+            add(t('Move to Trash', 'Mettre à la corbeille'), () => this.trash(chosen));
+        });
     }
 
-    _addDesktopMenuItems() {
-        this._menuItems = [];
-        for (const manager of Main.layoutManager._bgManagers ?? []) {
-            const menu = manager.backgroundActor?._backgroundMenu;
-            if (!menu)
-                continue;
-            const folder = new PopupMenu.PopupMenuItem(t('New Folder', 'Nouveau dossier'));
-            folder.connect('activate', () => this.newFolder());
-            menu.addMenuItem(folder, 0);
-            const paste = new PopupMenu.PopupMenuItem(t('Paste', 'Coller'));
-            paste.connect('activate', () => this.paste());
-            menu.addMenuItem(paste, 1);
-            this._menuItems.push(folder, paste);
+    // Our part of the desktop menu (the layer adds the wallpaper and display
+    // entries after every module's).
+    _provideMenu(menu, add, separator) {
+        if (this._dir) {
+            add(t('New Folder', 'Nouveau dossier'), () => this.newFolder());
+            add(t('New Text Document', 'Nouveau document texte'), () => this.newDocument());
+            add(t('Paste', 'Coller'), () => this.paste());
+            separator();
+            const sort = new PopupMenu.PopupSubMenuMenuItem(t('Sort By', 'Trier par'));
+            for (const [kind, label] of [['name', t('Name', 'Nom')], ['type', t('Type', 'Type')],
+                ['date', t('Date Modified', 'Date de modification')], ['size', t('Size', 'Taille')]])
+                add(label, () => this.sortBy(kind), sort.menu);
+            menu.addMenuItem(sort);
+            add(t('Refresh', 'Actualiser'), () => this._queueRefresh());
+            add(t('Select All', 'Tout sélectionner'), () => this.selectAll());
+            separator();
+        }
+        const show = add(t('Show Desktop Items', 'Afficher les éléments du bureau'), () =>
+            this._settings.set_boolean('desktop-icons-visible', !this.iconsVisible));
+        show.setOrnament(this.iconsVisible ? PopupMenu.Ornament.CHECK : PopupMenu.Ornament.NONE);
+        if (this._dir) {
+            add(t('Open Desktop Folder', 'Ouvrir le dossier Bureau'), () =>
+                Gio.AppInfo.launch_default_for_uri(this._file.get_uri(), global.create_app_launch_context(0, -1)));
+            add(t('Open in Terminal', 'Ouvrir dans le terminal'), () => this.openTerminal());
         }
     }
 
-    newFolder() {
-        const base = t('untitled folder', 'dossier sans titre');
-        let name = base;
+    openTerminal() {
+        for (const argv of [['ptyxis', '--working-directory', this._dir], ['kgx', '--working-directory', this._dir],
+            ['gnome-terminal', `--working-directory=${this._dir}`], ['alacritty', '--working-directory', this._dir],
+            ['foot', '-D', this._dir], ['kitty', '-d', this._dir], ['xterm']]) {
+            try {
+                Gio.Subprocess.new(argv, Gio.SubprocessFlags.NONE);
+                return;
+            } catch {
+                // Not installed: the next one.
+            }
+        }
+        Main.notify('GNOMAC', t('No terminal found.', 'Aucun terminal trouvé.'));
+    }
+
+    _uniqueName(base, extension = '') {
+        let name = `${base}${extension}`;
         for (let i = 2; this._file.get_child(name).query_exists(null); i++)
-            name = `${base} ${i}`;
+            name = `${base} ${i}${extension}`;
+        return name;
+    }
+
+    newFolder() {
+        const name = this._uniqueName(t('untitled folder', 'dossier sans titre'));
         try {
             this._file.get_child(name).make_directory(null);
             this._pendingRename = name;
             this._queueRefresh();
         } catch (e) {
             Main.notify('GNOMAC', `${t('Could not create the folder:', 'Création impossible :')} ${e.message}`);
+        }
+    }
+
+    newDocument() {
+        const name = this._uniqueName(t('New Text Document', 'Nouveau document texte'), '.txt');
+        try {
+            this._file.get_child(name).create(Gio.FileCreateFlags.NONE, null).close(null);
+            this._pendingRename = name;
+            this._queueRefresh();
+        } catch (e) {
+            Main.notify('GNOMAC', `${t('Could not create the file:', 'Création impossible :')} ${e.message}`);
         }
     }
 

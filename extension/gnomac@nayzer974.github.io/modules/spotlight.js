@@ -173,7 +173,7 @@ export class Spotlight {
         this._card.set_pivot_point(0.5, 0.0);
         this._glass = new GlassSurface({
             backdrop: 'windows',
-            blur: Math.max(this._settings.get_int('glass-blur'), 40),
+            blur: Math.max(this._settings.get_int('glass-blur'), 24),
             glass: {
                 ...clearGlassParams(this._settings, RADIUS),
                 refraction: this._settings.get_double('glass-refraction') * 1.2,
@@ -318,7 +318,11 @@ export class Spotlight {
         this._height.snap(BAR_HEIGHT);
         this._morph = null;
         this._card.remove_all_transitions();
-        this._srcRect = this._rectOf(source);
+        // The bar starts as a dot at its own centre and spreads to both sides
+        // (the glass is one surface all the way). `source` no longer sets where
+        // it starts from: it opens where it will stay.
+        this._srcRect = {x: this._cardX + WIDTH / 2 - BAR_HEIGHT / 2, y: this._cardY,
+            width: BAR_HEIGHT, height: BAR_HEIGHT};
         if (this._srcRect && St.Settings.get().enable_animations) {
             // The magnifier's glass BECOMES the search bar: the same surface
             // grows from the button to the bar (shape, radius and optics change
@@ -399,7 +403,7 @@ export class Spotlight {
         const m = this._morph;
         const raw = Math.min(1, Math.max(0, (GLib.get_monotonic_time() - m.start) / 1000 / m.duration));
         const progress = m.dir > 0 ? raw : 1 - raw;
-        const e = progress * progress * (3 - 2 * progress);
+        const e = 1 - (1 - progress) ** 3;
         const src = this._srcRect;
         const lerp = (a, b) => a + (b - a) * e;
         const width = Math.round(lerp(src.width, WIDTH));

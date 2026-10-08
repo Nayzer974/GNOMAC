@@ -8,7 +8,7 @@ let device = null;
 
 function getDevice() {
     if (!device) {
-        const seat = Clutter.get_default_backend().get_default_seat();
+        const seat = (global.stage.context?.get_backend?.() ?? Clutter.get_default_backend()).get_default_seat();
         device = seat.create_virtual_device(Clutter.InputDeviceType.KEYBOARD_DEVICE);
     }
     return device;

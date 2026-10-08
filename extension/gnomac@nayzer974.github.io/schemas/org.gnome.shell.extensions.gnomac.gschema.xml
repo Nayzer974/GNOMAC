@@ -318,7 +318,7 @@
         <choice value="path"/>
         <choice value="genie"/>
       </choices>
-      <default>'path'</default>
+      <default>'genie'</default>
       <summary>Minimise, restore and close: a curved path into the dock icon, or the Genie funnel</summary>
     </key>
     <key name="window-path-curve" type="d">
@@ -428,6 +428,10 @@
     <key name="glass-debug" type="b">
       <default>false</default>
       <summary>Show the Liquid Glass debug overlay (surfaces, quality, brightness)</summary>
+    </key>
+    <key name="desktop-icons-visible" type="b">
+      <default>true</default>
+      <summary>Show the desktop items (the right-click menu toggles it)</summary>
     </key>
     <key name="glass-inspector" type="b">
       <default>false</default>
@@ -586,17 +590,17 @@
 
     <key name="glass-blur" type="i">
       <range min="0" max="100"/>
-      <default>30</default>
+      <default>14</default>
       <summary>Backdrop blur radius</summary>
     </key>
     <key name="glass-refraction" type="d">
       <range min="0" max="60"/>
-      <default>14</default>
+      <default>38</default>
       <summary>Edge refraction strength in pixels</summary>
     </key>
     <key name="glass-chroma" type="d">
       <range min="0" max="8"/>
-      <default>1.5</default>
+      <default>3.5</default>
       <summary>Chromatic dispersion at the edges in pixels</summary>
     </key>
     <key name="glass-rim" type="d">
