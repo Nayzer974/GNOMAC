@@ -36,9 +36,8 @@ if [[ -d "$SRC/.git" ]] && command -v git >/dev/null &&
   # shallow or rewritten copy cannot fast-forward).
   :
 else
-  # No usable clone: download the source archive into a fresh folder.
-  rm -rf "$SRC/.git" 2>/dev/null || true
-  # No clone: download the source archive into a fresh folder.
+  # No usable clone: download the source archive into a fresh folder. The old
+  # copy is only replaced once the download has worked (offline, it stays).
   command -v curl >/dev/null && command -v tar >/dev/null || { echo "need git, or curl and tar"; exit 1; }
   tmp="$(mktemp -d)"
   curl -fsSL "https://github.com/$REPO/archive/refs/heads/main.tar.gz" | tar -xz --strip-components=1 -C "$tmp"
