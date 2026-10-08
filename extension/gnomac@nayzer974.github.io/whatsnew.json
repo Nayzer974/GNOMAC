@@ -1,5 +1,56 @@
 [
   {
+    "id": 3,
+    "title": [
+      "GNOMAC · smoother animations, island, notifications and drag and drop",
+      "GNOMAC · animations plus fluides, encoche, notifications et glisser-déposer"
+    ],
+    "features": [
+      [
+        "The Dynamic Island plays your music as a real player: big cover (Spotify and web players included), progress, and a play button; the calendar steps aside while something plays",
+        "L’encoche joue ta musique comme un vrai lecteur : grande pochette (Spotify et lecteurs web compris), progression et bouton lecture ; le calendrier s’efface pendant une lecture"
+      ],
+      [
+        "Drag a desktop icon onto a folder, onto the Trash of the dock, or onto a Files window to move it there",
+        "Glisse une icône du bureau sur un dossier, sur la corbeille du dock ou sur une fenêtre Fichiers pour l’y déplacer"
+      ],
+      [
+        "The wallpaper picker (Super + W) bursts the chosen card into a glass bubble that grows over the old wallpaper",
+        "Le sélecteur de fond d’écran (Super + W) fait éclater la carte choisie en bulle de verre qui grandit sur l’ancien fond"
+      ],
+      [
+        "Trackpad settings in the preferences: tap to click, tap and drag, right click",
+        "Réglages du pavé tactile dans les préférences : toucher pour cliquer, toucher et glisser, clic droit"
+      ],
+      [
+        "What’s new in an update now opens in a card on your desktop, no web page",
+        "Les nouveautés d’une mise à jour s’ouvrent dans une carte sur ton bureau, sans page web"
+      ]
+    ],
+    "fixes": [
+      [
+        "Unlock: the lock screen now dissolves into the desktop instead of cutting to it",
+        "Déverrouillage : l’écran de verrouillage se dissout dans le bureau au lieu de couper net"
+      ],
+      [
+        "The start-up lens and the wallpaper bubble no longer freeze the shell",
+        "La lentille de démarrage et la bulle du fond d’écran ne figent plus le shell"
+      ],
+      [
+        "Clicking a notification opens its application even when GNOME cannot find its window",
+        "Cliquer sur une notification ouvre son application même quand GNOME ne retrouve pas sa fenêtre"
+      ],
+      [
+        "YouTube and other browser players can be paused and skipped 10 s from the island",
+        "Les lecteurs des navigateurs (YouTube) se mettent en pause et avancent de 10 s depuis l’encoche"
+      ],
+      [
+        "The island’s calendar no longer overflows, and long tile names (Dark Mode) no longer touch their edges",
+        "Le calendrier de l’encoche ne déborde plus, et les noms longs des puces (Mode sombre) ne touchent plus le bord"
+      ]
+    ]
+  },
+  {
     "id": 2,
     "title": [
       "GNOMAC · lens start-up, dock and desktop fixes",

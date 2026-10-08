@@ -43,7 +43,9 @@ export function closeWhatsNew() {
     current?.close(false);
 }
 
-export function showWhatsNew(extension, releases) {
+// `markSeen` false: the notes of an update that is not installed yet are shown
+// without counting as seen (the card comes again once it is installed).
+export function showWhatsNew(extension, releases, {markSeen = true} = {}) {
     if (!releases.length)
         return;
     current?.close(false);
@@ -151,5 +153,6 @@ export function showWhatsNew(extension, releases) {
     glass.materialize({duration: MotionTokens.medium, fade: false});
 
     // Seen: the next session starts quietly.
-    settings.set_int('whatsnew-seen', Math.max(settings.get_int('whatsnew-seen'), ...releases.map(r => r.id)));
+    if (markSeen)
+        settings.set_int('whatsnew-seen', Math.max(settings.get_int('whatsnew-seen'), ...releases.map(r => r.id)));
 }

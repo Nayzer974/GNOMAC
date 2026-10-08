@@ -92,3 +92,7 @@ GNOME ouvre une notification en retrouvant l'application de sa source (son entr�
 * sinon l'application est cherchée autrement : son entrée de bureau, puis son **nom** parmi les applications ouvertes (nom, identifiant, classe de fenêtre), puis parmi celles installées. On amène alors sa **fenêtre la plus récente** (une fenêtre qui demande l'attention passe en premier), ou on lance l'application si elle n'a pas de fenêtre.
 
 Si l'application reste introuvable (nom de source qui ne ressemble à aucune application), la notification disparaît comme avant : il n'y a rien à deviner.
+
+### Le bouton « Nouveautés » d'une mise à jour disponible
+
+Il ouvre **la carte « Nouveautés » sur le bureau**, pas une page web (l'ancienne page était la page de diff du dernier commit sur GitHub : illisible, et elle demande un navigateur). Dans l'ordre : les notes de la nouvelle version (`whatsnew.json` sur GitHub) que tu n'as pas encore vues ; sinon les titres des commits depuis ta version installée (API de comparaison de GitHub) ; en dernier recours seulement, la liste des commits sur le web. Ces notes ne comptent pas comme « vues » : la carte revient une fois la mise à jour installée.

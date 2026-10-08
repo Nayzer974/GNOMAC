@@ -28,6 +28,9 @@ import {timelines} from '../lib/animationTimeline.js';
 
 const REPO = 'Nayzer974/GNOMAC';
 const API = `https://api.github.com/repos/${REPO}/commits/main`;
+const NOTES = `https://raw.githubusercontent.com/${REPO}/main/extension/gnomac@nayzer974.github.io/whatsnew.json`;
+const COMPARE = sha => `https://api.github.com/repos/${REPO}/compare/${sha}...main`;
+const COMMITS_PAGE = `https://github.com/${REPO}/commits/main`;
 const INSTALLED = GLib.build_filenamev([GLib.get_user_config_dir(), 'gnomac', 'installed.json']);
 // The check runs at every start of the session (the network may not be up yet,
 // so a failed first try is repeated), then every `update-hours` hours.
@@ -257,11 +260,64 @@ export class Updater {
         notification.connect('activated', () => this.install(latest, false));
         notification.addAction(t('Later', 'Plus tard'), () =>
             this._settings.set_string('update-dismissed', latest.sha));
-        if (latest.url) {
-            notification.addAction(t('What’s new', 'Nouveautés'), () =>
-                Gio.AppInfo.launch_default_for_uri(latest.url, global.create_app_launch_context(0, -1)));
-        }
+        // The notes open here, in a card, not on a web page.
+        notification.addAction(t('What’s new', 'Nouveautés'), () => this.showUpcoming(latest));
         this._source.addNotification(notification);
+    }
+
+    // GET a JSON document; `done(json)` or `done(null)` on any failure.
+    _getJson(url, done) {
+        if (!this._session) {
+            done(null);
+            return;
+        }
+        const message = Soup.Message.new('GET', url);
+        message.request_headers.append('User-Agent', 'GNOMAC-updater');
+        this._session.send_and_read_async(message, GLib.PRIORITY_DEFAULT, null, (session, result) => {
+            try {
+                const bytes = session.send_and_read_finish(result);
+                if (message.get_status() !== Soup.Status.OK)
+                    throw new Error(`HTTP ${message.get_status()}`);
+                done(JSON.parse(new TextDecoder().decode(bytes.get_data())));
+            } catch (e) {
+                console.log(`GNOMAC updater: ${url}: ${e.message}`);
+                done(null);
+            }
+        });
+    }
+
+    // What the update that is waiting brings, shown in the What's new card
+    // without leaving the desktop (the notes of the commit's web page are a diff:
+    // not what one wants to read, and it needs a browser). In order: the
+    // release notes of the new version (whatsnew.json on GitHub) that you have
+    // not seen; else the titles of the commits since the installed version;
+    // else, as a last resort, the list of commits on the web.
+    showUpcoming(latest) {
+        const open = releases => import('../lib/whatsNew.js')
+            .then(m => m.showWhatsNew(this._extension, releases, {markSeen: false}))
+            .catch(e => logError(e, 'GNOMAC updater: what is new'));
+        const web = () => Gio.AppInfo.launch_default_for_uri(COMMITS_PAGE, global.create_app_launch_context(0, -1));
+        this._getJson(NOTES, notes => {
+            const seen = this._settings.get_int('whatsnew-seen');
+            const fresh = Array.isArray(notes) ? notes.filter(r => r.id > seen).sort((a, b) => b.id - a.id) : [];
+            if (fresh.length) {
+                open(fresh);
+                return;
+            }
+            const sha = readInstalled()?.sha;
+            if (!sha || !latest.sha) {
+                web();
+                return;
+            }
+            this._getJson(COMPARE(sha), diff => {
+                const subjects = (diff?.commits ?? []).map(c => (c.commit?.message ?? '').split('\n')[0]).filter(Boolean).reverse();
+                if (!subjects.length) {
+                    web();
+                    return;
+                }
+                open([{id: 0, title: ['Changes', 'Changements'], features: subjects.slice(0, 25).map(s => [s, s]), fixes: []}]);
+            });
+        });
     }
 
     // Runs scripts/update.sh from the source folder recorded at install time.
