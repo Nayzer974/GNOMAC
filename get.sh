@@ -22,11 +22,15 @@ DEST="${XDG_DATA_HOME:-$HOME/.local/share}/gnomac-src"
 [[ $EUID -ne 0 ]] || { echo "Run as your normal user, not root." >&2; exit 1; }
 
 if command -v git >/dev/null; then
-  if [[ -d "$DEST/.git" ]]; then
-    git -C "$DEST" pull --ff-only
+  # An existing copy is brought exactly to the latest main (fetch + reset), not
+  # `git pull`: an old or shallow copy, or one whose history was rewritten,
+  # cannot fast-forward and `pull` would stop there. If anything fails the copy
+  # is thrown away and cloned again.
+  if [[ -d "$DEST/.git" ]]      && git -C "$DEST" fetch --quiet --depth 1 origin main      && git -C "$DEST" reset --quiet --hard FETCH_HEAD; then
+    :
   else
     rm -rf "$DEST"
-    git clone --depth 1 "https://github.com/$REPO.git" "$DEST"
+    git clone --quiet --depth 1 "https://github.com/$REPO.git" "$DEST"
   fi
 else
   command -v curl >/dev/null && command -v tar >/dev/null || { echo "Need git, or curl and tar." >&2; exit 1; }
