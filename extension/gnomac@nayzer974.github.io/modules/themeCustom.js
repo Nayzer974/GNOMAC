@@ -69,7 +69,6 @@ export function buildCss(settings) {
     css.push(`.gnomac-layout-region { background-color: ${rgba(accent, 0.92)}; }`);
     css.push(`.gnomac-seg-item:checked, .gnomac-about2-tab:checked { background-color: ${rgba(accent, 0.55)}; }`);
     css.push(`.gnomac-swatch:checked { border-color: ${accent}; }`);
-    css.push(`.gnomac-chip.active, .gnomac-chip:checked { background-color: ${accent}; }`);
     css.push(`.gnomac-gallery-plus { color: ${accent}; }`);
     css.push(`.gnomac-notch-tab:checked { background-color: ${rgba(accent, 0.5)}; }`);
 

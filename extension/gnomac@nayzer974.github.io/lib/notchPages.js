@@ -11,7 +11,7 @@ import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {clearClipboard, clipboardItems, copyText, onClipboardChange} from './clipboardHistory.js';
-import {COLORS, colorChip, press} from './motion.js';
+import {COLORS, colorChip, css, lighten, press} from './motion.js';
 import {t} from './i18n.js';
 
 // ---------------------------------------------------------------- helpers
@@ -169,11 +169,11 @@ const TOGGLES = [
 ];
 
 const ACTIONS = [
-    {id: 'shot', icon: 'applets-screenshooter-symbolic', label: t('Screenshot', 'Capture'),
+    {id: 'shot', icon: 'applets-screenshooter-symbolic', label: t('Screenshot', 'Capture'), color: COLORS.blue,
         run: () => Main.screenshotUI.open().catch(logError)},
-    {id: 'lock', icon: 'system-lock-screen-symbolic', label: t('Lock', 'Verrouiller'),
+    {id: 'lock', icon: 'system-lock-screen-symbolic', label: t('Lock', 'Verrouiller'), color: COLORS.orange,
         run: () => Main.screenShield.lock(true)},
-    {id: 'settings', icon: 'emblem-system-symbolic', label: t('Settings', 'Réglages'),
+    {id: 'settings', icon: 'emblem-system-symbolic', label: t('Settings', 'Réglages'), color: COLORS.gray,
         run: () => Shell.AppSystem.get_default().lookup_app('org.gnome.Settings.desktop')?.activate()},
 ];
 
@@ -183,9 +183,10 @@ function chip(def, compact = false) {
     const label = compact && def.short ? def.short : def.label;
     if (def.run) {
         // Plain action: no state, just the press feel.
-        const column = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL,
+        const column = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL, style_class: 'gnomac-chip-column',
             x_align: Clutter.ActorAlign.CENTER});
-        column.add_child(new St.Icon({icon_name: def.icon, icon_size: 18, x_align: Clutter.ActorAlign.CENTER}));
+        column.add_child(new St.Icon({icon_name: def.icon, icon_size: 18, x_align: Clutter.ActorAlign.CENTER,
+            style: `color: ${css(lighten(def.color ?? COLORS.gray, 0.3))};`}));
         const name = new St.Label({text: label, style_class: 'gnomac-chip-label', x_align: Clutter.ActorAlign.CENTER});
         name.clutter_text.ellipsize = Pango.EllipsizeMode.END;
         column.add_child(name);

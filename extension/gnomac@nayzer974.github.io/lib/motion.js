@@ -63,17 +63,22 @@ export function press(actor, {down = 0.93, stiffness = 520, damping = 17} = {}) 
 
 // ------------------------------------------------------------ colour chip
 
+// A lighter shade of a colour, towards white.
+export const lighten = ([r, g, b], k = 0.2) => [r + (1 - r) * k, g + (1 - g) * k, b + (1 - b) * k];
+
 export function colorChip({icon, label, color, onToggle}) {
     // A button holds ONE child (GNOME 51 enforces it): the fill and the column
     // share a container.
     const root = new St.Button({style_class: 'gnomac-chip', toggle_mode: true, can_focus: false, reactive: true});
     const body = new St.Widget({layout_manager: new Clutter.BinLayout(), x_expand: true, y_expand: true});
     const fill = new St.Widget({style_class: 'gnomac-chip-fill', x_expand: true, y_expand: true,
-        opacity: 0, style: `background-color: ${css(color)};`});
-    const column = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL,
+        opacity: 0, style: `background-gradient-direction: vertical; background-gradient-start: ${css(lighten(color))}; background-gradient-end: ${css(color)};`});
+    const column = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL, style_class: 'gnomac-chip-column',
         x_align: Clutter.ActorAlign.CENTER, y_align: Clutter.ActorAlign.CENTER, x_expand: true, y_expand: true});
     const image = new St.Icon({icon_name: icon, icon_size: 18, x_align: Clutter.ActorAlign.CENTER});
     image.set_pivot_point(0.5, 0.5);
+    // Off, the icon carries a soft tint of its colour; on, the tile is filled and the icon is white.
+    image.set_style(`color: ${css(lighten(color, 0.3))};`);
     column.add_child(image);
     // A long name ("Do Not Disturb") shortens with an ellipsis instead of
     // touching the edges of its tile.
@@ -98,6 +103,7 @@ export function colorChip({icon, label, color, onToggle}) {
             fill.remove_all_transitions();
             fill.opacity = target;
         }
+        image.set_style(active ? 'color: #ffffff;' : `color: ${css(lighten(color, 0.3))};`);
         root.checked = active;
         if (active)
             root.add_style_pseudo_class('active');

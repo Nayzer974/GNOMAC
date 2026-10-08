@@ -39,7 +39,7 @@ const SIZES = {
     // not over it, and menus that would overlap are hidden by AppMenus.
     date: {width: 230, height: 78},
     media: {width: 400, height: 132},
-    dashboard: {width: 560, height: 228},
+    dashboard: {width: 580, height: 228},
     notice: {width: 400, height: 78},
     hud: {width: 300, height: 34},
 };
@@ -246,7 +246,8 @@ const Island = GObject.registerClass({
         // Wide dashboard: player + calendar on "Home", timer, shelf.
         this.dashboard = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL,
             style_class: 'gnomac-notch-dashboard'});
-        this.pages = new St.Widget({layout_manager: new Clutter.BinLayout(), x_expand: true, y_expand: true});
+        this.pages = new St.Widget({layout_manager: new Clutter.BinLayout(), x_expand: true, y_expand: true,
+            clip_to_allocation: true});
         this.homePage = new St.BoxLayout({style_class: 'gnomac-notch-home'});
         this.homePlayer = new St.BoxLayout({x_expand: true, style_class: 'gnomac-notch-home-player'});
         this.calendar = new MonthCalendar();

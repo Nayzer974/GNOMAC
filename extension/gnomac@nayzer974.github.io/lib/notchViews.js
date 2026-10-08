@@ -37,16 +37,18 @@ export class MonthCalendar {
         const layout = this._grid.layout_manager;
         const labels = [t('M', 'L'), t('T', 'M'), t('W', 'M'), t('T', 'J'), t('F', 'V'), t('S', 'S'), t('S', 'D')];
         labels.forEach((text, i) => layout.attach(
-            new St.Label({text, style_class: 'gnomac-notch-cal-head', x_align: Clutter.ActorAlign.CENTER}), i, 0, 1, 1));
+            new St.Label({text, style_class: i >= 5 ? 'gnomac-notch-cal-head weekend' : 'gnomac-notch-cal-head',
+                x_align: Clutter.ActorAlign.CENTER}), i, 0, 1, 1));
 
         const first = GLib.DateTime.new_local(now.get_year(), now.get_month(), 1, 0, 0, 0);
         const offset = first.get_day_of_week() - 1; // Monday first
         const days = GLib.Date.get_days_in_month(now.get_month(), now.get_year());
         for (let d = 1; d <= days; d++) {
             const slot = offset + d - 1;
+            const isToday = d === now.get_day_of_month();
             const label = new St.Label({
                 text: String(d),
-                style_class: d === now.get_day_of_month() ? 'gnomac-notch-cal-day today' : 'gnomac-notch-cal-day',
+                style_class: isToday ? 'gnomac-notch-cal-day today' : slot % 7 >= 5 ? 'gnomac-notch-cal-day weekend' : 'gnomac-notch-cal-day',
                 x_align: Clutter.ActorAlign.CENTER,
             });
             layout.attach(label, slot % 7, 1 + Math.floor(slot / 7), 1, 1);
