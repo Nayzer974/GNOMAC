@@ -25,6 +25,7 @@ import * as MessageTray from 'resource:///org/gnome/shell/ui/messageTray.js';
 import {GlassSurface, clearGlassParams} from '../lib/glass.js';
 import {Easing, MotionTokens} from '../lib/motionTokens.js';
 import {timelines} from '../lib/animationTimeline.js';
+import {installOpenFallback, removeOpenFallback} from '../lib/notificationOpen.js';
 import {t} from '../lib/i18n.js';
 
 const WIDTH = 392;
@@ -39,6 +40,7 @@ export class NotificationCenter {
     }
 
     enable() {
+        installOpenFallback();
         this._extension.notificationCenter = this;
         this._dnd = new Gio.Settings({schema_id: 'org.gnome.desktop.notifications'});
 
@@ -69,6 +71,7 @@ export class NotificationCenter {
     }
 
     disable() {
+        removeOpenFallback();
         if (this._extension.notificationCenter === this)
             this._extension.notificationCenter = null;
         this.close(false);

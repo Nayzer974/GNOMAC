@@ -9,6 +9,7 @@ import Meta from 'gi://Meta';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {GlassSurface, clearGlassParams} from '../lib/glass.js';
+import {installOpenFallback, removeOpenFallback} from '../lib/notificationOpen.js';
 
 const RADIUS = 20;
 
@@ -18,6 +19,8 @@ export class Notifications {
     }
 
     enable() {
+        // Clicking a banner opens the app even when GNOME cannot find its window.
+        installOpenFallback();
         const tray = Main.messageTray;
         this._oldAlignment = tray.bannerAlignment;
         tray.bannerAlignment = Clutter.ActorAlign.END;
@@ -49,6 +52,7 @@ export class Notifications {
     }
 
     disable() {
+        removeOpenFallback();
         const tray = Main.messageTray;
         const bin = tray._bannerBin;
         if (!this._trayGone) {

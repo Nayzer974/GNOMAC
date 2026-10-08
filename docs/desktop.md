@@ -81,3 +81,14 @@ Pour voir l'état actuel : `gsettings list-recursively org.gnome.desktop.periphe
 * **Pochettes** : Spotify et les navigateurs donnent une adresse web (ou une image encodée), pas un fichier ; `lib/coverArt.js` la télécharge une fois dans `~/.cache/gnomac/covers/` (effacée après 7 jours) et l'encoche l'affiche, y compris dans la ligne repliée. Sans pochette : l'icône du lecteur sur un dégradé.
 * **Commandes** : `lib/mprisClient.js` parle directement aux lecteurs MPRIS. Il lit ce que chaque lecteur sait faire : un onglet YouTube n'a pas de piste suivante ni précédente, et ses boutons deviennent **−10 s / +10 s** (icônes de saut) au lieu de ne rien faire ; lecture/pause essaie `PlayPause`, puis `Play` ou `Pause` si le lecteur ignore le premier. S'il y a plusieurs lecteurs, l'encoche suit celui qui joue (le dernier à avoir démarré), sinon le dernier utilisé, sans sauter de l'un à l'autre.
 * **Texte** : une échelle de couleurs pour tout l'encoche (blanc, 66 % pour le secondaire, 45 % pour le tertiaire), des chiffres à chasse fixe, des corps de texte plus grands (aucun sous 8 pt), des puces avec marge et **noms longs raccourcis par une ellipse** au lieu de toucher le bord (« Mode sombre », « Ne pas déranger »). La rangée de puces de l'accueil est en quatre colonnes égales.
+
+## Notifications : un clic ouvre l'application
+
+GNOME ouvre une notification en retrouvant l'application de sa source (son entrée de bureau, ou la fenêtre du processus qui l'a envoyée). Quand il n'y arrive pas (applications Electron ou Flatpak, navigateurs, applications qui n'envoient pas d'entrée de bureau), le clic **fait seulement disparaître** la notification.
+
+`lib/notificationOpen.js` ajoute un contrôle après **toute** activation de notification (bannière, Centre de notifications, écran de verrouillage, menu de date de GNOME : elles passent toutes par `Notification.activate()`). 450 ms plus tard :
+
+* si une fenêtre a pris le focus (ce que la notification a ouvert), ou si l'application a déjà le focus : rien de plus ;
+* sinon l'application est cherchée autrement : son entrée de bureau, puis son **nom** parmi les applications ouvertes (nom, identifiant, classe de fenêtre), puis parmi celles installées. On amène alors sa **fenêtre la plus récente** (une fenêtre qui demande l'attention passe en premier), ou on lance l'application si elle n'a pas de fenêtre.
+
+Si l'application reste introuvable (nom de source qui ne ressemble à aucune application), la notification disparaît comme avant : il n'y a rien à deviner.
