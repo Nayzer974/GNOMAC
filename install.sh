@@ -59,7 +59,9 @@ fi
 if (( WITH_DEPS )); then
   if command -v pacman >/dev/null; then
     info "Installing packages (sudo will ask for your password)"
-    sudo pacman -S --needed glib2 inter-font gnome-shell-extensions gnome-tweaks git curl unzip
+    # --noconfirm: you already said yes; and when the script is piped from curl,
+    # pacman's question would otherwise read the script itself as the answer.
+    sudo pacman -S --needed --noconfirm glib2 inter-font gnome-shell-extensions gnome-tweaks git curl unzip
   else
     warn "--deps only knows pacman; install glib2, Inter, git, curl, unzip yourself."
   fi

@@ -37,6 +37,12 @@ else
     | python3 -c 'import json,sys; print(json.load(sys.stdin)["sha"])' > "$DEST/.gnomac-sha" 2>/dev/null || true
 fi
 
+# Piped from curl, stdin is this script: whatever the installer reads (a
+# pacman question, a prompt) would swallow it. Give it the terminal instead.
+if [[ ! -t 0 && -r /dev/tty ]]; then
+  exec </dev/tty
+fi
+
 # `--ez` runs the express installer (asks a few questions, sets everything up).
 if [[ "${1:-}" == "--ez" ]]; then
   shift
