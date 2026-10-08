@@ -63,8 +63,10 @@ export function press(actor, {down = 0.93, stiffness = 520, damping = 17} = {}) 
 // ------------------------------------------------------------ colour chip
 
 export function colorChip({icon, label, color, onToggle}) {
-    const root = new St.Button({style_class: 'gnomac-chip', toggle_mode: true, can_focus: false,
-        layout_manager: new Clutter.BinLayout(), reactive: true});
+    // A button holds ONE child (GNOME 51 enforces it): the fill and the column
+    // share a container.
+    const root = new St.Button({style_class: 'gnomac-chip', toggle_mode: true, can_focus: false, reactive: true});
+    const body = new St.Widget({layout_manager: new Clutter.BinLayout(), x_expand: true, y_expand: true});
     const fill = new St.Widget({style_class: 'gnomac-chip-fill', x_expand: true, y_expand: true,
         opacity: 0, style: `background-color: ${css(color)};`});
     const column = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL,
@@ -74,8 +76,9 @@ export function colorChip({icon, label, color, onToggle}) {
     column.add_child(image);
     column.add_child(new St.Label({text: label, style_class: 'gnomac-chip-label',
         x_align: Clutter.ActorAlign.CENTER}));
-    root.add_child(fill);
-    root.add_child(column);
+    body.add_child(fill);
+    body.add_child(column);
+    root.set_child(body);
 
     press(root);
 

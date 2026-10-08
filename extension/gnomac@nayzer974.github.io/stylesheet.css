@@ -2235,3 +2235,36 @@
     border: 1px solid rgba(150, 185, 255, 0.7);
     border-radius: 3px;
 }
+
+/* ---------- Notification Center ---------- */
+.gnomac-bell { padding: 0 6px; }
+.gnomac-bell-dot {
+    width: 6px; height: 6px; border-radius: 3px;
+    background-color: #ff453a;
+    margin: 0;
+}
+.gnomac-nc-card { border-radius: 28px; }
+.gnomac-nc-content { padding: 14px 14px 10px 14px; spacing: 8px; }
+.gnomac-nc-header { spacing: 8px; padding: 2px 4px 6px 4px; }
+.gnomac-nc-title { font-size: 15pt; font-weight: 700; color: rgba(255, 255, 255, 0.95); }
+.gnomac-nc-pill {
+    padding: 4px 11px; border-radius: 12px;
+    background-color: rgba(255, 255, 255, 0.14);
+    color: rgba(255, 255, 255, 0.9); font-size: 9pt;
+}
+.gnomac-nc-pill:hover { background-color: rgba(255, 255, 255, 0.24); }
+.gnomac-nc-pill:checked { background-color: rgba(255, 255, 255, 0.34); }
+.gnomac-nc-list { spacing: 8px; padding-right: 2px; }
+.gnomac-nc-item {
+    padding: 11px 12px; spacing: 11px; border-radius: 18px;
+    background-color: rgba(255, 255, 255, 0.10);
+}
+.gnomac-nc-item:hover { background-color: rgba(255, 255, 255, 0.17); }
+.gnomac-nc-app { font-size: 8.5pt; font-weight: 700; color: rgba(255, 255, 255, 0.6); }
+.gnomac-nc-time { font-size: 8.5pt; color: rgba(255, 255, 255, 0.5); }
+.gnomac-nc-item-title { font-size: 10.5pt; font-weight: 700; color: rgba(255, 255, 255, 0.95); }
+.gnomac-nc-body { font-size: 9.5pt; color: rgba(255, 255, 255, 0.78); }
+.gnomac-nc-close { padding: 4px; border-radius: 10px; color: rgba(255, 255, 255, 0.55); }
+.gnomac-nc-close:hover { background-color: rgba(255, 255, 255, 0.2); color: white; }
+.gnomac-nc-empty { color: rgba(255, 255, 255, 0.55); padding: 40px 0; font-size: 11pt; }
+.gnomac-notch-shelf-buttons { spacing: 8px; }

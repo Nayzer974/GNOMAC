@@ -21,6 +21,7 @@ import {MenuBarIcons} from './modules/menuBarIcons.js';
 import {LockScreen} from './modules/lockScreen.js';
 import {LoginScreen} from './modules/loginScreen.js';
 import {Notifications} from './modules/notifications.js';
+import {NotificationCenter} from './modules/notificationCenter.js';
 import {Spotlight} from './modules/spotlight.js';
 import {StageManager} from './modules/stageManager.js';
 import {ThemeCustom} from './modules/themeCustom.js';
@@ -59,6 +60,7 @@ const MODULES = [
     {key: 'enable-window-animations', Module: WindowAnimations},
     {key: 'enable-dynamic-island', Module: DynamicIsland},
     {key: 'enable-notifications', Module: Notifications},
+    {key: 'enable-notification-center', Module: NotificationCenter},
     {key: 'enable-vibrancy', Module: Vibrancy},
     {key: 'enable-widgets', Module: Widgets},
     {key: 'enable-desktop-icons', Module: DesktopIcons},

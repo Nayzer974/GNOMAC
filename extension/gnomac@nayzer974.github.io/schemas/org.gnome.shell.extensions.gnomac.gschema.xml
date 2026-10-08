@@ -5,6 +5,10 @@
       <default>true</default>
       <summary>Show the GNOMAC dock</summary>
     </key>
+    <key name="enable-notification-center" type="b">
+      <default>true</default>
+      <summary>Notification Center: a bell in the menu bar opens a glass panel with every notification</summary>
+    </key>
     <key name="enable-spotlight" type="b">
       <default>true</default>
       <summary>Spotlight search bar</summary>
@@ -428,6 +432,10 @@
     <key name="glass-debug" type="b">
       <default>false</default>
       <summary>Show the Liquid Glass debug overlay (surfaces, quality, brightness)</summary>
+    </key>
+    <key name="island-shelf" type="as">
+      <default>[]</default>
+      <summary>Files kept on the notch shelf (URIs)</summary>
     </key>
     <key name="desktop-icons-visible" type="b">
       <default>true</default>

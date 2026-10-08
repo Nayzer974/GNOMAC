@@ -246,6 +246,8 @@ const Island = GObject.registerClass({
         this.timer = new PomodoroTimer(this._settings, finished => this.emit('timer-changed', finished));
         this.timerPage = this.timer.actor;
         this.shelf = new Shelf();
+        this.shelf.load(settings.get_strv('island-shelf'));
+        this.shelf.onChange = files => settings.set_strv('island-shelf', files);
         this.shelfPage = this.shelf.actor;
         this.statsView = new StatsPage();
         this.statsPage = this.statsView.actor;
@@ -462,6 +464,7 @@ export class DynamicIsland {
         });
 
         this._source = new Mpris.MprisSource();
+        this._watchCharging();
         this._connect(this._source, 'player-added', (_s, player) => this._addPlayer(player));
         this._connect(this._source, 'player-removed', (_s, player) => this._removePlayer(player));
         for (const player of this._source.players)
@@ -653,6 +656,10 @@ export class DynamicIsland {
                 GLib.source_remove(id);
         }
         this._hoverId = this._leaveId = 0;
+        if (this._powerSub) {
+            Gio.DBus.system.signal_unsubscribe(this._powerSub);
+            this._powerSub = 0;
+        }
         this.island?.timer?.destroy();
         this.island?.clipboardView?.destroy();
         stopClipboard();
@@ -723,6 +730,45 @@ export class DynamicIsland {
     _hasMedia() {
         const p = this._player;
         return !!p && p.canPlay && (p.status === 'Playing' || p.status === 'Paused');
+    }
+
+    // Plugging the charger in (or unplugging it) shows a short notice in the
+    // island: the battery level and whether it is charging. UPower's display
+    // device is the source; without a battery nothing happens.
+    _watchCharging() {
+        const path = '/org/freedesktop/UPower/devices/DisplayDevice';
+        let last = null;
+        const show = props => {
+            const present = props.IsPresent?.deepUnpack?.() ?? props.IsPresent;
+            const state = props.State?.deepUnpack?.() ?? props.State;
+            const percent = Math.round(props.Percentage?.deepUnpack?.() ?? props.Percentage ?? NaN);
+            if (!present || !Number.isFinite(percent))
+                return;
+            const charging = state === 1 || state === 4 || state === 5;
+            const previous = last;
+            last = charging;
+            // First reading: only remember. Later: announce a change.
+            if (previous === null || previous === charging || !this._settings.get_boolean('island-notifications'))
+                return;
+            const level = Math.min(100, Math.max(0, Math.round(percent / 10) * 10));
+            this._showNotice({
+                title: charging ? t('Charging', 'En charge') : t('On battery', 'Sur batterie'),
+                body: `${percent} %`,
+                gicon: new Gio.ThemedIcon({name: charging ? `battery-level-${level}-charging-symbolic` : `battery-level-${level}-symbolic`}),
+            });
+        };
+        const read = () => Gio.DBus.system.call('org.freedesktop.UPower', path, 'org.freedesktop.DBus.Properties', 'GetAll',
+            new GLib.Variant('(s)', ['org.freedesktop.UPower.Device']), null, Gio.DBusCallFlags.NONE, 1000, null, (conn, res) => {
+                try {
+                    if (!this._islandGone)
+                        show(conn.call_finish(res).deepUnpack()[0]);
+                } catch {}
+            });
+        try {
+            read();
+            this._powerSub = Gio.DBus.system.signal_subscribe('org.freedesktop.UPower', 'org.freedesktop.DBus.Properties',
+                'PropertiesChanged', path, null, Gio.DBusSignalFlags.NONE, () => read());
+        } catch {}
     }
 
     // A call on the current player's MPRIS interface, straight over D-Bus.

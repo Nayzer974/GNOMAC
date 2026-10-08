@@ -277,6 +277,8 @@ export class PomodoroTimer {
 export class Shelf {
     constructor() {
         this.files = [];
+        // Set by the island: the shelf is kept between sessions.
+        this.onChange = null;
         this.actor = new St.BoxLayout({style_class: 'gnomac-notch-shelf'});
         this._empty = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL, x_expand: true, y_align: Clutter.ActorAlign.CENTER,
             style_class: 'gnomac-notch-shelf-empty'});
@@ -287,7 +289,13 @@ export class Shelf {
         const paste = new St.Button({label: t('Paste Files', 'Coller des fichiers'),
             style_class: 'gnomac-notch-pill-button', can_focus: false, x_align: Clutter.ActorAlign.CENTER});
         paste.connect('clicked', () => this.paste());
-        this._empty.add_child(paste);
+        const addFiles = new St.Button({label: t('Add Files…', 'Ajouter des fichiers…'),
+            style_class: 'gnomac-notch-pill-button', can_focus: false, x_align: Clutter.ActorAlign.CENTER});
+        addFiles.connect('clicked', () => this.pick());
+        const buttons = new St.BoxLayout({style_class: 'gnomac-notch-shelf-buttons', x_align: Clutter.ActorAlign.CENTER});
+        buttons.add_child(addFiles);
+        buttons.add_child(paste);
+        this._empty.add_child(buttons);
         this.actor.add_child(this._empty);
     }
 
@@ -296,11 +304,25 @@ export class Shelf {
             return;
         this.files.push(uri);
         this._render();
+        this.onChange?.(this.files);
     }
 
     remove(uri) {
         this.files = this.files.filter(f => f !== uri);
         this._render();
+        this.onChange?.(this.files);
+    }
+
+    // The saved list, without announcing a change.
+    load(uris) {
+        this.files = [...uris];
+        this._render();
+    }
+
+    // "Add Files…": the system file chooser.
+    pick() {
+        import('./filePicker.js').then(m => m.pickFiles({title: t('Add to the shelf', 'Ajouter à l’étagère')},
+            uris => uris.forEach(uri => this.add(uri)))).catch(e => logError(e, 'GNOMAC shelf'));
     }
 
     // Files copied in the Files app (x-special/gnome-copied-files) or a URI list.
@@ -320,12 +342,19 @@ export class Shelf {
     }
 
     _render() {
-        this.actor.destroy_all_children();
+        // The empty-state panel is kept (it is shown again later): taken out,
+        // not destroyed, like everything else would be.
+        for (const child of this.actor.get_children()) {
+            if (child === this._empty)
+                this.actor.remove_child(child);
+            else
+                child.destroy();
+        }
         if (!this.files.length) {
             this.actor.add_child(this._empty);
             return;
         }
-        for (const uri of this.files.slice(-6)) {
+        for (const uri of this.files.slice(-5)) {
             const file = Gio.File.new_for_uri(uri);
             let gicon = null;
             try {
@@ -352,6 +381,11 @@ export class Shelf {
             });
             this.actor.add_child(button);
         }
+        // A "+" at the end: more files, whenever.
+        const plus = new St.Button({style_class: 'gnomac-notch-shelf-item', can_focus: false,
+            child: new St.Icon({icon_name: 'list-add-symbolic', icon_size: 22})});
+        plus.connect('clicked', () => this.pick());
+        this.actor.add_child(plus);
     }
 
     _itemMenu(uri, button) {

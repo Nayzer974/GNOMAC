@@ -1,0 +1,36 @@
+# Le bureau : icônes, menu, fond vidéo, centre de notifications
+
+## Icônes du bureau
+
+Les fichiers de votre dossier Bureau s'affichent et se manipulent comme sous Windows / macOS.
+
+* **Clic** : sélectionne ; **Ctrl+clic** ajoute ; **glisser sur un endroit vide** trace un rectangle de sélection ; **double clic** ouvre. Un « clic » est un appui et un relâchement qui restent à moins de 8 px : les tapes du pavé tactile bougent un peu, le seuil est large.
+* **Glisser** une icône (ou plusieurs) la déplace ; elle s'accroche à la grille et la position est retenue. Le glisser garde une **capture du pointeur** : l'icône continue de suivre même quand le pointeur sort d'elle, et on dépose en relâchant n'importe où. Déposer sur l'encoche garde le fichier sur l'étagère.
+* **Clavier** (après un clic sur le bureau) : Entrée ouvre, F2 renomme, Suppr met à la corbeille, Ctrl+A / C / X / V, F5 actualise.
+* **Clic droit sur une icône** : Ouvrir, Renommer, Couper, Copier, Copier le chemin, Garder sur l'étagère, Mettre à la corbeille. **Clic droit sur le bureau** : Nouveau dossier, Nouveau document texte, Coller, Trier par (nom, type, date, taille), Actualiser, Tout sélectionner, **Afficher les éléments du bureau** (case à cocher), Ouvrir le dossier Bureau, Ouvrir dans le terminal, Modifier l'arrière-plan, Paramètres d'affichage, Préférences de GNOMAC. (Les menus s'ouvrent au **relâchement** du bouton, comme ceux de GNOME.)
+
+**Limite de Wayland** : le shell ne peut pas recevoir un glisser-déposer qui part d'une autre application (la fenêtre Fichiers). Pour ajouter des fichiers : copier dans Fichiers puis **Coller** (menu du bureau ou Ctrl+V), ou **Nouveau dossier / document**.
+
+## Fond d'écran vidéo (Hidamari)
+
+Un fond vidéo est **une fenêtre** : elle recouvre tout ce qui est « dans le fond » de GNOME, et les icônes y étaient cachées. Les icônes et les widgets vivent maintenant sur une **couche du bureau** (`lib/desktopLayer.js`) placée juste au-dessus du fond d'écran, sous toutes les fenêtres, et **juste au-dessus d'une fenêtre de fond d'écran** (type DESKTOP, ou classe / titre contenant hidamari, wallpaper, xwinwrap, mpvpaper, komorebi…). La couche prend aussi les clics du bureau : le menu est donc le même avec ou sans fond vidéo. Testé en VM avec une fenêtre plein écran qui joue le rôle du fond (les icônes passent au-dessus) ; **pas testé avec Hidamari lui-même**. Si votre fond n'est pas reconnu par son nom, dites-moi sa classe de fenêtre.
+
+## Étagère de l'encoche
+
+Elle est **conservée entre les sessions**. Pour y mettre des fichiers : **Ajouter des fichiers…** (le sélecteur de fichiers du système, via le portail), **Coller des fichiers**, un « + » en fin de rangée, ou glisser une icône du bureau sur l'encoche.
+
+## Centre de notifications
+
+Une **cloche** dans la barre de menus (point rouge s'il y a des notifications) ouvre un panneau de verre qui glisse depuis la droite : une carte par notification (application, titre, texte, heure ; clic pour ouvrir ce dont elle parle, × pour la fermer), **Tout effacer** et **Ne pas déranger**. Échap ou un clic à côté le ferme. Même contenu que le calendrier de GNOME : rien n'est copié. Limite : il montre ce que GNOME garde ; une notification déjà fermée ou expirée n'est dans aucun historique. Aussi dans Spotlight (« Centre de notifications »).
+
+## Recharge
+
+Quand on branche ou débranche le chargeur, l'encoche affiche « En charge » ou « Sur batterie » avec le niveau (réglage `island-notifications`).
+
+## Écran de connexion (GDM)
+
+C'est le shell **de GDM**, un autre programme que votre bureau : il ne change qu'après `gdm/install-gdm.sh` (c'est pourquoi il peut rester celui de GNOME sur une vraie machine alors que la VM, où le script a été lancé, est en style GNOMAC). Depuis le bureau : *Spotlight › Installer l'écran de connexion* (le système affiche **sa** fenêtre de mot de passe, GNOMAC ne le voit jamais) ; *Spotlight › Vérifier l'écran de connexion* écrit l'état dans `~/.cache/gnomac/login-screen-check.txt`. Ensuite, se déconnecter pour le voir.
+
+## Déverrouillage
+
+Après le mot de passe, GNOME déverrouille par le signal `Unlock` de logind, qui appelle `deactivate(false)`. L'animation n'était déclenchée que pour `deactivate(true)` : le vrai déverrouillage l'ignorait et le bureau apparaissait d'un coup. Elle s'exécute maintenant dans les deux cas (vérifié en VM avec `deactivate(false)` : la barre et les fenêtres apparaissent par la révélation de `lib/reveal.js`).
