@@ -29,10 +29,15 @@ SRC="${SRC:-${XDG_DATA_HOME:-$HOME/.local/share}/gnomac-src}"
 # The recorded folder may be a temporary copy that is gone (e.g. /tmp): use the default one.
 [[ -f "$SRC/install.sh" ]] || SRC="${XDG_DATA_HOME:-$HOME/.local/share}/gnomac-src"
 
-if [[ -d "$SRC/.git" ]] && command -v git >/dev/null; then
-  git -C "$SRC" fetch --quiet origin main
-  git -C "$SRC" merge --ff-only --quiet origin/main
+if [[ -d "$SRC/.git" ]] && command -v git >/dev/null &&
+   git -C "$SRC" fetch --quiet --depth 1 origin main &&
+   git -C "$SRC" reset --quiet --hard FETCH_HEAD; then
+  # Brought exactly to the latest main (not a fast-forward merge: an old,
+  # shallow or rewritten copy cannot fast-forward).
+  :
 else
+  # No usable clone: download the source archive into a fresh folder.
+  rm -rf "$SRC/.git" 2>/dev/null || true
   # No clone: download the source archive into a fresh folder.
   command -v curl >/dev/null && command -v tar >/dev/null || { echo "need git, or curl and tar"; exit 1; }
   tmp="$(mktemp -d)"
