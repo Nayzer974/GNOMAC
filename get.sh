@@ -41,15 +41,20 @@ else
     | python3 -c 'import json,sys; print(json.load(sys.stdin)["sha"])' > "$DEST/.gnomac-sha" 2>/dev/null || true
 fi
 
-# Piped from curl, stdin is this script: whatever the installer reads (a
-# pacman question, a prompt) would swallow it. Give it the terminal instead.
-if [[ ! -t 0 && -r /dev/tty ]]; then
-  exec </dev/tty
-fi
+# Piped from curl, this script itself is read from stdin: whatever the
+# installer reads (a pacman question, a prompt) would swallow the rest of it.
+# The installer gets the terminal as ITS input. (The terminal must not become
+# THIS shell's stdin: bash is still reading the script from it.)
+launch() {
+  if [[ ! -t 0 && -r /dev/tty ]]; then
+    exec "$@" </dev/tty
+  fi
+  exec "$@"
+}
 
 # `--ez` runs the express installer (asks a few questions, sets everything up).
 if [[ "${1:-}" == "--ez" ]]; then
   shift
-  exec "$DEST/ez-install.sh" "$@"
+  launch "$DEST/ez-install.sh" "$@"
 fi
-exec "$DEST/install.sh" "$@"
+launch "$DEST/install.sh" "$@"
