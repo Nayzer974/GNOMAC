@@ -130,12 +130,12 @@ export default class GnomacPreferences extends ExtensionPreferences {
         closeRow.connect('notify::selected', () => settings.set_string('close-animation', closeModes[closeRow.selected]));
         dock.add(closeRow);
 
-        const effects = ['path', 'genie'];
+        const effectModes = ['path', 'genie'];
         const effectRow = new Adw.ComboRow({title: 'Réduction, restauration et fermeture',
             subtitle: 'Trajectoire : la fenêtre glisse en courbe vers l’icône du dock ; Génie : elle est aspirée',
             model: Gtk.StringList.new(['Trajectoire vers le dock', 'Effet Génie'])});
-        effectRow.selected = Math.max(0, effects.indexOf(settings.get_string('minimize-effect')));
-        effectRow.connect('notify::selected', () => settings.set_string('minimize-effect', effects[effectRow.selected]));
+        effectRow.selected = Math.max(0, effectModes.indexOf(settings.get_string('minimize-effect')));
+        effectRow.connect('notify::selected', () => settings.set_string('minimize-effect', effectModes[effectRow.selected]));
         dock.add(effectRow);
 
         const bar = group('Barre de menus');
@@ -242,10 +242,10 @@ export default class GnomacPreferences extends ExtensionPreferences {
 
         const boot = group('Démarrage et extinction');
         toggle(boot, 'enable-shutdown-animation', 'Animation d’arrêt', 'Avant l’arrêt, le redémarrage ou la fermeture de session');
-        const bootStyles = ['mist', 'hello', 'logo', 'classic'];
+        const bootStyles = ['lens', 'mist', 'hello', 'logo', 'classic'];
         const styleRow2 = new Adw.ComboRow({title: 'Style du démarrage',
-            subtitle: 'Brume : le bureau apparaît à travers un voile léger (environ 1 s) ; Hello : le logo se dessine puis des mots s’écrivent ; Logo : le logo seul ; Classique : logo et barre',
-            model: Gtk.StringList.new(['Brume (légère)', 'Hello (dessiné)', 'Logo dessiné', 'Classique'])});
+            subtitle: 'Lentille : un disque de verre liquide s’ouvre au centre jusqu’à remplir l’écran ; Brume : le bureau apparaît à travers un voile léger (environ 1 s) ; Hello : le logo se dessine puis des mots s’écrivent ; Logo : le logo seul ; Classique : logo et barre',
+            model: Gtk.StringList.new(['Lentille (verre liquide)', 'Brume (légère)', 'Hello (dessiné)', 'Logo dessiné', 'Classique'])});
         styleRow2.selected = Math.max(0, bootStyles.indexOf(settings.get_string('boot-style')));
         styleRow2.connect('notify::selected', () => settings.set_string('boot-style', bootStyles[styleRow2.selected]));
         boot.add(styleRow2);

@@ -78,7 +78,13 @@ export class Updater {
         content.add_child(this._dot);
         this._button = new St.Button({style_class: 'panel-button gnomac-update-button', can_focus: false, reactive: true,
             y_align: Clutter.ActorAlign.CENTER, child: content, accessible_name: t('Check for updates', 'Chercher une mise à jour')});
-        this._button.connect('clicked', () => this.check({manual: true}));
+        // With an update waiting (the dot), a click installs it; otherwise it checks.
+        this._button.connect('clicked', () => {
+            if (this._latest && this._dot?.visible)
+                this.install(this._latest, false);
+            else
+                this.check({manual: true});
+        });
         this._button.connect('destroy', () => (this._button = null));
         const right = Main.panel._rightBox;
         const anchor = Main.panel.statusArea.quickSettings?.container ?? null;
@@ -210,6 +216,7 @@ export class Updater {
     }
 
     _onLatest(latest, manual, startup = false) {
+        this._latest = latest;
         this._settings.set_string('update-latest', latest.sha);
         this._syncDot();
         const installed = readInstalled();
@@ -245,7 +252,9 @@ export class Updater {
             body: latest.message || t('A new version of GNOMAC is ready.', 'Une nouvelle version de GNOMAC est prête.'),
             urgency: MessageTray.Urgency.NORMAL,
         });
+        // The button, and a click on the banner itself, both install.
         notification.addAction(t('Update', 'Mettre à jour'), () => this.install(latest, false));
+        notification.connect('activated', () => this.install(latest, false));
         notification.addAction(t('Later', 'Plus tard'), () =>
             this._settings.set_string('update-dismissed', latest.sha));
         if (latest.url) {
@@ -257,6 +266,7 @@ export class Updater {
 
     // Runs scripts/update.sh from the source folder recorded at install time.
     install(latest, automatic) {
+        console.log(`GNOMAC updater: install requested (${automatic ? 'automatic' : 'by you'})`);
         const installed = readInstalled();
         let script = installed?.source ? GLib.build_filenamev([installed.source, 'scripts', 'update.sh']) : '';
         if (!script || !GLib.file_test(script, GLib.FileTest.EXISTS))

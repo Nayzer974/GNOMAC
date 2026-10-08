@@ -72,7 +72,7 @@ function systemActionEntries(extension) {
         entry(t('Preview Start-up Animation', 'Aperçu de l’animation de démarrage'),
             ['startup', 'demarrage', 'démarrage', 'boot', 'hello', 'animation', 'apercu', 'aperçu'],
             'media-playback-start-symbolic', () => extension?._modules?.find(m => m.constructor.name === 'BootShutdown')
-                ?._playBoot({logo: true, hello: true, immediate: true})),
+                ?.previewBoot()),
         entry(t('Toggle Stage Manager', 'Activer le Stage Manager'), ['stage', 'manager', 'fenetres', 'fenêtres', 'windows'],
             'view-dual-symbolic', () => extension?._modules?.find(m => m.constructor.name === 'StageManager')?.toggle()),
         entry(t('Edit Widgets…', 'Modifier les widgets…'), ['widget', 'widgets', 'bureau', 'desktop', 'edit'],

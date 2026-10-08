@@ -354,6 +354,22 @@ export class Dock {
                 if (this._dash.opacity !== 0)
                     this._dash.opacity = 0;
             });
+            // Invisible is not enough: on GNOME 51 the dash stays mapped under
+            // our dock, and its icons (still reactive) took the clicks meant for
+            // ours, so a click on the dock launched nothing. Its icons are made
+            // untouchable too, the ones that exist and the ones that come later.
+            this._dashPicking = new Map();
+            const untouchable = actor => {
+                if (!this._dashPicking.has(actor))
+                    this._dashPicking.set(actor, actor.reactive);
+                actor.reactive = false;
+                actor.get_children?.().forEach(untouchable);
+            };
+            untouchable(this._dash);
+            this._connect(this._dash, 'child-added', (_d, child) => untouchable(child));
+            const box = this._dash._box ?? this._dash.get_first_child?.();
+            if (box && box !== this._dash)
+                this._connect(box, 'child-added', (_b, child) => untouchable(child));
         }
         this._connect(Main.overview, 'showing', () => this.actor.hide());
         this._connect(Main.overview, 'hidden', () => this.actor.show());
@@ -387,6 +403,12 @@ export class Dock {
         if (this._dash && this._dashSaved && !this._dash.is_destroyed?.()) {
             this._dash.opacity = this._dashSaved.opacity;
             this._dash.reactive = this._dashSaved.reactive;
+            for (const [actor, reactive] of this._dashPicking ?? []) {
+                try {
+                    actor.reactive = reactive;
+                } catch {}
+            }
+            this._dashPicking = null;
         }
         this._dash = null;
         this._items = [];

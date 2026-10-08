@@ -169,9 +169,22 @@ class DesktopLayer {
     // Is this event on the bare desktop? The layer, the wallpaper actors, a
     // wallpaper window or nothing at all: yes. An icon, a widget, a window, the
     // panel, the dock or a menu: no (they have their own handlers).
+    // What the pointer is over. The stage knows it for any event; an event
+    // whose target is not known is NEVER taken for the desktop (taking it for
+    // the desktop would swallow the clicks meant for the icons).
+    _target(event) {
+        let target = null;
+        try {
+            target = global.stage.get_event_actor(event);
+        } catch {}
+        return target ?? event.get_source();
+    }
+
     _onDesktop(event) {
-        const source = event.get_source();
-        if (!source || source === global.stage || source === this.actor)
+        const source = this._target(event);
+        if (!source)
+            return false;
+        if (source === global.stage || source === this.actor)
             return true;
         const background = Main.layoutManager._backgroundGroup;
         for (let a = source; a; a = a.get_parent()) {
@@ -202,7 +215,7 @@ class DesktopLayer {
     }
 
     _onPress(event) {
-        const source = event.get_source();
+        const source = this._target(event);
         const onDesktop = this._onDesktop(event);
         if (event.get_button() !== Clutter.BUTTON_MIDDLE)
             this.lastPress = `button ${event.get_button()} on ${source?.constructor?.name ?? 'nothing'}${source?.name ? `/${source.name}` : ''} -> ${onDesktop ? 'desktop' : 'not the desktop'}`;

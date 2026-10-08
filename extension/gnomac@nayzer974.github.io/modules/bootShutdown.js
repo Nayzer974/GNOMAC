@@ -173,7 +173,9 @@ export class BootShutdown {
             // With the Plymouth theme the logo has already played before the
             // login screen: only the greetings, which are new, are shown.
             if (mode !== 'never') {
-                if (style === 'mist')
+                if (style === 'lens')
+                    this._playBoot({lens: true});
+                else if (style === 'mist')
                     this._playBoot({mist: true});
                 else if (style === 'hello')
                     this._playBoot({logo: !plymouth || mode === 'always', hello: true});
@@ -196,6 +198,19 @@ export class BootShutdown {
             Main.layoutManager.disconnect(this._startupId);
             this._startupId = 0;
         }
+    }
+
+    // Spotlight > "Preview Start-up Animation": the configured style, now.
+    previewBoot() {
+        const style = this._settings.get_string('boot-style');
+        if (style === 'lens')
+            this._playBoot({lens: true, immediate: true});
+        else if (style === 'mist')
+            this._playBoot({mist: true, immediate: true});
+        else if (style === 'hello')
+            this._playBoot({logo: true, hello: true, immediate: true});
+        else
+            this._playBoot({logo: true, hello: false, classic: style === 'classic', immediate: true});
     }
 
     // ------------------------------------------------------------ helpers
@@ -257,10 +272,10 @@ export class BootShutdown {
     // opts: {logo, hello, classic}. Waits for GNOME to finish starting unless
     // a test passes `immediate`.
     _playBoot(opts = {}) {
-        const {logo = true, hello = true, classic = false, immediate = false, mist = false} = opts;
+        const {logo = true, hello = true, classic = false, immediate = false, mist = false, lens = false} = opts;
         this._stopAll();
         this._boot?.destroy();
-        const overlay = new Overlay(this._extension, {withPlate: hello || mist});
+        const overlay = new Overlay(this._extension, {withPlate: hello || mist || lens});
         this._boot = overlay;
         this._skipped = false;
         // The cover is up before GNOME draws anything.
@@ -295,7 +310,9 @@ export class BootShutdown {
         const next = () => {
             if (this._boot !== overlay || this._skipped)
                 return;
-            if (mist)
+            if (lens)
+                this._lens(overlay);
+            else if (mist)
                 this._mist(overlay);
             else if (hello)
                 this._hello(overlay);
@@ -303,8 +320,8 @@ export class BootShutdown {
                 this._reveal(overlay, classic);
         };
 
-        if (mist) {
-            // Black until GNOME is ready, then the haze lifts.
+        if (mist || lens) {
+            // Black until GNOME is ready, then the haze lifts (or the lens opens).
             whenReady(next);
             return;
         }
@@ -364,6 +381,61 @@ export class BootShutdown {
         this._skipped = true;
         this._stopAll();
         this._reveal(overlay, false);
+    }
+
+    // The lens: from a black screen, a disc of liquid glass opens at the centre
+    // and grows until it is the whole screen. Through it the wallpaper is seen
+    // bent at the rim like through a real lens; once it covers the screen the
+    // lens melts away and the desktop is revealed by the same reveal as an
+    // unlock (lib/reveal.js): blur to sharp, then the elements settle in.
+    _lens(overlay) {
+        const slow = this._slow;
+        const plate = overlay.plate;
+        const monitor = Main.layoutManager.primaryMonitor;
+        const diagonal = Math.hypot(monitor.width, monitor.height);
+        const start = Math.round(monitor.height * 0.06);
+        const end = diagonal * 1.12;
+        const centreX = monitor.width / 2;
+        const centreY = monitor.height * 0.47;
+        // The lens is the plate itself (a glass surface over the wallpaper):
+        // its size and radius follow the disc.
+        plate.setGlass({tint: [0.02, 0.03, 0.06, 0.04], refraction: 90, chroma: 6, rim: 1, sheen: 0.8,
+            fresnel: 0.55, depthShade: 0.1});
+        plate.setBlur(8);
+        plate.opacity = 255;
+        // The lens is ABOVE the black cover (the cover stays around it).
+        overlay.actor.set_child_above_sibling(plate, overlay.base);
+        let revealed = false;
+        const place = d => {
+            const size = Math.round(d);
+            plate.set_size(size, size);
+            plate.set_position(Math.round(centreX - size / 2), Math.round(centreY - size / 2));
+            plate.setGlass({radius: size / 2, thickness: Math.min(size * 0.45, 90)});
+            plate.setStageOrigin(monitor.x + centreX - size / 2, monitor.y + centreY - size / 2);
+        };
+        place(start);
+        this._tween(overlay.actor, 1000, p => {
+            const eased = 1 - (1 - p) ** 3;
+            place(start + (end - start) * eased);
+            // The desktop starts to be revealed while the lens is still opening.
+            if (!revealed && p > 0.45 && this._chromeHidden) {
+                revealed = true;
+                revealDesktop(this._extension, {slow, onDone: () => this._restoreChrome()});
+            }
+        }, () => {
+            // The lens covers the screen: it melts into the desktop.
+            this._tween(overlay.actor, 320, p => {
+                plate.opacity = Math.round(255 * (1 - easeOut(p)));
+                overlay.base.opacity = 0;
+            }, () => {
+                this._after(120, () => {
+                    if (this._boot === overlay) {
+                        overlay.destroy();
+                        this._boot = null;
+                    }
+                });
+            });
+        });
     }
 
     // The desktop through a thin haze: the black cover gives way to a pale,
