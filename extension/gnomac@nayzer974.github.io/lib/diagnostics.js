@@ -16,6 +16,7 @@ import {displayInfo} from './display.js';
 import {glassPerformance} from './glassPerformance.js';
 import {glassGroups} from './glassContainer.js';
 import {timelines} from './animationTimeline.js';
+import {desktopLayer} from './desktopLayer.js';
 import {reducedMotion} from './motionTokens.js';
 import {readInstalled} from '../modules/updater.js';
 
@@ -118,6 +119,10 @@ export async function collectDiagnostics(extension) {
         `Glass groups:      ${groups.length}`,
         `Regions:           ${regions}`,
         `Blur passes:       ${groups.length}`,
+        '',
+        'Desktop',
+        '──────────────',
+        `Desktop layer:    ${desktopLayer.actor ? desktopLayer.describe() : 'not running'}`,
         '',
         'Motion',
         '──────────────',

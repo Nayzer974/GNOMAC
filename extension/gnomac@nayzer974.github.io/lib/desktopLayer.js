@@ -58,16 +58,19 @@ class DesktopLayer {
         this.actor = new St.Widget({name: 'gnomacDesktop', reactive: true, can_focus: true});
         this._size();
         global.window_group.add_child(this.actor);
+        // Two paths to the same handlers: the layer itself, and the stage's
+        // captured events (which see the press whatever is under the pointer:
+        // the wallpaper actor, a wallpaper window, the layer). A press is
+        // handled once (they are told apart by time and place).
         this.actor.connect('button-press-event', (_a, event) => this._onPress(event));
-        // The menu opens when the right button is RELEASED (as GNOME's own does):
-        // opened on the press, the release would land on its first entry.
-        this.actor.connect('button-release-event', (_a, event) => {
-            if (event.get_button() !== Clutter.BUTTON_SECONDARY || !this._menuAt)
-                return Clutter.EVENT_PROPAGATE;
-            const [x, y] = this._menuAt;
-            this._menuAt = null;
-            this.openDesktopMenu(x, y);
-            return Clutter.EVENT_STOP;
+        this.actor.connect('button-release-event', (_a, event) => this._onRelease(event));
+        this._captureId = global.stage.connect('captured-event', (_stage, event) => {
+            const type = event.type();
+            if (type === Clutter.EventType.BUTTON_PRESS)
+                return this._onPress(event);
+            if (type === Clutter.EventType.BUTTON_RELEASE)
+                return this._onRelease(event);
+            return Clutter.EVENT_PROPAGATE;
         });
         this.actor.connect('key-press-event', (_a, event) => {
             for (const handler of this.keyHandlers) {
@@ -86,6 +89,10 @@ class DesktopLayer {
     }
 
     _destroy() {
+        if (this._captureId) {
+            global.stage.disconnect(this._captureId);
+            this._captureId = 0;
+        }
         for (const [object, id] of this._ids ?? []) {
             try {
                 object.disconnect(id);
@@ -159,9 +166,47 @@ class DesktopLayer {
         this.actor?.grab_key_focus();
     }
 
+    // Is this event on the bare desktop? The layer, the wallpaper actors, a
+    // wallpaper window or nothing at all: yes. An icon, a widget, a window, the
+    // panel, the dock or a menu: no (they have their own handlers).
+    _onDesktop(event) {
+        const source = event.get_source();
+        if (!source || source === global.stage || source === this.actor)
+            return true;
+        const background = Main.layoutManager._backgroundGroup;
+        for (let a = source; a; a = a.get_parent()) {
+            if (a === this.actor)
+                return a === source;      // a child of the layer: icon, widget, band
+            if (a === background)
+                return true;
+            if (a.meta_window)
+                return this._isWallpaperWindow(a.meta_window);
+        }
+        return false;
+    }
+
+    _seenBefore(event) {
+        const key = `${event.type()}:${event.get_time()}:${event.get_button?.()}`;
+        if (key === this._lastKey)
+            return true;
+        this._lastKey = key;
+        return false;
+    }
+
+    // For the diagnostics: what the last press hit and what was decided.
+    describe() {
+        const wallpapers = global.get_window_actors().filter(a => this._isWallpaperWindow(a.meta_window))
+            .map(a => a.meta_window.get_wm_class());
+        const index = this.actor ? global.window_group.get_children().indexOf(this.actor) : -1;
+        return `layer index ${index} of ${global.window_group.get_n_children()}, wallpaper windows [${wallpapers.join(', ')}], last press: ${this.lastPress ?? 'none yet'}`;
+    }
+
     _onPress(event) {
-        // Only presses on the layer itself; icons and widgets handle their own.
-        if (event.get_source() !== this.actor)
+        const source = event.get_source();
+        const onDesktop = this._onDesktop(event);
+        if (event.get_button() !== Clutter.BUTTON_MIDDLE)
+            this.lastPress = `button ${event.get_button()} on ${source?.constructor?.name ?? 'nothing'}${source?.name ? `/${source.name}` : ''} -> ${onDesktop ? 'desktop' : 'not the desktop'}`;
+        if (!onDesktop || this._seenBefore(event))
             return Clutter.EVENT_PROPAGATE;
         this.focus();
         const [x, y] = event.get_coords();
@@ -172,8 +217,19 @@ class DesktopLayer {
         this.closeMenu();
         for (const handler of this.pressHandlers) {
             if (handler(event))
-                return Clutter.EVENT_STOP;
+                break;
         }
+        return Clutter.EVENT_STOP;
+    }
+
+    // The menu opens when the right button is RELEASED (as GNOME's own does):
+    // opened on the press, the release would land on its first entry.
+    _onRelease(event) {
+        if (event.get_button() !== Clutter.BUTTON_SECONDARY || !this._menuAt || this._seenBefore(event))
+            return Clutter.EVENT_PROPAGATE;
+        const [x, y] = this._menuAt;
+        this._menuAt = null;
+        this.openDesktopMenu(x, y);
         return Clutter.EVENT_STOP;
     }
 
