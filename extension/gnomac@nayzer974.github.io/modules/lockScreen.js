@@ -257,6 +257,11 @@ export class LockScreen {
                 extension.getSettings().get_boolean('enable-unlock-animation');
             if (!wanted)
                 return savedShield._continueDeactivate.call(this, animate);
+            // The unlock can be signalled twice (the password, then logind): the
+            // second call must not start a second transition.
+            if (this._gnomacUnlocking)
+                return undefined;
+            this._gnomacUnlocking = true;
             try {
                 const dialog = this._dialog;
                 // GNOME's own steps, minus the slide: state bookkeeping first.
@@ -282,8 +287,11 @@ export class LockScreen {
                 };
                 let finished = false;
                 const done = () => {
+                    if (finished)
+                        return;
                     finished = true;
                     self._cancelUnlock = null;
+                    this._gnomacUnlocking = false;
                     this._completeDeactivate();
                 };
                 const cancel = unlockTransition(this, dialog, extension, done,
@@ -304,6 +312,7 @@ export class LockScreen {
             } catch (e) {
                 logError(e, 'GNOMAC unlock transition');
                 // Never leave the user locked in: finish the plain way.
+                this._gnomacUnlocking = false;
                 this._completeDeactivate();
             }
             return undefined;

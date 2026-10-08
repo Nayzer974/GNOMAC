@@ -24,10 +24,15 @@ export class Vibrancy {
     }
 
     enable() {
+        this._active = true;
         this._createdId = global.display.connect('window-created', (_d, window) => {
             // The app is only known once the window is mapped.
             GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-                this._track(window);
+                // The module may have been disabled meanwhile (a session mode
+                // change reloads every module): tracking now would leak a glass
+                // surface that nobody removes.
+                if (this._active)
+                    this._track(window);
                 return GLib.SOURCE_REMOVE;
             });
         });
@@ -36,6 +41,7 @@ export class Vibrancy {
     }
 
     disable() {
+        this._active = false;
         global.display.disconnect(this._createdId);
         for (const window of [...this._windows.keys()])
             this._untrack(window);

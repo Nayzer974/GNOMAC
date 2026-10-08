@@ -343,13 +343,18 @@ export class WallpaperPicker {
             this._revealTimeline.stop();
             this._revealTimeline = null;
         }
-        if (this._bgChangedIds) {
-            for (const [manager, id] of this._bgChangedIds)
-                manager.disconnect(id);
-            this._bgChangedIds = null;
-        }
+        this._disconnectBackgrounds();
         this._reveal?.destroy();
         this._reveal = null;
+    }
+
+    _disconnectBackgrounds() {
+        for (const [manager, id] of this._bgChangedIds ?? []) {
+            try {
+                manager.disconnect(id);
+            } catch {} // the manager went away with its monitor
+        }
+        this._bgChangedIds = null;
     }
 
     // Decodes `path` at the size that covers the monitor (like GNOME's "zoom"),
@@ -427,8 +432,9 @@ export class WallpaperPicker {
             this._revealTimeline = null;
             // The circle covers everything: no more shader, a plain texture.
             picture.remove_effect(effect);
-            this._applyWallpaper(path);
+            // Listen first, then change the wallpaper.
             this._releaseWhenLoaded(frame);
+            this._applyWallpaper(path);
         });
         timeline.start();
     }
@@ -461,6 +467,7 @@ export class WallpaperPicker {
             if (armed)
                 return;
             armed = true;
+            this._disconnectBackgrounds();
             later(delay, () => {
                 if (this._reveal !== frame)
                     return;

@@ -84,7 +84,9 @@ class Overlay {
         this.lens = null;
         if (withLens) {
             this.lens = new LensSurface(monitor, [monitor.width / 2, monitor.height * 0.47]);
-            this.lens.opacity = 0;
+            // Almost transparent, not hidden: a hidden actor is not painted, and
+            // the first paint (texture, shader) would then hit the opening.
+            this.lens.opacity = 1;
             this.actor.add_child(this.lens);
         }
 
@@ -404,6 +406,11 @@ export class BootShutdown {
     _lens(overlay) {
         const slow = this._slow;
         const lens = overlay.lens;
+        // The dock, widgets and desktop icons were built after the cover went up
+        // (this module loads first): hide them now, under the cover, so that
+        // the reveal can bring them in.
+        if (this._chromeHidden)
+            hideDesktop(this._extension);
         const monitor = Main.layoutManager.primaryMonitor;
         const centreX = monitor.width / 2;
         const centreY = monitor.height * 0.47;
@@ -445,6 +452,11 @@ export class BootShutdown {
     // menu bar and the dock arrive softly with it.
     _mist(overlay) {
         const slow = this._slow;
+        // The dock, widgets and desktop icons were built after the cover went
+        // up (this module loads first): hide them now so that the reveal can
+        // bring them in.
+        if (this._chromeHidden)
+            hideDesktop(this._extension);
         const plate = overlay.plate;
         // The veil: the wallpaper, frosted and slightly pale, over the black.
         plate?.setGlass({tint: [0.92, 0.95, 1.0, 0.24]});
