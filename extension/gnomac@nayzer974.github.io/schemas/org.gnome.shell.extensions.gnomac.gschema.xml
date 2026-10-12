@@ -178,6 +178,10 @@
       <default><![CDATA[['<Super><Control>m']]]></default>
       <summary>Toggle Stage Manager</summary>
     </key>
+    <key name="mission-control-shortcut" type="as">
+      <default><![CDATA[['<Super>F3']]]></default>
+      <summary>Show all windows (Mission Control)</summary>
+    </key>
     <key name="enable-login-screen" type="b">
       <default>true</default>
       <summary>GDM login screen styling (only used once installed system-wide with gdm/install-gdm.sh)</summary>
@@ -629,6 +633,14 @@
       <range min="0" max="1"/>
       <default>0.3</default>
       <summary>Liquid Glass intensity: how much the glass is tinted (macOS Tahoe slider)</summary>
+    </key>
+    <key name="menu-icons" type="b">
+      <default>false</default>
+      <summary>Show a symbol before each item of the Apple menu (macOS Tahoe style; Golden Gate removed most of them)</summary>
+    </key>
+    <key name="reduce-transparency" type="b">
+      <default>false</default>
+      <summary>Reduce transparency: glass becomes an opaque pane (also on when GNOME's high contrast is on)</summary>
     </key>
     <key name="glass-tinted" type="b">
       <default>false</default>

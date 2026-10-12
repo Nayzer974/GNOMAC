@@ -16,7 +16,7 @@
 
 GNOMAC est **une seule extension GNOME Shell cohérente**, au lieu d'un empilement d'extensions qui se marchent dessus, plus un thème GTK pour les boutons de fenêtre et des installeurs propres. Il fonctionne sur GNOME, **pas besoin de Hyprland**.
 
-> **Statut : v0.1, en développement.** Écrit et testé sur GNOME 50.5 (CachyOS, Wayland). Les captures de ce dépôt viennent d'une machine virtuelle sans accélération 3D : sur une vraie machine, les animations sont plus fluides.
+> **Statut : en développement.** Écrit sur GNOME 50.5 (CachyOS, Wayland, machine virtuelle), puis vérifié sur **GNOME 51.0 avec un vrai GPU AMD** (démarrage d'un shell sans écran piloté par `tools/smoke-test.sh`). Les captures de ce dépôt viennent d'une machine virtuelle sans accélération 3D : sur une vraie machine, les animations sont plus fluides.
 
 ---
 
@@ -172,6 +172,8 @@ Préférences (`gnome-extensions prefs gnomac@nayzer974.github.io`) › **Dynami
 |---|---|
 | **Liquid Glass** (moteur commun, [docs/liquid-glass.md](docs/liquid-glass.md)) | Vraie réfraction : un shader GLSL courbe une copie floutée de ce qui est derrière (fenêtres comprises) près des bords arrondis, avec dispersion chromatique, éclairage du bord et reflet en haut. La lueur suit le pointeur et une ombre interne adoucit les surfaces. |
 | **Liquid Glass réglable** | Curseur d'intensité, **transparent ou teinté** comme dans les Réglages de macOS 27, appliqués à tout le verre. |
+| **Réduire la transparence** | Préférences › Liquid Glass : le verre devient un panneau opaque, sans réfraction ni dispersion (dock, Spotlight, menus, widgets). Aussi activé par le **contraste élevé** de GNOME, et relâché quand on le coupe. |
+| **Icônes dans les menus** | Le menu Pomme n'a plus de symbole devant chaque entrée, comme macOS 27 (Préférences › Divers pour les remettre). |
 | **Section Apparence** | Dans le Centre de contrôle : couleur d'accentuation (9 couleurs, GNOME), Auto / Clair / Sombre, verre transparent ou teinté, style des icônes (défaut, sombre, transparent, teinté). |
 | **Menus en verre** | Tous les menus du shell (système, apps, dock, calendrier, Réglages rapides) reçoivent un fond Liquid Glass qui suit leur animation. Les Réglages rapides prennent l'allure du **Centre de contrôle** : tuiles arrondies, curseurs épais. |
 | **Boutons de fenêtre** | Les « feux tricolores » brillants de Golden Gate, en GTK 3 et GTK 4/libadwaita, à gauche. |
@@ -186,6 +188,7 @@ Préférences (`gnome-extensions prefs gnomac@nayzer974.github.io`) › **Dynami
 | **Menus de l'app active** | Nom de l'app en gras, puis Fichier, Édition, Présentation, Fenêtre, Aide. Les menus restent à l'écart de l'encoche. |
 | **Symboles à droite** | Wi-Fi en éventail selon le signal (ou `<···>` en filaire), batterie horizontale avec pourcentage (verte en charge, rouge sous 20 %), pastille de Concentration, Centre de contrôle. Les indicateurs de confidentialité restent visibles. |
 | **Icônes masquées** | Les icônes d'applications se replient derrière une flèche. |
+| **Plusieurs écrans** | Chaque écran secondaire reçoit sa barre de menus (nom de l'app active à gauche, heure à droite) ; le dock, l'encoche et les widgets restent sur l'écran principal. |
 
 ### Dock
 
@@ -237,6 +240,7 @@ Le même guide est dans l'interface : tape **guide** dans Spotlight.
 | `Super + Ctrl + C` | Centrer la fenêtre |
 | `Super + Ctrl + T` | Palette : moitiés, quarts, tiers, remplir, centrer |
 | `Super + Ctrl + M` | Stage Manager : la fenêtre active reste au centre, les autres vont dans une bande de cartes à gauche ; un clic sur une carte la ramène |
+| `Super + F3` | Mission Control : toutes les fenêtres de l'espace en grille (Échap ou un clic pour sortir) |
 | `Super + Tab` | Changer d'application (sélecteur en verre) |
 | `Super + Q` | Quitter l'application de la fenêtre active (toutes ses fenêtres) |
 
@@ -361,7 +365,12 @@ make install        # ./install.sh
 make uninstall      # ./uninstall.sh
 make schemas        # recompile le schéma GSettings
 make zip            # paquet pour extensions.gnome.org
+make check          # vérifications statiques (tools/check.sh), celles de la CI
+make smoke          # shell GNOME sans écran piloté par un script (tools/smoke-test.sh)
 ```
+
+- **`tools/check.sh`** : syntaxe de tous les fichiers JS, shell et Python, schéma GSettings, JSON, et **noms utilisés dans les bibliothèques de GNOME** (`tools/check-compat.py` les compare aux typelibs installées : c'est ce qui aurait attrapé les changements d'API de GNOME 51).
+- **`tools/smoke-test.sh`** : lance GNOME Shell sans écran, avec l'extension de ce dépôt, dans une session jetable (autre bus D-Bus, autres réglages, autre dossier de données : ta session n'est pas touchée), puis la pilote avec `tools/smoke-driver.js` : ouverture et fermeture de chaque panneau, vraies fenêtres (réduire, agrandir, Mission Control), coupure et remise de chaque module, rechargements en rafale, verre opaque. Il échoue s'il reste une erreur dans le journal. `SMOKE_MONITORS='1280x800 1024x768'` teste plusieurs écrans et `GNOMAC_SMOKE_SHOT=dossier` enregistre des captures d'écran.
 
 Pour déboguer :
 

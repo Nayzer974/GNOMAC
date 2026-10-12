@@ -22,6 +22,7 @@ import {LockScreen} from './modules/lockScreen.js';
 import {LoginScreen} from './modules/loginScreen.js';
 import {Notifications} from './modules/notifications.js';
 import {NotificationCenter} from './modules/notificationCenter.js';
+import {SecondaryBars} from './modules/secondaryBars.js';
 import {Spotlight} from './modules/spotlight.js';
 import {StageManager} from './modules/stageManager.js';
 import {ThemeCustom} from './modules/themeCustom.js';
@@ -53,6 +54,7 @@ const MODULES = [
     {key: 'enable-launchpad', Module: Launchpad},
     {key: 'enable-topbar', Module: TopBar},
     {key: 'enable-app-menus', Module: AppMenus},
+    {key: 'enable-topbar', Module: SecondaryBars},
     {key: 'enable-dock', Module: Dock},
     {key: 'enable-dock', Module: Gaps},
     {key: 'enable-spotlight', Module: Spotlight},
@@ -98,6 +100,13 @@ export default class GnomacExtension extends Extension {
             this._scheduleReload();
         });
         this._sessionId = Main.sessionMode.connect('updated', () => this._reload());
+        // High contrast turns the glass opaque: rebuild when it is switched.
+        try {
+            this._a11y = new Gio.Settings({schema_id: 'org.gnome.desktop.a11y.interface'});
+            this._a11yId = this._a11y.connect('changed::high-contrast', () => this._scheduleReload());
+        } catch {
+            this._a11y = null;
+        }
     }
 
     disable() {
@@ -108,6 +117,10 @@ export default class GnomacExtension extends Extension {
         if (this._reloadId) {
             GLib.source_remove(this._reloadId);
             this._reloadId = 0;
+        }
+        if (this._a11y) {
+            this._a11y.disconnect(this._a11yId);
+            this._a11y = null;
         }
         this._settings.disconnect(this._settingsId);
         Main.sessionMode.disconnect(this._sessionId);

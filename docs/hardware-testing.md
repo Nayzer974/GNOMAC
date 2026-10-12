@@ -74,3 +74,4 @@ Problème ouvert sous 51 en VM : au moment de réduire une fenêtre, la boucle p
 | Pavé tactile | ❌ non testé (GNOMAC lit les mêmes événements que pour une souris ; toucher pour cliquer, clic droit à deux doigts et toucher-glisser sont des réglages de GNOME, voir [desktop.md](desktop.md#pavé-tactile)) |
 | GNOME 50.5 | ✅ VM |
 | GNOME 51 : chargement | ✅ VM (logiciel) ; animations de fenêtres : ⚠ à vérifier |
+| GNOME 51 sur GPU AMD réel, shell sans écran (`tools/smoke-test.sh`) | ✅ chargement, 25 modules, réduire/restaurer/agrandir/Mission Control avec 2 fenêtres : plus longue pause de la boucle principale 18 à 43 ms (pas de blocage de 0,5 s). **Limite** : écran virtuel, pas de balayage sur un vrai moniteur, donc ni fluidité perçue ni 90/120/144 Hz |

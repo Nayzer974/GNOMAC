@@ -1,0 +1,18 @@
+name: checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  static:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tools
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libglib2.0-bin shellcheck
+      - name: Static checks
+        # GNOME Shell's own typelibs are not on the runner: the library-name
+        # check runs on a machine with GNOME (tools/check.sh locally).
+        run: CHECK_COMPAT=0 tools/check.sh

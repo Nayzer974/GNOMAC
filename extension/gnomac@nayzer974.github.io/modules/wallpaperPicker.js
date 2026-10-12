@@ -400,9 +400,18 @@ export class WallpaperPicker {
                         stream.close(null);
                         const content = new St.ImageContent({
                             preferred_width: pixbuf.get_width(), preferred_height: pixbuf.get_height()});
-                        content.set_bytes(pixbuf.read_pixel_bytes(),
-                            pixbuf.get_has_alpha() ? Cogl.PixelFormat.RGBA_8888 : Cogl.PixelFormat.RGB_888,
-                            pixbuf.get_width(), pixbuf.get_height(), pixbuf.get_rowstride());
+                        const bytes = pixbuf.read_pixel_bytes();
+                        const format = pixbuf.get_has_alpha() ? Cogl.PixelFormat.RGBA_8888 : Cogl.PixelFormat.RGB_888;
+                        const [w, h, stride] = [pixbuf.get_width(), pixbuf.get_height(), pixbuf.get_rowstride()];
+                        try {
+                            content.set_bytes(bytes, format, w, h, stride);
+                        } catch (e) {
+                            // GNOME 51 added a leading Cogl.Context argument.
+                            if (!(e instanceof TypeError))
+                                throw e;
+                            const cogl = global.stage.context.get_backend().get_cogl_context();
+                            content.set_bytes(cogl, bytes, format, w, h, stride);
+                        }
                         done({content, ...image});
                     } catch (e) {
                         if (!cancellable.is_cancelled())

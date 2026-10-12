@@ -20,6 +20,11 @@ import Shell from 'gi://Shell';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as MessageTray from 'resource:///org/gnome/shell/ui/messageTray.js';
 
+// Gio.DesktopAppInfo moved to GioUnix.DesktopAppInfo in GLib 2.86: reading the
+// old name logs a warning. Older GLib has no GioUnix, hence the fallback.
+const GioUnix = await import('gi://GioUnix?version=2.0').then(m => m.default).catch(() => null);
+const DesktopAppInfo = GioUnix?.DesktopAppInfo ?? Gio.DesktopAppInfo;
+
 const CHECK_MS = 450;
 
 let installs = 0;
@@ -53,7 +58,7 @@ export function appForSource(source, notification = null) {
     }
     // An installed one (to launch it).
     try {
-        for (const group of Gio.DesktopAppInfo.search(source.title)) {
+        for (const group of DesktopAppInfo.search(source.title)) {
             for (const id of group) {
                 const app = apps.lookup_app(id);
                 if (app && normalise(app.get_name()) === name)

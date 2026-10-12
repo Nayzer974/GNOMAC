@@ -92,6 +92,13 @@ export class NotificationCenter {
 
     _connect(object, signal, callback) {
         this._signals.push([object, object.connect(signal, callback)]);
+        // A source that is destroyed is disposed: disconnecting from it at
+        // disable() would only log a warning, so forget it right away.
+        if (signal === 'destroy') {
+            object.connect('destroy', () => {
+                this._signals = this._signals.filter(([o]) => o !== object);
+            });
+        }
     }
 
     _watchSource(source) {

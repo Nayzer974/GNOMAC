@@ -933,6 +933,11 @@ export class DynamicIsland {
                 this._showNotice(notification);
             this._update();
         })]);
+        // A destroyed source is disposed: forget it so disable() does not
+        // try to disconnect from it.
+        source.connect('destroy', () => {
+            this._signals = this._signals.filter(([object]) => object !== source);
+        });
     }
 
     _showNotice(notification) {

@@ -18,6 +18,7 @@
 
 import Clutter from 'gi://Clutter';
 import Meta from 'gi://Meta';
+import Shell from 'gi://Shell';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
@@ -25,7 +26,7 @@ import {Genie} from '../lib/genie.js';
 import {WindowMotionManager} from '../lib/windowMotion.js';
 import {Easing} from '../lib/motionTokens.js';
 import {timelines} from '../lib/animationTimeline.js';
-import {missionControl} from '../lib/missionControl.js';
+import {enterMissionControl, exitMissionControl, missionControl} from '../lib/missionControl.js';
 
 const OPEN_MS = 260;
 const GENIE_MS = 560;
@@ -88,11 +89,17 @@ export class WindowAnimations {
 
         // Our handlers run after GNOME's, i.e. after it completed the
         // operation, which is when open/restore animations can start.
+        // Mission Control from the keyboard (it used to be reachable from
+        // Spotlight only).
+        Main.wm.addKeybinding('mission-control-shortcut', this._settings, Meta.KeyBindingFlags.IGNORE_AUTOREPEAT,
+            Shell.ActionMode.NORMAL, () => (missionControl.active ? exitMissionControl(null) : enterMissionControl()));
+
         this._mapId = global.window_manager.connect('map', (_wm, actor) => this._afterMap(actor));
         this._unminimizeId = global.window_manager.connect('unminimize', (_wm, actor) => this._afterRestore(actor));
     }
 
     disable() {
+        Main.wm.removeKeybinding('mission-control-shortcut');
         missionControl.destroy();
         this._motion.disable();
         timelines.cancelAll();

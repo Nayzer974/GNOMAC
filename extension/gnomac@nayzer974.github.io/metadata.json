@@ -8,7 +8,7 @@
   ],
   "url": "https://github.com/Nayzer974/GNOMAC",
   "settings-schema": "org.gnome.shell.extensions.gnomac",
-  "version-name": "0.1.0",
+  "version-name": "0.3.0",
   "session-modes": [
     "user",
     "unlock-dialog",

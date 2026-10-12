@@ -11,6 +11,10 @@ import St from 'gi://St';
 
 import {t} from './i18n.js';
 
+// St.ButtonMask names changed (ONE/THREE became PRIMARY/SECONDARY); with an
+// unknown name the mask is 0 and the button reacts to nothing.
+const BUTTON_MASK_LEFT_RIGHT = (St.ButtonMask.PRIMARY ?? St.ButtonMask.ONE) | (St.ButtonMask.SECONDARY ?? St.ButtonMask.THREE);
+
 // ---------------------------------------------------------------- calendar
 
 export class MonthCalendar {
@@ -372,7 +376,7 @@ export class Shelf {
             column.add_child(new St.Label({text: file.get_basename().slice(0, 12),
                 style_class: 'gnomac-notch-cal-head', x_align: Clutter.ActorAlign.CENTER}));
             const button = new St.Button({style_class: 'gnomac-notch-shelf-item', child: column,
-                button_mask: St.ButtonMask.ONE | St.ButtonMask.THREE});
+                button_mask: BUTTON_MASK_LEFT_RIGHT});
             button.connect('clicked', (_b, mouseButton) => {
                 if (mouseButton === 3) {
                     // Right click: copy it to the desktop, or let it go.

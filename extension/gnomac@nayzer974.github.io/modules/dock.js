@@ -360,8 +360,12 @@ export class Dock {
             // untouchable too, the ones that exist and the ones that come later.
             this._dashPicking = new Map();
             const untouchable = actor => {
-                if (!this._dashPicking.has(actor))
+                if (!this._dashPicking.has(actor)) {
                     this._dashPicking.set(actor, actor.reactive);
+                    // GNOME rebuilds the dash icons: forget the destroyed ones,
+                    // restoring them at disable() would touch a disposed object.
+                    actor.connect('destroy', () => this._dashPicking?.delete(actor));
+                }
                 actor.reactive = false;
                 actor.get_children?.().forEach(untouchable);
             };

@@ -64,7 +64,7 @@ function recentFiles(limit = 8) {
 
 const SystemMenuButton = GObject.registerClass(
 class SystemMenuButton extends PanelMenu.Button {
-    _init(extensionPath, logo) {
+    _init(extensionPath, logo, showIcons = false) {
         super._init(0.0, 'GNOMAC system menu');
         this.add_style_class_name('gnomac-apple-button');
         this.add_child(new St.Icon({
@@ -72,10 +72,12 @@ class SystemMenuButton extends PanelMenu.Button {
             style_class: 'system-status-icon gnomac-logo',
         }));
 
-        // macOS Tahoe menus show a small symbol before each item and the
-        // shortcut on the right.
+        // macOS Tahoe menus show a small symbol before each item; Golden Gate
+        // removed most of them again (setting "menu-icons"). The shortcut stays
+        // on the right.
         const add = (icon, label, callback, shortcut = null) => {
-            const item = new PopupMenu.PopupImageMenuItem(label, icon);
+            const item = showIcons ? new PopupMenu.PopupImageMenuItem(label, icon)
+                : new PopupMenu.PopupMenuItem(label);
             if (shortcut) {
                 item.add_child(new St.Label({text: shortcut, style_class: 'gnomac-menu-shortcut',
                     x_expand: true, x_align: Clutter.ActorAlign.END}));
@@ -93,8 +95,9 @@ class SystemMenuButton extends PanelMenu.Button {
         add('system-software-install-symbolic', t('App Store…', 'App Store…'),
             () => launchFirst(['org.gnome.Software.desktop', 'io.github.kolunmi.Bazaar.desktop'], ['gnome-software']));
         separator();
-        this._recent = new PopupMenu.PopupSubMenuMenuItem(t('Recent Items', 'Éléments récents'), true);
-        this._recent.icon.icon_name = 'document-open-recent-symbolic';
+        this._recent = new PopupMenu.PopupSubMenuMenuItem(t('Recent Items', 'Éléments récents'), showIcons);
+        if (showIcons)
+            this._recent.icon.icon_name = 'document-open-recent-symbolic';
         this.menu.addMenuItem(this._recent);
         separator();
         add('process-stop-symbolic', t('Force Quit…', 'Forcer à quitter…'),
@@ -184,7 +187,7 @@ export class TopBar {
         this._activities?.container.hide();
 
         this._systemMenu = new SystemMenuButton(this._extension.path,
-            this._settings.get_string('logo-style'));
+            this._settings.get_string('logo-style'), this._settings.get_boolean('menu-icons'));
         panel.addToStatusArea('gnomac-system', this._systemMenu, 0, 'left');
         this._appName = new AppNameButton();
         panel.addToStatusArea('gnomac-appname', this._appName, 1, 'left');

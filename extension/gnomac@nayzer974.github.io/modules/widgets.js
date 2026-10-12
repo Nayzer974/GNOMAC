@@ -56,12 +56,15 @@ class WidgetTile {
         const material = MATERIALS[instance.material] ?? MATERIALS.clear;
         const base = glassParamsFromSettings(settings, RADIUS);
         // Tinted and Colour take the widget's accent (blue when it has none).
+        // Reduce transparency: a solid tile (dark, since the text is white).
+        const opaque = !!base.opaque;
         const rgb = material.accent ? (this.accent ?? [0.19, 0.36, 0.86])
-            : (material.base ?? base.tint.slice(0, 3));
+            : (opaque ? [0.12, 0.12, 0.14] : (material.base ?? base.tint.slice(0, 3)));
         this.glass = new GlassSurface({
             backdrop: 'wallpaper',
             blur: material.blur,
-            glass: {...base, tint: [...rgb, material.tintAlpha], refraction: 8, chroma: 0.7, rim: 0.4, depthShade: 0.16},
+            glass: {...base, tint: [...rgb, opaque ? 0.96 : material.tintAlpha],
+                refraction: opaque ? 0 : 8, chroma: opaque ? 0 : 0.7, rim: 0.4, depthShade: 0.16},
         });
         this.glass.set_size(this.width, this.height);
         this.actor.add_child(this.glass);

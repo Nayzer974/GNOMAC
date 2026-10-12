@@ -155,6 +155,7 @@ export default class GnomacPreferences extends ExtensionPreferences {
         spin(glass, 'glass-chroma', 'Dispersion chromatique (px)', 0, 8, 0.1, 1);
         spin(glass, 'glass-rim', 'Lumière de bord', 0, 1, 0.05, 2);
         spin(glass, 'glass-intensity', 'Intensité (curseur Liquid Glass de macOS)', 0, 1, 0.05, 2);
+        toggle(glass, 'reduce-transparency', 'Réduire la transparence', 'Verre opaque, sans réfraction (aussi activé par le contraste élevé de GNOME)');
         toggle(glass, 'glass-tinted', 'Verre teinté', 'Teinté avec la couleur d’accentuation au lieu de clair');
         toggle(glass, 'glass-dark', 'Teinte sombre');
         const qualityKeys = ['low', 'medium', 'high', 'ultra'];
@@ -307,6 +308,7 @@ export default class GnomacPreferences extends ExtensionPreferences {
         logoRow.selected = Math.max(0, logos.indexOf(settings.get_string('logo-style')));
         logoRow.connect('notify::selected', () => settings.set_string('logo-style', logos[logoRow.selected]));
         misc.add(logoRow);
+        toggle(misc, 'menu-icons', 'Icônes dans les menus', 'Un symbole devant chaque élément du menu Pomme (macOS Tahoe ; Golden Gate en a retiré la plupart)');
         toggle(misc, 'menubar-hide-extras', 'Masquer les icônes d’apps', 'Regroupées derrière une flèche « dans la barre de menus');
 
         const profile = group('Profil', 'La photo affichée à l’écran de connexion et de verrouillage (la même que dans Paramètres › Utilisateurs)');

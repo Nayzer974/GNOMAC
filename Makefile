@@ -1,7 +1,7 @@
 UUID := gnomac@nayzer974.github.io
 SRC := extension/$(UUID)
 
-.PHONY: install ez uninstall schemas zip nested logs
+.PHONY: install ez uninstall schemas zip nested logs check smoke
 
 install:
 	./install.sh
@@ -26,3 +26,10 @@ nested: install
 
 logs:
 	journalctl -f -o cat /usr/bin/gnome-shell
+
+check:
+	tools/check.sh
+
+# Headless GNOME Shell with this checkout's extension, driven by a script.
+smoke:
+	tools/smoke-test.sh

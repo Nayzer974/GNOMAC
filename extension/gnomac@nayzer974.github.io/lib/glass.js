@@ -9,6 +9,7 @@
 // rim light + top sheen.
 
 import Clutter from 'gi://Clutter';
+import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import Cogl from 'gi://Cogl';
 import GObject from 'gi://GObject';
@@ -351,6 +352,22 @@ class GlassEffect extends GLSLEffect {
     }
 });
 
+// "Reduce transparency" (macOS) and GNOME's high-contrast mode: glass becomes
+// an opaque pane with a clear edge. GNOME's switch is read live; the extension
+// reloads when it changes (extension.js).
+let a11ySettings = null;
+
+export function glassIsOpaque(settings) {
+    if (settings.get_boolean('reduce-transparency'))
+        return true;
+    try {
+        a11ySettings ??= new Gio.Settings({schema_id: 'org.gnome.desktop.a11y.interface'});
+        return a11ySettings.get_boolean('high-contrast');
+    } catch {
+        return false;
+    }
+}
+
 export function glassParamsFromSettings(settings, radius) {
     // macOS Tahoe's Liquid Glass slider: clear glass is barely tinted, tinted
     // glass takes the accent colour; intensity is how strong the tint gets.
@@ -374,13 +391,29 @@ export function glassParamsFromSettings(settings, radius) {
     };
     // What is behind steers the material (transparent glass on a dark wallpaper
     // stays faint; on a bright one it gains body and a clearer edge).
-    return settings.get_boolean('glass-adaptive') ? adaptive.adapt(params) : params;
+    const result = settings.get_boolean('glass-adaptive') ? adaptive.adapt(params) : params;
+    if (!glassIsOpaque(settings))
+        return result;
+    // Opaque: no lens, no dispersion, no shine; a clear edge keeps the shape.
+    const body = tinted ? base : (dark ? [0.12, 0.12, 0.14] : [0.95, 0.95, 0.96]);
+    return {
+        ...result,
+        refraction: 0,
+        chroma: 0,
+        sheen: 0,
+        fresnel: 0,
+        rim: Math.max(result.rim, 0.5),
+        tint: [...body, 0.96],
+        opaque: true,
+    };
 }
 
 // Clear Liquid Glass (Spotlight, menus, banners): barely tinted, more
 // refraction and a brighter rim, like macOS Tahoe's "Clear" material.
 export function clearGlassParams(settings, radius) {
     const base = glassParamsFromSettings(settings, radius);
+    if (base.opaque)
+        return base;
     return {
         ...base,
         refraction: base.refraction * 1.3,
