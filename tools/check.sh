@@ -68,6 +68,22 @@ for file in "$EXT/metadata.json" "$EXT/whatsnew.json"; do
     python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$file" || fail "${file#"$ROOT"/}"
 done
 
+step "Prayer times"
+if command -v node >/dev/null; then
+    node tools/test-prayer.mjs | tail -1 || fail "tools/test-prayer.mjs"
+    node tools/test-prayer.mjs >/dev/null || fail "tools/test-prayer.mjs"
+else
+    echo "  node not found, skipped"
+fi
+if [[ "${CHECK_GJS:-1}" != 1 ]]; then
+    echo "  schedule test skipped (CHECK_GJS=0)"
+elif command -v gjs >/dev/null; then
+    TZ=Europe/Paris gjs -m tools/test-prayer-schedule.js | tail -1
+    TZ=Europe/Paris gjs -m tools/test-prayer-schedule.js >/dev/null || fail "tools/test-prayer-schedule.js"
+else
+    echo "  gjs not found, schedule test skipped"
+fi
+
 step "Names used from GNOME's libraries"
 if [[ "${CHECK_COMPAT:-1}" != 1 ]]; then
     echo "  skipped (CHECK_COMPAT=0)"

@@ -26,6 +26,7 @@ EXT="$WORK/data/gnome-shell/extensions/$UUID"
 mkdir -p "$WORK/data/gnome-shell/extensions" "$WORK/config/glib-2.0/settings" "$WORK/cache" "$WORK/Desktop"
 cp -r "$ROOT/extension/$UUID" "$EXT"
 cp "$ROOT/tools/smoke-driver.js" "$EXT/smoke-driver.js"
+cp "$ROOT/tools/prefs-smoke.js" "$EXT/prefs-smoke.js"
 glib-compile-schemas "$EXT/schemas"
 
 # Start the driver a few seconds after the extension is enabled.
@@ -90,7 +91,7 @@ done
 
 LOG="$WORK/shell.log"
 env XDG_DATA_HOME="$WORK/data" XDG_CONFIG_HOME="$WORK/config" XDG_CACHE_HOME="$WORK/cache" \
-    GSETTINGS_BACKEND=keyfile \
+    GSETTINGS_BACKEND=keyfile GTK_A11Y=none NO_AT_BRIDGE=1 \
     timeout "$((MAX_SECONDS + 15))" dbus-run-session -- \
     timeout "$MAX_SECONDS" gnome-shell --headless --wayland --no-x11 \
         --wayland-display gnomac-smoke "${MONITOR_ARGS[@]}" > "$LOG" 2>&1

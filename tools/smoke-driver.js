@@ -11,6 +11,7 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import {readConfig as readPrayerConfigForTest} from './lib/prayerSchedule.js';
 import * as MessageTray from 'resource:///org/gnome/shell/ui/messageTray.js';
 
 const wait = ms => new Promise(resolve => GLib.timeout_add(GLib.PRIORITY_DEFAULT, ms, () => {
@@ -170,6 +171,258 @@ export async function run(extension) {
             await wait(1200);
         } catch (e) {
             log(`FAIL apple menu: ${e}\n${e.stack ?? ''}`);
+        }
+
+        // 1d. The Prayers tab of the island and its alerts (off by default).
+        try {
+            const findIsland = () => extension._modules.find(m => m.constructor.name === 'DynamicIsland');
+            const cfg = extension._settings;
+            const off = findIsland()?.island?.tabButtons.find(([id]) => id === 'prayer')?.[1].visible;
+            log(off === false ? 'prayers tab hidden while the feature is off ok' : 'FAIL prayers tab visible while the feature is off');
+            cfg.set_double('prayer-latitude', 48.8566);
+            cfg.set_double('prayer-longitude', 2.3522);
+            cfg.set_string('prayer-city', 'Paris');
+            cfg.set_boolean('island-notifications', true);
+            cfg.set_boolean('prayer-enabled', true);
+            await wait(1800);
+            let isl = findIsland();
+            const tab = isl.island.tabButtons.find(([id]) => id === 'prayer')?.[1];
+            log(tab?.visible ? 'prayers tab shown once the feature is on ok' : 'FAIL prayers tab hidden although the feature is on');
+            isl._keepTab = true;
+            isl._tab = 'prayer';
+            isl._pinned = true;
+            isl._update();
+            await wait(1800);
+            const view = isl.island.prayerView;
+            log(`prayers page: next ${view.nextName.text} ${view.nextTime.text} ${view.until.text}; ` +
+                `times ${Object.values(view.cells).map(c => c.time.text).join(' ')}; ${view.hijri.text}; ${view.place.text}`);
+            if (!view.body.visible || view.nextTime.text === '' || Object.values(view.cells).some(c => c.time.text === '' || c.time.text === '--:--'))
+                log('FAIL prayers page is empty');
+            else
+                log('prayers page filled ok');
+            await shot('1d-prayers-tab', log);
+
+            // An alert becomes a notification; with island-notifications on, the island shows it.
+            const now = GLib.DateTime.new_now_local();
+            isl._pinned = false;
+            isl._hoverOpen = false;
+            isl._update();
+            await wait(900);
+            isl._onPrayerAlert({key: 'asr', at: now, kind: 'now'});
+            await wait(1500);
+            log(isl._mode === 'notice' && isl.island.noticeTitle.text !== ''
+                ? `prayer alert shown by the island ok: "${isl.island.noticeTitle.text}" / "${isl.island.noticeBody.text}"`
+                : `FAIL prayer alert not shown by the island (mode ${isl._mode})`);
+            await shot('1d-prayer-alert', log);
+            await wait(6500);
+            isl._onPrayerAlert({key: 'maghrib', at: now, kind: 'before'});
+            await wait(1200);
+            log(isl.island.noticeTitle.text.includes('10') || isl.island.noticeTitle.text !== ''
+                ? `prayer reminder shown ok: "${isl.island.noticeTitle.text}"`
+                : 'FAIL prayer reminder not shown');
+            await wait(6500);
+
+            // No city chosen: a hint instead of the times.
+            cfg.set_double('prayer-latitude', 0);
+            cfg.set_double('prayer-longitude', 0);
+            isl._keepTab = true;
+            isl._tab = 'prayer';
+            isl._pinned = true;
+            isl._update();
+            await wait(1500);
+            view.update(readPrayerConfigForTest(cfg));
+            log(view.empty.visible && !view.body.visible ? 'prayers page without a city shows the hint ok' : 'FAIL prayers page without a city does not show the hint');
+            await shot('1d-prayers-empty', log);
+            isl._pinned = false;
+            isl._update();
+            cfg.set_boolean('prayer-enabled', false);
+            await wait(1800);
+            const gone = findIsland()?.island?.tabButtons.find(([id]) => id === 'prayer')?.[1].visible;
+            log(gone === false ? 'prayers tab hidden again when turned off ok' : 'FAIL prayers tab still visible after turning the feature off');
+            cfg.set_boolean('island-notifications', false);
+            await wait(1500);
+        } catch (e) {
+            log(`FAIL prayers: ${e}\n${e.stack ?? ''}`);
+        }
+
+        // 1g. The island's live events: queue, click, track change, battery,
+        //     Bluetooth, the wheel.
+        try {
+            const cfg = extension._settings;
+            cfg.set_int('island-notice-seconds', 1);
+            await wait(1800);
+            const isl = extension._modules.find(m => m.constructor.name === 'DynamicIsland');
+            const title = () => isl.island.noticeTitle.text;
+            const ok = (label, cond, detail = '') => log(cond ? `${label} ok` : `FAIL ${label} ${detail}`);
+
+            // Notifications queue up instead of replacing each other.
+            isl._showNotice({title: 'One', body: '1'});
+            await wait(150);
+            isl._showNotice({title: 'Two', body: '2'});
+            isl._showNotice({title: 'Three', body: '3'});
+            ok('queued notifications wait behind the first', isl._noticeQueue.length === 2 && title() === 'One' &&
+                isl.island.noticeMore.visible && isl.island.noticeMore.text === '+2',
+                `queue ${isl._noticeQueue.length} title ${title()} more "${isl.island.noticeMore.text}"`);
+            await wait(500);
+            await shot('1g-notice-queue', log);
+            const seen = [title()];
+            for (let i = 0; i < 40; i++) {
+                await wait(150);
+                if (title() !== seen[seen.length - 1])
+                    seen.push(title());
+            }
+            ok('they are shown in order, one after the other', seen.join('>') === 'One>Two>Three', seen.join('>'));
+            for (let i = 0; i < 9; i++)
+                isl._showNotice({title: `n${i}`, body: ''});
+            ok('the queue holds at most five', isl._noticeQueue.length <= 5, `${isl._noticeQueue.length}`);
+            isl._noticeQueue = [];
+            isl._noticeUntil = 0;
+            await wait(1500);
+
+            // A click opens what the notification is about.
+            let activated = false;
+            isl._showNotice({title: 'Click me', body: '', activate() { activated = true; }});
+            await wait(300);
+            const opened = isl._openNotice();
+            ok('clicking a notification activates it and closes the card', opened && activated && isl._noticeUntil === 0,
+                `opened ${opened} activated ${activated}`);
+            isl._showNotice({title: 'Plain', body: ''});
+            await wait(300);
+            ok('a plain notice has nothing to open', isl._openNotice() === false);
+            isl._noticeUntil = 0;
+            await wait(1200);
+
+            // A new track shows a card.
+            const player = {busName: 'org.mpris.MediaPlayer2.smoke', identity: 'Smoke player', title: 'First song',
+                artists: ['Artist'], album: '', artUrl: '', length: 0, status: 'Playing', hasMedia: true,
+                desktopEntry: null, canGoNext: true, canGoPrevious: true, canSeek: true,
+                fetchPosition: async () => 0, raise: async () => false};
+            isl._player = player;
+            isl._lastTrack = null;
+            isl._checkTrack(player);
+            player.title = 'Second song';
+            isl._checkTrack(player);
+            await wait(1250);
+            ok('a new track shows its card', title() === 'Second song' && isl.island.noticeBody.text === 'Artist',
+                `title "${title()}" body "${isl.island.noticeBody.text}"`);
+            player.status = 'Paused';
+            player.title = 'Third song';
+            isl._noticeUntil = 0;
+            await wait(1300);
+            isl._checkTrack(player);
+            await wait(1400);
+            ok('a paused player announces nothing', title() !== 'Third song', title());
+            isl._player = null;
+
+            // Battery and Bluetooth.
+            isl._battery = null;
+            isl._batteryEvent(50, false);
+            ok('the first battery reading only sets the reference', isl._mode !== 'notice' || title() !== 'En charge');
+            isl._noticeUntil = 0;
+            await wait(1200);
+            isl._batteryEvent(50, true);
+            await wait(300);
+            ok('plugging in shows "charging"', /charg/i.test(title()), title());
+            isl._noticeUntil = 0;
+            await wait(1200);
+            isl._batteryEvent(25, false);
+            isl._noticeUntil = 0;
+            await wait(1200);
+            isl._batteryEvent(19, false);
+            await wait(300);
+            ok('dropping under 20 % warns', /faible|low/i.test(title()) && isl.island.noticeBody.text.includes('19'),
+                `${title()} / ${isl.island.noticeBody.text}`);
+            isl._noticeUntil = 0;
+            await wait(1200);
+            isl._batteryEvent(9, false);
+            await wait(300);
+            ok('dropping under 10 % warns louder', /presque|very/i.test(title()), title());
+            isl._noticeUntil = 0;
+            await wait(1200);
+            isl._onBluetoothDevice({name: 'AirPods Pro', icon: 'audio-headphones', battery: 80});
+            await wait(300);
+            await shot('1g-bluetooth', log);
+            ok('a Bluetooth device shows its name and battery', title() === 'AirPods Pro' && isl.island.noticeBody.text.includes('80'),
+                `${title()} / ${isl.island.noticeBody.text}`);
+            await isl._bluetoothConnected('/org/bluez/hci0/dev_missing');
+            ok('an unknown Bluetooth device is ignored quietly', true);
+            isl._noticeUntil = 0;
+            await wait(1200);
+
+            // The wheel turns the pages.
+            isl._pinned = true;
+            isl._update();
+            await wait(1200);
+            const before = isl._tab;
+            isl._stepTab(1);
+            await wait(400);
+            const after = isl._tab;
+            isl._stepTab(-1);
+            await wait(400);
+            ok('stepping tabs moves forward and back', before !== after && isl._tab === before, `${before} ${after} ${isl._tab}`);
+            isl._pinned = false;
+            isl._update();
+            cfg.reset('island-notice-seconds');
+            await wait(1800);
+        } catch (e) {
+            log(`FAIL island live events: ${e}\n${e.stack ?? ''}`);
+        }
+
+        // 1e. The preferences window opens (it runs in its own process, so a
+        //     typing mistake in prefs.js only shows when it is opened).
+        try {
+            await new Promise((resolve, reject) => Gio.DBus.session.call('org.gnome.Shell.Extensions',
+                '/org/gnome/Shell/Extensions', 'org.gnome.Shell.Extensions', 'LaunchExtensionPrefs',
+                new GLib.Variant('(s)', ['gnomac@nayzer974.github.io']), null, Gio.DBusCallFlags.NONE, 5000, null,
+                (conn, res) => {
+                    try {
+                        conn.call_finish(res);
+                        resolve();
+                    } catch (e) {
+                        reject(e);
+                    }
+                }));
+            let prefsWindow = null;
+            for (let i = 0; i < 40 && !prefsWindow; i++) {
+                await wait(250);
+                prefsWindow = global.get_window_actors().map(a => a.meta_window)
+                    .find(w => /extensions|gnomac/i.test(`${w.get_wm_class() ?? ''} ${w.get_title() ?? ''}`) &&
+                        w.get_wm_class() !== 'kgx' && w.get_wm_class() !== 'org.gnome.Console');
+            }
+            await wait(1500);
+            log(prefsWindow ? `preferences window opened ok (${prefsWindow.get_wm_class()} "${prefsWindow.get_title()}")`
+                : 'FAIL preferences window did not open');
+            await shot('1e-preferences', log);
+            prefsWindow?.delete(global.get_current_time());
+            await wait(800);
+        } catch (e) {
+            log(`FAIL preferences launch: ${e}`);
+        }
+
+        // 1f. The prayer preferences, built and driven in a window of their own.
+        try {
+            const proc = Gio.Subprocess.new(['gjs', '-m', `${extension.path}/prefs-smoke.js`, extension.path],
+                Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_MERGE);
+            const output = new Promise(resolve => proc.communicate_utf8_async(null, null, (p2, res) => {
+                try {
+                    resolve(p2.communicate_utf8_finish(res)[1] ?? '');
+                } catch (e) {
+                    resolve(`FAIL reading the prefs test: ${e}`);
+                }
+            }));
+            await wait(3800);
+            await shot('1f-prayer-prefs-top', log);
+            await wait(5500);
+            await shot('1f-prayer-prefs-bottom', log);
+            const text = await output;
+            for (const line of text.split('\n')) {
+                if (line.startsWith('GNOMAC-PREFS:'))
+                    log(line.replace('GNOMAC-PREFS:', 'prefs:').replace('prefs: FAIL', 'FAIL prefs:'));
+                else if (/CRITICAL|Error|error:|TypeError|ReferenceError/.test(line) && !/a11y|atspi|dconf|portal/i.test(line))
+                    log(`FAIL prefs process: ${line.slice(0, 200)}`);
+            }
+        } catch (e) {
+            log(`FAIL prefs smoke: ${e}`);
         }
 
         // 2. A notification source that is destroyed while the panel watches

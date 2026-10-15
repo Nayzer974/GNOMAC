@@ -1,5 +1,44 @@
 [
   {
+    "id": 4,
+    "title": [
+      "GNOMAC · a livelier island, prayer times, one menu bar per screen",
+      "GNOMAC · une encoche plus vivante, les heures de prière, une barre de menus par écran"
+    ],
+    "features": [
+      [
+        "Island: notifications now wait their turn (\"+2\") instead of replacing each other, and a click opens the app they come from",
+        "Encoche : les notifications attendent leur tour (« +2 ») au lieu de se remplacer, et un clic ouvre l’app d’où elles viennent"
+      ],
+      [
+        "Island: live events — charger plugged in, battery under 20 % and 10 %, Bluetooth device connected (with its battery), a card with the cover for each new track",
+        "Encoche : évènements en direct — chargeur branché, batterie sous 20 % et 10 %, appareil Bluetooth connecté (avec sa batterie), une carte avec la pochette à chaque nouveau morceau"
+      ],
+      [
+        "Island: the mouse wheel turns the pages of the open card",
+        "Encoche : la molette tourne les pages de la carte ouverte"
+      ],
+      [
+        "Prayer times (off by default): a Prayers tab in the island with the current and next prayer, the six times and the Hijri date, plus a notification at each prayer. Computed on your machine, no account",
+        "Heures de prière (désactivées par défaut) : un onglet Prières dans l’encoche avec la prière en cours et la suivante, les six heures et la date hégirienne, et une notification à chaque prière. Calculées sur ton ordinateur, sans compte"
+      ],
+      [
+        "A menu bar on every screen, Mission Control on Super + F3, a Reduce transparency setting",
+        "Une barre de menus sur chaque écran, Mission Control sur Super + F3, un réglage Réduire la transparence"
+      ]
+    ],
+    "fixes": [
+      [
+        "GNOME 51: the wallpaper picker loads its pictures again, and the shelf buttons of the island react to clicks",
+        "GNOME 51 : le sélecteur de fonds d’écran recharge ses images, et les boutons de l’étagère de l’encoche réagissent de nouveau aux clics"
+      ],
+      [
+        "Hundreds of \"already disposed\" errors when the shell UI was rebuilt are gone",
+        "Les centaines d’erreurs « objet déjà détruit » à chaque reconstruction de l’interface ont disparu"
+      ]
+    ]
+  },
+  {
     "id": 3,
     "title": [
       "GNOMAC · smoother animations, island, notifications and drag and drop",

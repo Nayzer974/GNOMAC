@@ -6,6 +6,8 @@ import Gtk from 'gi://Gtk';
 
 import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
+import {addPrayerPreferences} from './lib/prayerPrefs.js';
+
 
 // ---------------------------------------------------------------- profile photo
 
@@ -231,6 +233,7 @@ export default class GnomacPreferences extends ExtensionPreferences {
         toggle(tabsGroup, 'island-remember-tab', 'Revenir au dernier onglet utilisé');
 
         const effects = group('Animations de l’encoche');
+        toggle(island, 'island-live-events', 'Événements en direct', 'Chargeur branché, batterie faible (20 % et 10 %), appareil Bluetooth connecté, nouveau morceau');
         toggle(effects, 'island-bounce', 'Rebond à l’arrivée d’une notification');
         toggle(effects, 'island-cascade', 'Le contenu apparaît élément par élément');
 
@@ -238,6 +241,8 @@ export default class GnomacPreferences extends ExtensionPreferences {
         spin(pomodoro, 'pomodoro-focus', 'Concentration (minutes)', 1, 180, 1);
         spin(pomodoro, 'pomodoro-short', 'Pause courte (minutes)', 1, 60, 1);
         spin(pomodoro, 'pomodoro-long', 'Pause longue (minutes)', 1, 120, 1);
+
+        addPrayerPreferences(settings, {group, toggle, spin});
         spin(pomodoro, 'pomodoro-rounds', 'Cycles avant la pause longue', 1, 12, 1);
         toggle(pomodoro, 'pomodoro-auto', 'Enchaîner automatiquement', 'Démarre la phase suivante sans clic');
 

@@ -20,11 +20,16 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import * as MessageTray from 'resource:///org/gnome/shell/ui/messageTray.js';
 
 import {ActionsPage, ClipboardPage, IdleHome, StatsPage} from '../lib/notchPages.js';
 import {startClipboard, stopClipboard} from '../lib/clipboardHistory.js';
 import {coverFile, destroyCovers} from '../lib/coverArt.js';
+import {bringForward} from '../lib/notificationOpen.js';
 import {MprisWatcher} from '../lib/mprisClient.js';
+import {PrayerPage} from '../lib/prayerPage.js';
+import {PRAYER_NAMES, PrayerAlerts, readConfig as readPrayerConfig} from '../lib/prayerSchedule.js';
+import {formatHours} from '../lib/prayerTimes.js';
 import {cascade, press, slideIn} from '../lib/motion.js';
 import {MonthCalendar, PomodoroTimer, Shelf} from '../lib/notchViews.js';
 import {Spring, getTicker} from '../lib/spring.js';
@@ -44,6 +49,13 @@ const SIZES = {
     hud: {width: 300, height: 34},
 };
 const WORKSPACE_MS = 1400;
+const TAB_NAMES = {
+    home: () => t('Home', 'Accueil'), stats: () => t('System', 'Système'), actions: () => t('Quick actions', 'Actions rapides'),
+    clipboard: () => t('Clipboard', 'Presse-papiers'), timer: () => t('Timer', 'Minuteur'),
+    prayer: () => t('Prayers', 'Prières'), shelf: () => t('Shelf', 'Étagère'),
+};
+const MAX_QUEUED_NOTICES = 5;
+const LOW_BATTERY = [20, 10];
 const BARS = 4;
 
 // A cover (a file in the cache) or, without one, a soft gradient.
@@ -107,7 +119,7 @@ function bars(count) {
 
 const Island = GObject.registerClass({
     Signals: {'tab': {param_types: [GObject.TYPE_STRING]}, 'timer-changed': {param_types: [GObject.TYPE_BOOLEAN]},
-        'close-request': {}},
+        'close-request': {}, 'open-prefs': {}},
 }, class Island extends St.Widget {
     _init(settings) {
         super._init({name: 'gnomacDynamicIsland', reactive: true, track_hover: true});
@@ -239,8 +251,12 @@ const Island = GObject.registerClass({
         this.noticeBody.clutter_text.ellipsize = Pango.EllipsizeMode.END;
         noticeText.add_child(this.noticeTitle);
         noticeText.add_child(this.noticeBody);
+        // "+2": more notifications are waiting behind this one.
+        this.noticeMore = new St.Label({style_class: 'gnomac-notch-notice-more', y_align: Clutter.ActorAlign.CENTER,
+            visible: false});
         this.notice.add_child(this.noticeIcon);
         this.notice.add_child(noticeText);
+        this.notice.add_child(this.noticeMore);
         this.add_child(this.notice);
 
         // Wide dashboard: player + calendar on "Home", timer, shelf.
@@ -270,9 +286,11 @@ const Island = GObject.registerClass({
         this.actionsPage = this.actionsView.actor;
         this.clipboardView = new ClipboardPage();
         this.clipboardPage = this.clipboardView.actor;
+        this.prayerView = new PrayerPage(() => this.emit('open-prefs'));
+        this.prayerPage = this.prayerView.actor;
         this.pageMap = {
             home: this.homePage, stats: this.statsPage, actions: this.actionsPage,
-            clipboard: this.clipboardPage, timer: this.timerPage, shelf: this.shelfPage,
+            clipboard: this.clipboardPage, timer: this.timerPage, prayer: this.prayerPage, shelf: this.shelfPage,
         };
         for (const page of Object.values(this.pageMap))
             this.pages.add_child(page);
@@ -282,9 +300,10 @@ const Island = GObject.registerClass({
         this.tabButtons = [];
         [['user-home-symbolic', 'home'], ['utilities-system-monitor-symbolic', 'stats'],
             ['view-grid-symbolic', 'actions'], ['edit-paste-symbolic', 'clipboard'],
-            ['alarm-symbolic', 'timer'], ['folder-symbolic', 'shelf']].forEach(([icon, id]) => {
+            ['alarm-symbolic', 'timer'], ['weather-clear-night-symbolic', 'prayer'],
+            ['folder-symbolic', 'shelf']].forEach(([icon, id]) => {
             const button = new St.Button({style_class: 'gnomac-notch-tab', toggle_mode: true, can_focus: false,
-                child: new St.Icon({icon_name: icon, icon_size: 13})});
+                accessible_name: TAB_NAMES[id](), child: new St.Icon({icon_name: icon, icon_size: 13})});
             button.connect('clicked', () => this.emit('tab', id));
             press(button, {down: 0.85});
             tabs.add_child(button);
@@ -343,6 +362,10 @@ export class DynamicIsland {
         this._coverPath = null;
         this._mode = 'rest';
         this._noticeUntil = 0;
+        this._noticeQueue = [];
+        this._currentNotification = null;
+        this._lastTrack = null;
+        this._battery = null;
         this._workspaceUntil = 0;
         this._pinned = false;
         this._phase = 0;
@@ -395,8 +418,14 @@ export class DynamicIsland {
     // The island's personal settings, read once per (re)load.
     _readConfig() {
         const get = this._settings;
-        const all = ['home', 'stats', 'actions', 'clipboard', 'timer', 'shelf'];
+        const all = ['home', 'stats', 'actions', 'clipboard', 'timer', 'prayer', 'shelf'];
         let tabs = get.get_strv('island-tabs').filter(id => all.includes(id));
+        // The Prayers tab exists only while the feature is on (it is off by
+        // default), whatever the saved tab list says.
+        const prayer = get.get_boolean('prayer-enabled');
+        tabs = tabs.filter(id => id !== 'prayer');
+        if (prayer)
+            tabs.splice(tabs.includes('shelf') ? tabs.indexOf('shelf') : tabs.length, 0, 'prayer');
         if (!tabs.length)
             tabs = ['home'];
         let first = get.get_string('island-default-tab');
@@ -417,6 +446,7 @@ export class DynamicIsland {
             hud: get.get_boolean('island-hud'),
             hudMs: Math.round(get.get_double('island-hud-seconds') * 1000),
             noticeMs: get.get_int('island-notice-seconds') * 1000,
+            liveEvents: get.get_boolean('island-live-events'),
             bounce: get.get_boolean('island-bounce'),
             cascade: get.get_boolean('island-cascade'),
             hideFullscreen: get.get_boolean('island-hide-fullscreen'),
@@ -449,6 +479,9 @@ export class DynamicIsland {
         this.island.connect('notify::hover', () => this._onHover());
         this.island.connect('button-release-event', (_a, event) => {
             const trigger = this._cfg.trigger;
+            // A click on a notification opens what it is about, as in iOS.
+            if (event.get_button() === Clutter.BUTTON_PRIMARY && this._openNotice())
+                return Clutter.EVENT_STOP;
             if (event.get_button() === Clutter.BUTTON_PRIMARY && (trigger === 'click' || trigger === 'both')) {
                 this._pinned = !this._pinned;
                 this._lastHover = GLib.get_monotonic_time();
@@ -464,6 +497,12 @@ export class DynamicIsland {
             this._refreshTab();
             this._update();
         });
+        this.island.connect('open-prefs', () => {
+            this._pinned = false;
+            this._update();
+            this._extension.openPreferences();
+        });
+        this._prayerAlerts = new PrayerAlerts(alert => this._onPrayerAlert(alert));
         this.island.connect('timer-changed', (_i, finished) => this._onTimer(finished));
         this.island.connect('close-request', () => {
             this._pinned = false;
@@ -482,6 +521,9 @@ export class DynamicIsland {
         });
 
         this._watchCharging();
+        this._watchBluetooth();
+        // The wheel turns the pages of the open card.
+        this.island.connect('scroll-event', (_a, event) => this._onScroll(event));
         // Every MPRIS player, straight over D-Bus (see lib/mprisClient.js).
         this._watcher = new MprisWatcher(player => this._onPlayersChanged(player));
         this._watcher.start();
@@ -515,7 +557,10 @@ export class DynamicIsland {
                     this._pollPosition();
                 if (this._tab === 'stats')
                     this.island.statsView.update();
+                if (this._tab === 'prayer')
+                    this.island.prayerView.update(readPrayerConfig(this._settings));
             }
+            this._prayerAlerts?.tick(readPrayerConfig(this._settings), GLib.DateTime.new_now_local());
             return GLib.SOURCE_CONTINUE;
         });
 
@@ -605,6 +650,8 @@ export class DynamicIsland {
             island.statsView.update();
         else if (this._tab === 'clipboard')
             island.clipboardView.refresh();
+        else if (this._tab === 'prayer')
+            island.prayerView.update(readPrayerConfig(this._settings));
     }
 
     // A short squash-and-stretch: the notch "breathes" when something arrives.
@@ -656,6 +703,40 @@ export class DynamicIsland {
         this._update();
     }
 
+    // A prayer time (or its reminder) came: a notification, which the island
+    // shows like any other, plus an optional short sound.
+    _onPrayerAlert({key, at, kind}) {
+        if (!this.island || this._islandGone)
+            return;
+        const config = readPrayerConfig(this._settings);
+        const name = PRAYER_NAMES[key]();
+        const time = formatHours(at.get_hour() + at.get_minute() / 60, config.h24);
+        const place = config.city ? ` · ${config.city}` : '';
+        let title;
+        if (kind === 'before') {
+            title = t(`${name} in ${config.before} min`, `${name} dans ${config.before} min`);
+        } else if (key === 'sunrise') {
+            title = t('Sunrise', 'Lever du soleil');
+        } else {
+            // French elision: « l’heure d’Asr », « l’heure de Fajr ».
+            title = t(`Time for ${name}`, `C’est l’heure ${/^[AEIOUYÀÂÉÈ]/i.test(name) ? 'd’' : 'de '}${name}`);
+        }
+        if (!this._prayerSource) {
+            this._prayerSource = new MessageTray.Source({title: t('Prayer times', 'Heures de prière'),
+                iconName: 'weather-clear-night-symbolic'});
+            this._prayerSource.connect('destroy', () => (this._prayerSource = null));
+            Main.messageTray.add(this._prayerSource);
+        }
+        this._prayerSource.addNotification(new MessageTray.Notification({
+            source: this._prayerSource, title, body: `${time}${place}`,
+            gicon: new Gio.ThemedIcon({name: 'weather-clear-night-symbolic'})}));
+        if (config.sound && kind === 'now') {
+            try {
+                global.display.get_sound_player().play_from_theme('complete', 'Prayer time', null);
+            } catch {}
+        }
+    }
+
     _showHud(icon, level, maxLevel) {
         const island = this.island;
         if (!island || this._islandGone)
@@ -676,6 +757,19 @@ export class DynamicIsland {
             Gio.DBus.system.signal_unsubscribe(this._powerSub);
             this._powerSub = 0;
         }
+        if (this._bluezSub) {
+            Gio.DBus.system.signal_unsubscribe(this._bluezSub);
+            this._bluezSub = 0;
+        }
+        if (this._trackTimer) {
+            GLib.source_remove(this._trackTimer);
+            this._trackTimer = 0;
+        }
+        this._noticeQueue = [];
+        this._currentNotification = null;
+        this._prayerAlerts = null;
+        this._prayerSource?.destroy();
+        this._prayerSource = null;
         this.island?.timer?.destroy();
         this.island?.clipboardView?.destroy();
         stopClipboard();
@@ -725,6 +819,7 @@ export class DynamicIsland {
         const best = this._watcher.best(this._player);
         if (best !== this._player) {
             this._player = best;
+            this._lastTrack = null;
             this._coverUrl = null;
             this._coverPath = null;
             this._position = 0;
@@ -768,29 +863,18 @@ export class DynamicIsland {
     }
 
     // Plugging the charger in (or unplugging it) shows a short notice in the
-    // island: the battery level and whether it is charging. UPower's display
-    // device is the source; without a battery nothing happens.
+    // island: the battery level and whether it is charging; so does the level
+    // dropping to 20 % and 10 %. UPower's display device is the source;
+    // without a battery nothing happens.
     _watchCharging() {
         const path = '/org/freedesktop/UPower/devices/DisplayDevice';
-        let last = null;
         const show = props => {
             const present = props.IsPresent?.deepUnpack?.() ?? props.IsPresent;
             const state = props.State?.deepUnpack?.() ?? props.State;
             const percent = Math.round(props.Percentage?.deepUnpack?.() ?? props.Percentage ?? NaN);
             if (!present || !Number.isFinite(percent))
                 return;
-            const charging = state === 1 || state === 4 || state === 5;
-            const previous = last;
-            last = charging;
-            // First reading: only remember. Later: announce a change.
-            if (previous === null || previous === charging || !this._settings.get_boolean('island-notifications'))
-                return;
-            const level = Math.min(100, Math.max(0, Math.round(percent / 10) * 10));
-            this._showNotice({
-                title: charging ? t('Charging', 'En charge') : t('On battery', 'Sur batterie'),
-                body: `${percent} %`,
-                gicon: new Gio.ThemedIcon({name: charging ? `battery-level-${level}-charging-symbolic` : `battery-level-${level}-symbolic`}),
-            });
+            this._batteryEvent(percent, state === 1 || state === 4 || state === 5);
         };
         const read = () => Gio.DBus.system.call('org.freedesktop.UPower', path, 'org.freedesktop.DBus.Properties', 'GetAll',
             new GLib.Variant('(s)', ['org.freedesktop.UPower.Device']), null, Gio.DBusCallFlags.NONE, 1000, null, (conn, res) => {
@@ -804,6 +888,84 @@ export class DynamicIsland {
             this._powerSub = Gio.DBus.system.signal_subscribe('org.freedesktop.UPower', 'org.freedesktop.DBus.Properties',
                 'PropertiesChanged', path, null, Gio.DBusSignalFlags.NONE, () => read());
         } catch {}
+    }
+
+    // One reading of the battery. The first only becomes the reference; the
+    // next ones announce a change of charger or a drop under 20 % / 10 %.
+    _batteryEvent(percent, charging) {
+        const previous = this._battery;
+        this._battery = {percent, charging};
+        if (!previous || !this._cfg?.liveEvents || !this.island || this._islandGone)
+            return;
+        const level = Math.min(100, Math.max(0, Math.round(percent / 10) * 10));
+        if (previous.charging !== charging) {
+            this._showNotice({
+                title: charging ? t('Charging', 'En charge') : t('On battery', 'Sur batterie'),
+                body: `${percent} %`,
+                gicon: new Gio.ThemedIcon({name: charging ? `battery-level-${level}-charging-symbolic` : `battery-level-${level}-symbolic`}),
+            });
+            return;
+        }
+        const crossed = LOW_BATTERY.find(limit => previous.percent > limit && percent <= limit);
+        if (!charging && crossed !== undefined) {
+            this._showNotice({
+                title: crossed <= 10 ? t('Battery very low', 'Batterie presque vide') : t('Low battery', 'Batterie faible'),
+                body: t(`${percent} % left`, `${percent} % restant`),
+                gicon: new Gio.ThemedIcon({name: `battery-level-${level}-symbolic`}),
+            });
+        }
+    }
+
+    // A Bluetooth device that connects (headphones, a speaker, a mouse) shows
+    // its name and, when it reports it, its battery, like AirPods on an iPhone.
+    _watchBluetooth() {
+        try {
+            this._bluezSub = Gio.DBus.system.signal_subscribe('org.bluez', 'org.freedesktop.DBus.Properties',
+                'PropertiesChanged', null, 'org.bluez.Device1', Gio.DBusSignalFlags.NONE, (_c, _s, path, _i, _sig, params) => {
+                    try {
+                        const changed = params.deepUnpack()[1];
+                        if (changed.Connected?.deepUnpack?.() === true)
+                            this._bluetoothConnected(path);
+                    } catch {}
+                });
+        } catch {}
+    }
+
+    _getAll(path, iface) {
+        return new Promise(resolve => Gio.DBus.system.call('org.bluez', path, 'org.freedesktop.DBus.Properties', 'GetAll',
+            new GLib.Variant('(s)', [iface]), null, Gio.DBusCallFlags.NONE, 1500, null, (conn, res) => {
+                try {
+                    resolve(conn.call_finish(res).deepUnpack()[0]);
+                } catch {
+                    resolve(null);
+                }
+            }));
+    }
+
+    async _bluetoothConnected(path) {
+        const device = await this._getAll(path, 'org.bluez.Device1');
+        if (!device || this._islandGone)
+            return;
+        const battery = await this._getAll(path, 'org.bluez.Battery1');
+        const unpack = v => v?.deepUnpack?.() ?? v;
+        this._onBluetoothDevice({
+            name: unpack(device.Alias) ?? unpack(device.Name) ?? 'Bluetooth',
+            icon: unpack(device.Icon),
+            battery: battery ? unpack(battery.Percentage) : null,
+        });
+    }
+
+    _onBluetoothDevice({name, icon, battery}) {
+        if (!this._cfg?.liveEvents || !this.island || this._islandGone)
+            return;
+        const symbolic = icon ? `${icon}-symbolic` : 'bluetooth-symbolic';
+        this._showNotice({
+            title: name,
+            body: Number.isFinite(battery) && battery !== null
+                ? t(`Connected · battery ${battery} %`, `Connecté · batterie ${battery} %`)
+                : t('Connected', 'Connecté'),
+            gicon: new Gio.ThemedIcon({names: [symbolic, 'bluetooth-symbolic']}),
+        });
     }
 
     _togglePlay() {
@@ -940,15 +1102,134 @@ export class DynamicIsland {
         });
     }
 
+    // A notification arrives. While another one is still on screen it waits
+    // its turn (up to five), instead of replacing it: nothing is lost, and the
+    // card says how many are waiting ("+2"). A short one that is nearly done
+    // is simply followed.
     _showNotice(notification) {
+        if (!this.island || this._islandGone)
+            return;
+        const now = GLib.get_monotonic_time();
+        if (this._mode === 'notice' && now < this._noticeUntil - 700000) {
+            if (this._noticeQueue.length < MAX_QUEUED_NOTICES)
+                this._noticeQueue.push(notification);
+            this._syncNoticeCount();
+            return;
+        }
+        this._presentNotice(notification);
+    }
+
+    _presentNotice(notification) {
         const island = this.island;
+        if (!island || this._islandGone)
+            return;
         island.noticeTitle.text = notification.title ?? '';
         island.noticeBody.text = (notification.body ?? '').replace(/\s+/g, ' ');
         island.noticeIcon.gicon = notification.gicon ?? notification.source?.icon ?? null;
         if (!island.noticeIcon.gicon)
             island.noticeIcon.icon_name = 'preferences-system-notifications-symbolic';
+        // A cover is a picture, not a symbol: round its corners.
+        island.noticeIcon.set_style(notification.rounded ? 'border-radius: 7px;' : null);
+        this._currentNotification = notification;
         this._noticeUntil = GLib.get_monotonic_time() + this._cfg.noticeMs * 1000;
+        this._syncNoticeCount();
         this._update();
+    }
+
+    _syncNoticeCount() {
+        const more = this._noticeQueue.length;
+        this.island.noticeMore.visible = more > 0;
+        this.island.noticeMore.text = `+${more}`;
+    }
+
+    // Clicking a notification opens what it is about (its own action, else its
+    // application) and closes the card. Plain notices (charger, Bluetooth,
+    // track) have nothing to open: the click then behaves as usual.
+    _openNotice() {
+        const notification = this._currentNotification;
+        if (this._mode !== 'notice' || !notification)
+            return false;
+        const real = typeof notification.activate === 'function';
+        const app = notification.source?.app;
+        if (!real && !app)
+            return false;
+        try {
+            if (real)
+                notification.activate();
+            else
+                bringForward(app);
+        } catch (e) {
+            logError(e, 'GNOMAC island: cannot open the notification');
+        }
+        this._noticeQueue = [];
+        this._noticeUntil = 0;
+        this._update();
+        return true;
+    }
+
+    // The mouse wheel (or two fingers) over the open card turns its pages.
+    _onScroll(event) {
+        if (this._mode !== 'dashboard')
+            return Clutter.EVENT_PROPAGATE;
+        const direction = event.get_scroll_direction();
+        let step = 0;
+        if (direction === Clutter.ScrollDirection.DOWN || direction === Clutter.ScrollDirection.RIGHT)
+            step = 1;
+        else if (direction === Clutter.ScrollDirection.UP || direction === Clutter.ScrollDirection.LEFT)
+            step = -1;
+        else if (direction === Clutter.ScrollDirection.SMOOTH) {
+            const [dx, dy] = event.get_scroll_delta();
+            step = Math.abs(dy) >= Math.abs(dx) ? Math.sign(dy) : Math.sign(dx);
+        }
+        // One page per gesture: a trackpad sends many small events.
+        const now = GLib.get_monotonic_time();
+        if (step && now - (this._lastScroll ?? 0) > 350000) {
+            this._lastScroll = now;
+            this._stepTab(step);
+        }
+        return Clutter.EVENT_STOP;
+    }
+
+    _stepTab(step) {
+        const tabs = this._cfg.tabs;
+        if (tabs.length < 2)
+            return;
+        const index = tabs.indexOf(this._tab);
+        const next = tabs[(Math.max(0, index) + step + tabs.length) % tabs.length];
+        this.island.emit('tab', next);
+    }
+
+    // A new track starts: a short card with the cover, title and artist, like
+    // Apple Music's live notification. Not while the card is open, not after a
+    // pause, and the first track of a session only becomes the reference.
+    _checkTrack(player) {
+        if (!this._cfg.liveEvents || !player?.hasMedia || player.status !== 'Playing')
+            return;
+        const key = `${player.busName}|${player.title}|${player.artists.join(',')}`;
+        if (this._lastTrack === null) {
+            this._lastTrack = key;
+            return;
+        }
+        if (key === this._lastTrack)
+            return;
+        this._lastTrack = key;
+        if (this._mode === 'dashboard' || !player.title)
+            return;
+        if (this._trackTimer)
+            GLib.source_remove(this._trackTimer);
+        // The cover is fetched in the background: give it a moment.
+        this._trackTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 900, () => {
+            this._trackTimer = 0;
+            if (!this.island || this._islandGone || this._player !== player)
+                return GLib.SOURCE_REMOVE;
+            this._showNotice({
+                title: player.title,
+                body: player.artists.join(', ') || player.album,
+                gicon: this._coverPath ? Gio.FileIcon.new(Gio.File.new_for_path(this._coverPath)) : this._playerIcon(player),
+                rounded: !!this._coverPath,
+            });
+            return GLib.SOURCE_REMOVE;
+        });
     }
 
     _showWorkspaces() {
@@ -1036,6 +1317,7 @@ export class DynamicIsland {
         island.restArt.visible = media && this._cfg.showMedia;
         island.bars.visible = media && this._cfg.showMedia;
         if (player && media) {
+            this._checkTrack(player);
             this._syncCover(player);
             island.title.text = player.title || t('Unknown title', 'Titre inconnu');
             island.artist.text = player.artists.join(', ') || player.album;
@@ -1172,6 +1454,9 @@ export class DynamicIsland {
         this._height.step(dt);
         this._phase += dt;
         const presenceMoving = this._stepPresence(dt);
+        // The notification on screen is done: the next one in line takes its place.
+        if (this._mode === 'notice' && now >= this._noticeUntil && this._noticeQueue.length)
+            this._presentNotice(this._noticeQueue.shift());
         if ((this._mode === 'hud' && now >= (this._hudUntil ?? 0)) ||
             (this._mode === 'notice' && now >= this._noticeUntil) ||
             (this.island.dots.visible && now >= this._workspaceUntil))

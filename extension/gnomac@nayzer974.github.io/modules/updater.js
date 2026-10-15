@@ -202,6 +202,9 @@ export class Updater {
                     date: json.commit?.committer?.date ?? '',
                 }, manual, startup);
             } catch (e) {
+                // The module was switched off while the request was running.
+                if (e.matches?.(Gio.io_error_quark(), Gio.IOErrorEnum.CANCELLED))
+                    return;
                 // Offline (the network is often not up yet at login) or
                 // rate-limited: try again soon, a few times, then at the next check.
                 if (!manual && startup && attempt < RETRY_SECONDS.length && this._session) {
@@ -280,7 +283,8 @@ export class Updater {
                     throw new Error(`HTTP ${message.get_status()}`);
                 done(JSON.parse(new TextDecoder().decode(bytes.get_data())));
             } catch (e) {
-                console.log(`GNOMAC updater: ${url}: ${e.message}`);
+                if (!e.matches?.(Gio.io_error_quark(), Gio.IOErrorEnum.CANCELLED))
+                    console.log(`GNOMAC updater: ${url}: ${e.message}`);
                 done(null);
             }
         });

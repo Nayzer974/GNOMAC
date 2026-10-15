@@ -31,6 +31,7 @@ GNOMAC est **une seule extension GNOME Shell cohérente**, au lieu d'un empileme
 - [Installation pas à pas et options](#installation-pas-à-pas-et-options)
 - [Écran de démarrage (Plymouth)](#écran-de-démarrage-plymouth)
 - [Écran de connexion (GDM)](#écran-de-connexion-gdm)
+- [Heures de prière](#heures-de-prière)
 - [Réglages](#réglages)
 - [Limites connues](#limites-connues)
 - [Développement](#développement)
@@ -115,7 +116,7 @@ Déconnecte-toi puis reconnecte-toi pour finir.
 
 ### Encoche : un tableau de bord qui se déplie
 
-Une encoche noire collée au bord haut, avec raccords concaves, qui s'élargit selon ce qui se passe (musique, minuteur, notifications, volume). Au survol, six onglets : **Accueil**, **Système**, **Actions rapides**, **Presse-papiers**, **Minuteur Pomodoro**, **Étagère**. Les pastilles prennent la palette de couleurs de macOS (Wi-Fi et Bluetooth en bleu, Concentration en violet, Lumière nocturne en orange) avec des fondus et des rebonds à chaque clic.
+Une encoche noire collée au bord haut, avec raccords concaves, qui s'élargit selon ce qui se passe (musique, minuteur, notifications, volume). Au survol, six onglets : **Accueil**, **Système**, **Actions rapides**, **Presse-papiers**, **Minuteur Pomodoro**, **Étagère**, plus un septième, **Prières**, quand tu l'actives (voir [Heures de prière](#heures-de-prière)). La molette tourne les pages. Les pastilles prennent la palette de couleurs de macOS (Wi-Fi et Bluetooth en bleu, Concentration en violet, Lumière nocturne en orange) avec des fondus et des rebonds à chaque clic.
 
 | Accueil | Système |
 |---|---|
@@ -135,7 +136,8 @@ Préférences (`gnome-extensions prefs gnomac@nayzer974.github.io`) › **Dynami
 | **Délais** | avant l'ouverture au survol, avant la fermeture, fermeture automatique après un clic |
 | **Contenu replié** | heure (24 h ou 12 h), pochette et égaliseur, anneau du minuteur, pastille de notifications |
 | **Volume et luminosité** | dans l'encoche ou l'affichage d'origine de GNOME, durée réglable |
-| **Notifications** | dans l'encoche ou non, durée de 1 à 20 s |
+| **Notifications** | dans l'encoche ou non, durée de 1 à 20 s ; elles **font la queue** (« +2 ») au lieu de se remplacer, et un clic ouvre l'app d'où elles viennent |
+| **Évènements en direct** | chargeur branché, batterie sous 20 % et 10 %, appareil Bluetooth connecté (nom et batterie), carte avec la pochette à chaque nouveau morceau |
 | **Onglets** | chacun des six peut être retiré, onglet d'ouverture au choix, retour au dernier onglet utilisé |
 | **Animations** | rebond à l'arrivée d'une notification, apparition du contenu élément par élément |
 | **Plein écran** | masquer l'encoche devant une fenêtre en plein écran |
@@ -196,7 +198,7 @@ Flotte au-dessus du bas de l'écran, **un clic sur l'icône de l'app active la c
 
 ### Encoche (Dynamic Island)
 
-Pochette, égaliseur teinté par la musique, minuteur, notifications, volume et luminosité. Un **Pomodoro complet** (concentration, pauses courtes et longue, cycles, durées réglables). Une horloge et le calendrier quand rien ne joue. Un presse-papiers et une étagère de fichiers.
+Pochette, égaliseur teinté par la musique, minuteur, notifications (en file d'attente, avec un clic qui ouvre l'app), volume et luminosité, évènements en direct (charge, batterie faible, Bluetooth, nouveau morceau). Un **Pomodoro complet** (concentration, pauses courtes et longue, cycles, durées réglables). Une horloge et le calendrier quand rien ne joue. Un presse-papiers et une étagère de fichiers.
 
 ### Bureau
 
@@ -316,6 +318,15 @@ Le script copie l'extension dans `/usr/share/gnome-shell/extensions`, le fond da
 
 ---
 
+## Heures de prière
+
+**Désactivées par défaut.** Préférences › *Heures de prière* › *Activer* ajoute l'onglet **Prières** à l'encoche et une notification à chaque prière.
+
+- **L'onglet** : la prochaine prière avec son heure et le temps restant, une barre qui avance entre la prière en cours et la suivante, les six heures du jour (Fajr, Chourouk, Dhor, Asr, Maghrib, Icha) avec la prière en cours allumée, et la date hégirienne (qui change au Maghrib).
+- **Les notifications** : à l'heure de chaque prière cochée, plus un rappel optionnel quelques minutes avant, et un son optionnel. Elles s'affichent dans l'encoche si « Notifications dans l'île » est activé, sinon en bannière. Une mise en veille de l'ordinateur ne fait pas arriver d'alertes en retard.
+- **Le lieu** : une recherche de ville (Open-Meteo, seulement quand tu cliques, avec le seul texte saisi) ou latitude et longitude à la main.
+- **Le calcul** : fait sur ton ordinateur, sans compte. Dix méthodes (Ligue islamique mondiale, UOIF, Umm al-Qura, ISNA, Égypte, Karachi, Turquie, Algérie, Tunisie, Maroc), Asr standard ou hanafite, règle pour les hautes latitudes, ajustement en minutes pour chaque prière. Détails et vérification : [docs/dynamic-island.md](docs/dynamic-island.md).
+
 ## Icônes du bureau et étagère de l'encoche
 
 Les fichiers de ton dossier **Bureau** s'affichent sur le fond d'écran, comme sur macOS : clic pour sélectionner (Ctrl pour en ajouter), **double-clic pour ouvrir**, **glisser pour déplacer** (accroche à une grille, position mémorisée) ou **déposer sur l'encoche** pour le garder sur l'étagère, clic droit pour ouvrir, renommer, copier le chemin, garder sur l'étagère ou mettre à la corbeille. Clic droit sur le bureau : **Nouveau dossier** et **Coller** (fichiers copiés dans Fichiers). Le dossier est surveillé : ce qui est ajouté ou supprimé ailleurs apparaît aussitôt. L'étagère de l'encoche accepte aussi **Coller des fichiers**, et un clic droit sur un élément le copie sur le bureau ou le retire.
@@ -367,6 +378,8 @@ make schemas        # recompile le schéma GSettings
 make zip            # paquet pour extensions.gnome.org
 make check          # vérifications statiques (tools/check.sh), celles de la CI
 make smoke          # shell GNOME sans écran piloté par un script (tools/smoke-test.sh)
+node tools/test-prayer.mjs                              # heures de prière contre les horaires de référence
+TZ=Europe/Paris gjs -m tools/test-prayer-schedule.js     # prière en cours, suivante, alertes, changement d'heure
 ```
 
 - **`tools/check.sh`** : syntaxe de tous les fichiers JS, shell et Python, schéma GSettings, JSON, et **noms utilisés dans les bibliothèques de GNOME** (`tools/check-compat.py` les compare aux typelibs installées : c'est ce qui aurait attrapé les changements d'API de GNOME 51).
@@ -394,6 +407,7 @@ gdm/install-gdm.sh                       installation de l'écran de connexion
 scripts/state.py                         sauvegarde / restauration des réglages GNOME
 install.sh  uninstall.sh  get.sh         installeur, désinstalleur, installation en une ligne
 docs/ANALYSIS.md                         analyse de RevoShell et de Gnomintosh
+docs/dynamic-island.md                   l'encoche face à la Dynamic Island, et les heures de prière
 ```
 
 L'extension est découpée en modules indépendants (`modules/dock.js`, `dynamicIsland.js`, `spotlight.js`, `widgets.js`, `windowLayout.js`, `stageManager.js`, `loginScreen.js`…), chacun avec son interrupteur dans `extension.js`.

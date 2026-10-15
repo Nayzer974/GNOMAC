@@ -263,6 +263,10 @@
       <default>4</default>
       <summary>Seconds a notification card stays in the island</summary>
     </key>
+    <key name="island-live-events" type="b">
+      <default>true</default>
+      <summary>Live events in the island: charger plugged in, low battery, Bluetooth device connected, new track</summary>
+    </key>
     <key name="island-bounce" type="b">
       <default>true</default>
       <summary>Squash-and-stretch bounce when something arrives</summary>
@@ -286,13 +290,14 @@
         <choice value="actions"/>
         <choice value="clipboard"/>
         <choice value="timer"/>
+        <choice value="prayer"/>
         <choice value="shelf"/>
       </choices>
       <default>'home'</default>
       <summary>Tab shown when the dashboard opens</summary>
     </key>
     <key name="island-tabs" type="as">
-      <default><![CDATA[['home', 'stats', 'actions', 'clipboard', 'timer', 'shelf']]]></default>
+      <default><![CDATA[['home', 'stats', 'actions', 'clipboard', 'timer', 'prayer', 'shelf']]]></default>
       <summary>Tabs available in the dashboard</summary>
     </key>
     <key name="widgets-anchor" type="s">
@@ -445,6 +450,74 @@
     <key name="update-button" type="b">
       <default>true</default>
       <summary>A button in the menu bar to check for updates by hand</summary>
+    </key>
+    <key name="prayer-enabled" type="b">
+      <default>false</default>
+      <summary>Prayer times: the "Prayers" tab of the island and the alerts (off until you turn it on)</summary>
+    </key>
+    <key name="prayer-city" type="s">
+      <default>''</default>
+      <summary>Name of the place the prayer times are computed for (display only)</summary>
+    </key>
+    <key name="prayer-latitude" type="d">
+      <range min="-90" max="90"/>
+      <default>0</default>
+      <summary>Latitude of the place (0 with a 0 longitude means not chosen yet)</summary>
+    </key>
+    <key name="prayer-longitude" type="d">
+      <range min="-180" max="180"/>
+      <default>0</default>
+      <summary>Longitude of the place</summary>
+    </key>
+    <key name="prayer-method" type="s">
+      <choices>
+        <choice value="mwl"/>
+        <choice value="uoif"/>
+        <choice value="makkah"/>
+        <choice value="isna"/>
+        <choice value="egypt"/>
+        <choice value="karachi"/>
+        <choice value="turkey"/>
+        <choice value="algeria"/>
+        <choice value="tunisia"/>
+        <choice value="morocco"/>
+      </choices>
+      <default>'mwl'</default>
+      <summary>Calculation method (Fajr and Isha angles)</summary>
+    </key>
+    <key name="prayer-asr" type="s">
+      <choices>
+        <choice value="standard"/>
+        <choice value="hanafi"/>
+      </choices>
+      <default>'standard'</default>
+      <summary>Asr: shadow as long as the object (standard) or twice as long (Hanafi)</summary>
+    </key>
+    <key name="prayer-high-latitude" type="s">
+      <choices>
+        <choice value="angle"/>
+        <choice value="seventh"/>
+        <choice value="middle"/>
+      </choices>
+      <default>'angle'</default>
+      <summary>What to do when the sun does not go low enough for Fajr or Isha (far north or south)</summary>
+    </key>
+    <key name="prayer-offsets" type="ai">
+      <default>[0, 0, 0, 0, 0, 0]</default>
+      <summary>Minutes added to Fajr, Sunrise, Dhuhr, Asr, Maghrib, Isha (to match a local timetable)</summary>
+    </key>
+    <key name="prayer-notify" type="as">
+      <default><![CDATA[['fajr', 'dhuhr', 'asr', 'maghrib', 'isha']]]></default>
+      <summary>Prayers that raise a notification (fajr, sunrise, dhuhr, asr, maghrib, isha)</summary>
+    </key>
+    <key name="prayer-before-minutes" type="i">
+      <range min="0" max="60"/>
+      <default>0</default>
+      <summary>Also remind this many minutes before each prayer (0 = no reminder)</summary>
+    </key>
+    <key name="prayer-sound" type="b">
+      <default>false</default>
+      <summary>Play a short sound with the prayer notification</summary>
     </key>
     <key name="island-shelf" type="as">
       <default>[]</default>

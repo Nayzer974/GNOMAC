@@ -713,6 +713,15 @@
     spacing: 12px;
 }
 
+.gnomac-notch-notice-more {
+    font-size: 8.5pt;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.8);
+    background-color: rgba(255, 255, 255, 0.16);
+    border-radius: 99px;
+    padding: 2px 8px;
+}
+
 /* ---------- Menu bar: Apple menu, app menus, status extras ---------- */
 
 #panel.gnomac-panel .gnomac-logo {
@@ -1128,6 +1137,101 @@
 
 .gnomac-notch-clip-row:hover {
     background-color: rgba(255, 255, 255, 0.18);
+}
+
+/* ---------- Dynamic Island: the Prayers tab ---------- */
+
+.gnomac-notch-prayer {
+    padding: 4px 10px 0;
+}
+
+.gnomac-notch-prayer-empty {
+    spacing: 10px;
+    padding-top: 26px;
+}
+
+.gnomac-notch-prayer-body {
+    spacing: 8px;
+}
+
+.gnomac-notch-prayer-head {
+    spacing: 12px;
+}
+
+.gnomac-notch-prayer-kicker {
+    font-size: 8pt;
+    font-weight: 700;
+    letter-spacing: 0.7px;
+    color: rgba(235, 235, 245, 0.55);
+}
+
+.gnomac-notch-prayer-line {
+    spacing: 10px;
+}
+
+.gnomac-notch-prayer-name {
+    font-size: 17pt;
+    font-weight: 800;
+    color: #ffffff;
+}
+
+.gnomac-notch-prayer-time {
+    font-size: 17pt;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.86);
+    font-feature-settings: "tnum";
+}
+
+.gnomac-notch-prayer-meta {
+    font-size: 8.5pt;
+    font-weight: 500;
+    color: rgba(235, 235, 245, 0.6);
+}
+
+.gnomac-notch-prayer-track .gnomac-notch-fill {
+    background-color: #30d158;
+}
+
+.gnomac-notch-prayer-row {
+    spacing: 4px;
+    padding-top: 2px;
+}
+
+.gnomac-notch-prayer-cell {
+    padding: 6px 2px;
+    border-radius: 12px;
+    background-color: rgba(255, 255, 255, 0.07);
+    spacing: 1px;
+}
+
+.gnomac-notch-prayer-cell.sunrise {
+    background-color: rgba(255, 255, 255, 0.03);
+}
+
+.gnomac-notch-prayer-cell.current {
+    background-color: rgba(48, 209, 88, 0.30);
+}
+
+.gnomac-notch-prayer-cell.next {
+    border: 1px solid rgba(255, 255, 255, 0.34);
+}
+
+.gnomac-notch-prayer-cell-name {
+    font-size: 8pt;
+    font-weight: 600;
+    color: rgba(235, 235, 245, 0.62);
+}
+
+.gnomac-notch-prayer-cell.current .gnomac-notch-prayer-cell-name,
+.gnomac-notch-prayer-cell.next .gnomac-notch-prayer-cell-name {
+    color: #ffffff;
+}
+
+.gnomac-notch-prayer-cell-time {
+    font-size: 10.5pt;
+    font-weight: 700;
+    color: #ffffff;
+    font-feature-settings: "tnum";
 }
 
 /* ---------- Dynamic Island: the player card ---------- */

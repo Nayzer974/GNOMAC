@@ -15,4 +15,4 @@ jobs:
       - name: Static checks
         # GNOME Shell's own typelibs are not on the runner: the library-name
         # check runs on a machine with GNOME (tools/check.sh locally).
-        run: CHECK_COMPAT=0 tools/check.sh
+        run: CHECK_COMPAT=0 CHECK_GJS=0 tools/check.sh
