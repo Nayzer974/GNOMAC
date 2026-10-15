@@ -161,6 +161,8 @@ export class LoginScreen {
             } catch {}
             this._dateMenuWasVisible = false;
         }
+        // An import still loading must not patch after this point.
+        this._patchToken = null;
         if (this._restoreInit)
             this._restoreInit();
         this._restoreInit = null;
@@ -298,9 +300,17 @@ export class LoginScreen {
     // name under a larger avatar. The widget's orientation is the only thing
     // to change, the rest is CSS.
     async _patchUserList() {
+        const token = {};
+        this._patchToken = token;
         const {UserListItem} = await import('resource:///org/gnome/shell/gdm/loginDialog.js');
-        const original = UserListItem.prototype._init;
-        UserListItem.prototype._init = function (...args) {
+        // The module was switched off (or on again) while the import was loading:
+        // patching now would leave a change nothing undoes.
+        if (this._patchToken !== token)
+            return;
+        // A wrapper left by an earlier run is never wrapped again.
+        const current = UserListItem.prototype._init;
+        const original = current._gnomacOriginal ?? current;
+        const patched = function (...args) {
             original.apply(this, args);
             try {
                 const widget = this._userWidget;
@@ -313,8 +323,11 @@ export class LoginScreen {
                 logError(e, 'GNOMAC login screen: user widget');
             }
         };
+        patched._gnomacOriginal = original;
+        UserListItem.prototype._init = patched;
         this._restoreInit = () => {
-            UserListItem.prototype._init = original;
+            if (UserListItem.prototype._init === patched)
+                UserListItem.prototype._init = original;
         };
     }
 }

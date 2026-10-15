@@ -22,6 +22,7 @@ import {Spring, getTicker} from '../lib/spring.js';
 import {evaluate, format, looksLikeMath} from '../lib/calculator.js';
 import * as Session from '../lib/session.js';
 import {showGuide} from '../lib/guide.js';
+import {cancelBenchmarks} from '../lib/benchControl.js';
 import {t} from '../lib/i18n.js';
 
 const WIDTH = 680;
@@ -263,6 +264,8 @@ export class Spotlight {
     }
 
     disable() {
+        // A benchmark started from here must not outlive the module.
+        cancelBenchmarks();
         stopClipboard();
         this._fileCache.clear();
         Main.wm.removeKeybinding(SHORTCUT_KEY);

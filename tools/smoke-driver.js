@@ -11,6 +11,7 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 import {readConfig as readPrayerConfigForTest} from './lib/prayerSchedule.js';
 import * as MessageTray from 'resource:///org/gnome/shell/ui/messageTray.js';
 
@@ -366,6 +367,157 @@ export async function run(extension) {
             await wait(1800);
         } catch (e) {
             log(`FAIL island live events: ${e}\n${e.stack ?? ''}`);
+        }
+
+        // 1h. Fixes for reported issues: benchmarks stop when their module is
+        //     switched off, and the login screen patch leaves nothing behind.
+        try {
+            const ctl = await import('./lib/benchControl.js');
+            const {glassPerformance} = await import('./lib/glassPerformance.js');
+            const {missionControl} = await import('./lib/missionControl.js');
+            const bench = await import('./lib/glassBench.js');
+            const motion = await import('./lib/motionBench.js');
+            const cfg = extension._settings;
+            const ok = (label, cond, detail = '') => log(cond ? `${label} ok` : `FAIL ${label} ${detail}`);
+            const children = () => Main.layoutManager.uiGroup.get_n_children();
+            const before = children();
+
+            const run = bench.runGlassBench(extension);
+            await wait(1500);
+            ok('a glass benchmark has timers while it runs', ctl.pendingBenchTimers() > 0 && glassPerformance.benchmarking,
+                `${ctl.pendingBenchTimers()} ${glassPerformance.benchmarking}`);
+            cfg.set_boolean('enable-spotlight', false);   // switching the module off cancels it
+            await wait(1200);
+            const result = await Promise.race([run, wait(5000).then(() => 'still running')]);
+            ok('switching Spotlight off stops the glass benchmark', result === null && ctl.pendingBenchTimers() === 0 &&
+                !glassPerformance.benchmarking, `result ${result}, timers ${ctl.pendingBenchTimers()}, benchmarking ${glassPerformance.benchmarking}`);
+            cfg.set_boolean('enable-spotlight', true);
+            await wait(1500);
+            ok('and the benchmark left none of its widgets behind', children() <= before + 1, `${before} -> ${children()}`);
+
+            if (normalWindows().length >= 2) {
+                const running = motion.runMotionBench(extension);
+                await wait(1200);
+                ctl.cancelBenchmarks();
+                const motionResult = await Promise.race([running, wait(5000).then(() => 'still running')]);
+                await wait(800);
+                ok('cancelling the motion benchmark stops it and restores the windows', motionResult === null &&
+                    ctl.pendingBenchTimers() === 0 && !glassPerformance.benchmarking && !missionControl.active &&
+                    normalWindows().every(w => !w.minimized), `result ${motionResult}`);
+            }
+
+            // The login screen patch: switched off while the import loads.
+            const {LoginScreen} = await import('./modules/loginScreen.js');
+            const {UserListItem} = await import('resource:///org/gnome/shell/gdm/loginDialog.js');
+            const original = UserListItem.prototype._init;
+            const early = new LoginScreen(extension);
+            const loading = early._patchUserList();
+            early._patchToken = null;   // what disable() does
+            await loading;
+            ok('a patch switched off while loading changes nothing', UserListItem.prototype._init === original);
+            const one = new LoginScreen(extension);
+            await one._patchUserList();
+            const two = new LoginScreen(extension);
+            await two._patchUserList();
+            ok('patching twice wraps the real function once', UserListItem.prototype._init._gnomacOriginal === original);
+            two._restoreInit();
+            one._restoreInit();
+            ok('undoing both gives the original function back', UserListItem.prototype._init === original);
+        } catch (e) {
+            log(`FAIL issue fixes: ${e}\n${e.stack ?? ''}`);
+        }
+
+        // 1i. Lock and unlock: the desktop stays built (nothing to rebuild at
+        //     the unlock), its chrome is under the lock screen while locked and
+        //     back in order afterwards, and the unlock animation runs.
+        try {
+            const cfg = extension._settings;
+            const shield = Main.screenShield;
+            const ui = Main.layoutManager.uiGroup;
+            const find = name => extension._modules.find(m => m.constructor.name === name);
+            const ok = (label, cond, detail = '') => log(cond ? `${label} ok` : `FAIL ${label} ${detail}`);
+            const keepNames = ['Dock', 'DynamicIsland', 'Widgets', 'DesktopIcons', 'Spotlight', 'Launchpad'];
+            const panelNames = ['TopBar', 'AppMenus', 'MenuBarIcons'];
+            const before = Object.fromEntries([...keepNames, ...panelNames].map(n => [n, find(n)]));
+            const order = () => ui.get_children().filter(a => (a.name ?? '').startsWith('gnomac')).map(a => a.name);
+            const orderBefore = order().join(',');
+            const reloadTimes = [];
+            const origReload = extension._reload.bind(extension);
+            extension._reload = () => {
+                const t0 = GLib.get_monotonic_time();
+                origReload();
+                reloadTimes.push(Math.round((GLib.get_monotonic_time() - t0) / 1000));
+            };
+
+            for (const how of ['lock', 'suspend']) {
+                shield.lock(how === 'lock' ? false : true);
+                if (how === 'suspend') {
+                    shield._prepareForSleep(null, true);
+                    shield._prepareForSleep(null, false);
+                }
+                await wait(2200);
+                shield._wakeUpScreen();
+                await wait(600);
+                const shieldIndex = ui.get_children().indexOf(Main.layoutManager.screenShieldGroup);
+                const above = ui.get_children().slice(shieldIndex + 1)
+                    .filter(a => a.visible && a.opacity > 0 && a.width > 0 && a !== Main.layoutManager.panelBox && a.constructor.name !== 'Lightbox');
+                ok(`${how}: nothing of GNOMAC is drawn above the lock screen`, above.length === 0,
+                    above.map(a => `${a.name || a.constructor.name}(${a.width}x${a.height})`).join(', '));
+                ok(`${how}: the desktop modules stay built`, keepNames.every(n => find(n) === before[n] && before[n]),
+                    keepNames.filter(n => find(n) !== before[n]).join());
+                ok(`${how}: the panel modules are stopped`, panelNames.every(n => !find(n)), panelNames.filter(n => find(n)).join());
+
+                reloadTimes.length = 0;
+                shield.deactivate(false);
+                await wait(120);
+                ok(`${how}: the unlock animation starts`, !!shield._gnomacUnlocking);
+                for (let i = 0; i < 80 && (shield._gnomacUnlocking || shield.actor.visible); i++)
+                    await wait(50);
+                await wait(800);
+                ok(`${how}: unlocking rebuilds only the panel modules (${reloadTimes.join(', ')} ms)`,
+                    keepNames.every(n => find(n) === before[n]) && panelNames.every(n => find(n)) && reloadTimes[0] < 120,
+                    `${keepNames.filter(n => find(n) !== before[n]).join()} ${reloadTimes}`);
+                ok(`${how}: the chrome is back in its order`, order().join(',') === orderBefore, `${orderBefore} -> ${order().join(',')}`);
+                ok(`${how}: back on the desktop`, !shield.locked && Main.sessionMode.currentMode === 'user');
+                await wait(800);
+            }
+            extension._reload = origReload;
+        } catch (e) {
+            log(`FAIL lock cycle: ${e}\n${e.stack ?? ''}`);
+        }
+
+        // 1j. GNOME keeps destroyed "settings" menu items in its lists and writes
+        //     to them at every lock (hundreds of warnings in the journal): the
+        //     guard must make them leave the list when they are destroyed.
+        try {
+            const source = new St.Widget();
+            Main.layoutManager.uiGroup.add_child(source);
+            const menu = new PopupMenu.PopupMenu(source, 0.5, St.Side.TOP);
+            const kept = menu.addSettingsAction('Settings kept', 'org.gnome.Settings.desktop');
+            const gone = menu.addSettingsAction('Settings destroyed', 'org.gnome.Characters.desktop');
+            gone.destroy();
+            const left = Object.keys(menu._settingsActions);
+            log(left.length === 1 && menu._settingsActions['org.gnome.Settings.desktop'] === kept
+                ? 'a destroyed settings item leaves the menu list ok'
+                : `FAIL a destroyed settings item stays in the menu list: ${left.join()}`);
+            // The same, when the item dies with its parent (C-side destruction).
+            const other = new PopupMenu.PopupMenu(source, 0.5, St.Side.TOP);
+            other.addSettingsAction('Doomed', 'org.gnome.Calculator.desktop');
+            other.box.destroy_all_children();
+            log(Object.keys(other._settingsActions).length === 0
+                ? 'an item destroyed with its parent leaves the list too ok'
+                : `FAIL an item destroyed with its parent stays: ${Object.keys(other._settingsActions).join()}`);
+            // The session mode changes (what every lock does): no warning may follow.
+            Main.sessionMode.pushMode('unlock-dialog');
+            await wait(300);
+            Main.sessionMode.popMode('unlock-dialog');
+            await wait(600);
+            menu.destroy();
+            other.destroy();
+            source.destroy();
+            log('session mode change with menus around ok');
+        } catch (e) {
+            log(`FAIL menu guard: ${e}\n${e.stack ?? ''}`);
         }
 
         // 1e. The preferences window opens (it runs in its own process, so a

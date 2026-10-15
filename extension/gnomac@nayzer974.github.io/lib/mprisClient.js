@@ -345,3 +345,15 @@ export class MprisWatcher {
         return withMedia.sort((a, b) => b.lastActive - a.lastActive)[0];
     }
 }
+
+// What a previous / next button does for a player. A player with a track to
+// go to skips; one without (a browser tab, a podcast) jumps 10 seconds, which
+// needs seeking. The two directions are independent: a player may offer only
+// "previous", only "next", or seeking alone.
+//   -> {enabled, kind: 'skip' | 'seek'}
+export function skipControl(player, direction) {
+    const track = direction > 0 ? player.canGoNext : player.canGoPrevious;
+    if (track)
+        return {enabled: true, kind: 'skip'};
+    return {enabled: !!player.canSeek, kind: 'seek'};
+}

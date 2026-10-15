@@ -31,12 +31,21 @@ rm -rf "$EXT_DST"
 info "Removing the GTK window controls"
 for version in 3.0 4.0; do
   css="$CONFIG/gtk-$version/gtk.css"
-  if [[ -f "$css" ]]; then
+  # The installer leaves gtk.css.gnomac-backup when it adds the import line;
+  # without it the line was already there, and is not ours to remove.
+  if [[ -f "$css" && -f "$css.gnomac-backup" ]]; then
     sed -i '/@import url("gnomac.css");/d' "$css"
     # The installer created an empty gtk.css when there was none: remove it again.
     if [[ ! -s "$css" ]]; then rm -f "$css"; fi
   fi
-  rm -f "$CONFIG/gtk-$version/gnomac.css" "$CONFIG/gtk-$version/gtk.css.gnomac-backup"
+  mine="$CONFIG/gtk-$version/gnomac.css"
+  if [[ -f "$mine.user-backup" ]]; then
+    # A file of the same name that was yours before the install: given back.
+    mv -f "$mine.user-backup" "$mine"
+  elif [[ -f "$mine" ]] && head -n 3 "$mine" | grep -q 'GNOMAC'; then
+    rm -f "$mine"
+  fi
+  rm -f "$CONFIG/gtk-$version/gtk.css.gnomac-backup"
 done
 
 info "Putting your previous GNOME settings back"

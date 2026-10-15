@@ -35,7 +35,15 @@ export class WeatherSource {
         this._id = 0;
     }
 
+    // The "Weather widget" setting: with it off nothing is asked of wttr.in
+    // (not even the lookup by IP address), whichever widget builds a source.
+    _enabled() {
+        return this._settings.get_boolean?.('widget-weather') ?? true;
+    }
+
     start() {
+        if (!this._enabled())
+            return;
         this.refresh();
         this._id = GLib.timeout_add(GLib.PRIORITY_DEFAULT_IDLE, REFRESH_MS, () => {
             this.refresh();
@@ -54,7 +62,7 @@ export class WeatherSource {
     }
 
     refresh() {
-        if (!this._session)
+        if (!this._session || !this._enabled())
             return;
         const city = encodeURIComponent(this._settings.get_string('widget-weather-city').trim());
         const message = Soup.Message.new('GET', `https://wttr.in/${city}?format=j1`);

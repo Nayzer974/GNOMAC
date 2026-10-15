@@ -13,8 +13,14 @@ set -euo pipefail
 
 UUID="gnomac@nayzer974.github.io"
 USER_NAME="${1:?usage: sync-login.sh USER}"
-HOME_DIR="${GNOMAC_SYNC_HOME:-$(getent passwd "$USER_NAME" | cut -d: -f6)}"
-SRC="$HOME_DIR/.local/share/gnome-shell/extensions/$UUID"
+# The unit passes GNOMAC_SYNC_SRC (the user's XDG_DATA_HOME may not be ~/.local/share);
+# without it the default folder of the user is used.
+if [[ -n "${GNOMAC_SYNC_SRC:-}" ]]; then
+  SRC="$GNOMAC_SYNC_SRC"
+else
+  HOME_DIR="${GNOMAC_SYNC_HOME:-$(getent passwd "$USER_NAME" | cut -d: -f6)}"
+  SRC="$HOME_DIR/.local/share/gnome-shell/extensions/$UUID"
+fi
 DST="${GNOMAC_SYNC_DEST:-/usr/share/gnome-shell/extensions/$UUID}"
 
 log() { printf 'gnomac-gdm-sync: %s\n' "$*"; }

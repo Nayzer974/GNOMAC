@@ -19,6 +19,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {GlassSurface} from './glass.js';
 import {GlassContainer} from './glassContainer.js';
 import {glassPerformance} from './glassPerformance.js';
+import {BenchCancelled, benchInterval, benchSleep} from './benchControl.js';
 
 const COUNTS = [1, 5, 10, 20, 50];
 const W = 120;
@@ -70,40 +71,34 @@ function build(root, n, grouped, blur, glass) {
     return {list, groups: list.length};
 }
 
-function measure(n, grouped, settings) {
-    return new Promise(resolve => {
-        const root = new St.Widget({reactive: false});
-        Main.layoutManager.uiGroup.add_child(root);
-        const {list, groups} = build(root, n, grouped, settings.get_int('glass-blur'), {radius: 18});
-        let frames = 0;
-        const stageId = global.stage.connect('after-paint', () => frames++);
-        const repaint = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 16, () => {
-            list.forEach(s => s.queue_redraw());
-            return GLib.SOURCE_CONTINUE;
-        });
-        GLib.timeout_add(GLib.PRIORITY_DEFAULT, WARMUP_MS, () => {
-            frames = 0;
-            const cpu0 = cpuTicks();
-            const t0 = GLib.get_monotonic_time();
-            GLib.timeout_add(GLib.PRIORITY_DEFAULT, MEASURE_MS, () => {
-                const seconds = (GLib.get_monotonic_time() - t0) / 1e6;
-                const result = {
-                    surfaces: n, grouped, groups,
-                    fps: Number((frames / seconds).toFixed(1)),
-                    frameMs: Number((1000 * seconds / Math.max(1, frames)).toFixed(1)),
-                    cpuPercent: Math.round(100 * ((cpuTicks() - cpu0) / 100) / seconds),
-                    memoryMb: rssMb(),
-                    blurPasses: groups, backdropCaptures: groups, shaderPasses: groups,
-                };
-                global.stage.disconnect(stageId);
-                GLib.source_remove(repaint);
-                root.destroy();
-                resolve(result);
-                return GLib.SOURCE_REMOVE;
-            });
-            return GLib.SOURCE_REMOVE;
-        });
-    });
+async function measure(n, grouped, settings) {
+    const root = new St.Widget({reactive: false});
+    Main.layoutManager.uiGroup.add_child(root);
+    const {list, groups} = build(root, n, grouped, settings.get_int('glass-blur'), {radius: 18});
+    let frames = 0;
+    const stageId = global.stage.connect('after-paint', () => frames++);
+    const stopRepaint = benchInterval(16, () => list.forEach(s => s.queue_redraw()));
+    try {
+        await benchSleep(WARMUP_MS);
+        frames = 0;
+        const cpu0 = cpuTicks();
+        const t0 = GLib.get_monotonic_time();
+        await benchSleep(MEASURE_MS);
+        const seconds = (GLib.get_monotonic_time() - t0) / 1e6;
+        return {
+            surfaces: n, grouped, groups,
+            fps: Number((frames / seconds).toFixed(1)),
+            frameMs: Number((1000 * seconds / Math.max(1, frames)).toFixed(1)),
+            cpuPercent: Math.round(100 * ((cpuTicks() - cpu0) / 100) / seconds),
+            memoryMb: rssMb(),
+            blurPasses: groups, backdropCaptures: groups, shaderPasses: groups,
+        };
+    } finally {
+        // Also when the benchmark is cancelled in the middle.
+        global.stage.disconnect(stageId);
+        stopRepaint();
+        root.destroy();
+    }
 }
 
 let running = false;
@@ -121,6 +116,11 @@ export async function runGlassBench(extension) {
             for (const grouped of [false, true])
                 results.push(await measure(n, grouped, settings));
         }
+    } catch (e) {
+        // Switched off in the middle: nothing to report.
+        if (e instanceof BenchCancelled)
+            return null;
+        throw e;
     } finally {
         glassPerformance.benchmarking = false;
         running = false;

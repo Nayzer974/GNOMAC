@@ -4,6 +4,7 @@
 #   sudo ./gdm/install-gdm.sh                       install, using your current wallpaper
 #   sudo ./gdm/install-gdm.sh --wallpaper IMAGE     install, with this image behind the login
 #   sudo ./gdm/install-gdm.sh --auto-sync           also keep the login screen up to date by itself (see below)
+#   (non-default XDG folders: sudo env GNOMAC_USER_DATA_HOME=DIR GNOMAC_USER_CONFIG_HOME=DIR ./gdm/install-gdm.sh --auto-sync)
 #   sudo ./gdm/install-gdm.sh --check               show what is installed, change nothing
 #   sudo ./gdm/install-gdm.sh --remove              put the stock login screen back
 #
@@ -33,6 +34,8 @@ SYNC_PATH_UNIT="/etc/systemd/system/gnomac-gdm-sync.path"
 SYNC_SERVICE_UNIT="/etc/systemd/system/gnomac-gdm-sync.service"
 DB="/etc/dconf/db/gdm.d/90-gnomac"
 PROFILE="/etc/dconf/profile/gdm"
+# shellcheck source=gdm/sync-units.sh
+source "$ROOT/gdm/sync-units.sh"
 
 ok()   { printf '  \033[1;32m✓\033[0m %s\n' "$*"; }
 bad()  { printf '  \033[1;31m✗\033[0m %s\n' "$*"; FAILED=1; }
@@ -160,30 +163,20 @@ sync
 if (( AUTO_SYNC )); then
   [[ -n "${SUDO_USER:-}" ]] || die "--auto-sync needs to be run with sudo from your own account."
   AS_HOME="$(getent passwd "$SUDO_USER" | cut -d: -f6)"
+  # The user's XDG folders. sudo does not pass them on, so they are given in the
+  # command: sudo env GNOMAC_USER_DATA_HOME=... GNOMAC_USER_CONFIG_HOME=... ./gdm/install-gdm.sh --auto-sync
+  AS_DATA="${GNOMAC_USER_DATA_HOME:-$AS_HOME/.local/share}"
+  AS_CONFIG="${GNOMAC_USER_CONFIG_HOME:-$AS_HOME/.config}"
   info "Auto-sync: the login screen will follow your GNOMAC updates"
   echo "   This lets $SUDO_USER's GNOMAC folder be copied, as root, to $DST each time"
   echo "   an update is installed. The login screen runs that code: only enable it on a"
   echo "   machine where you are the only user you trust. Undo: --remove."
+  echo "   Watching $AS_CONFIG/gnomac/installed.json, copying from $AS_DATA/gnome-shell/extensions/$UUID"
+  [[ -f "$AS_DATA/gnome-shell/extensions/$UUID/metadata.json" ]] \
+    || echo "   (nothing is installed there yet: if your XDG folders are not the default ones, run again with GNOMAC_USER_DATA_HOME and GNOMAC_USER_CONFIG_HOME set)"
   install -m 0755 "$ROOT/gdm/sync-login.sh" "$SYNC_SCRIPT"
-  cat > "$SYNC_SERVICE_UNIT" <<UNIT
-[Unit]
-Description=Copy the GNOMAC extension to the GDM login screen
-
-[Service]
-Type=oneshot
-ExecStart=$SYNC_SCRIPT $SUDO_USER
-UNIT
-  cat > "$SYNC_PATH_UNIT" <<UNIT
-[Unit]
-Description=Watch for a GNOMAC update (login screen sync)
-
-[Path]
-PathChanged=$AS_HOME/.config/gnomac/installed.json
-Unit=gnomac-gdm-sync.service
-
-[Install]
-WantedBy=multi-user.target
-UNIT
+  sync_service_unit "$SYNC_SCRIPT" "$SUDO_USER" "$AS_DATA" "$DST" "$UUID" > "$SYNC_SERVICE_UNIT"
+  sync_path_unit "$AS_CONFIG" > "$SYNC_PATH_UNIT"
   systemctl daemon-reload
   systemctl enable --now gnomac-gdm-sync.path
 fi

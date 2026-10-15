@@ -35,6 +35,26 @@
       [
         "Hundreds of \"already disposed\" errors when the shell UI was rebuilt are gone",
         "Les centaines d’erreurs « objet déjà détruit » à chaque reconstruction de l’interface ont disparu"
+      ],
+      [
+        "The Weather widget setting now really stops the requests to wttr.in",
+        "Le réglage Widget météo arrête vraiment les requêtes vers wttr.in"
+      ],
+      [
+        "Island: the previous and next buttons each follow what the player offers; the clipboard history no longer takes a late read after it was wiped",
+        "Encoche : les boutons précédent et suivant suivent chacun ce que propose le lecteur ; l’historique du presse-papiers n’accepte plus une lecture tardive après avoir été effacé"
+      ],
+      [
+        "Album covers are capped while they download, benchmarks stop when Spotlight is switched off, and a gnomac.css of your own survives install and uninstall",
+        "Les pochettes sont plafonnées pendant le téléchargement, les benchmarks s’arrêtent quand Spotlight est coupé, et un gnomac.css à toi survit à l’installation et à la désinstallation"
+      ],
+      [
+        "Login screen auto-sync follows a non-default XDG data folder",
+        "La synchronisation de l’écran de connexion suit un dossier de données XDG non standard"
+      ],
+      [
+        "Unlocking is smoother: the desktop stays built under the lock screen instead of being rebuilt at every unlock, and GNOME's stale quick-settings items no longer flood the log at every lock",
+        "Le déverrouillage est plus fluide : le bureau reste construit sous l’écran de verrouillage au lieu d’être refait à chaque déverrouillage, et les éléments périmés des Réglages rapides de GNOME n’inondent plus le journal à chaque verrouillage"
       ]
     ]
   },

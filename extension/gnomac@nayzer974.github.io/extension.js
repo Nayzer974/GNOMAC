@@ -38,45 +38,53 @@ import {adaptive} from './lib/adaptive.js';
 import {glassPerformance} from './lib/glassPerformance.js';
 import {displayInfo} from './lib/display.js';
 import {destroyTicker} from './lib/spring.js';
+import {installMenuGuard} from './lib/menuGuard.js';
 
 // Only modules flagged `locked` run while the screen is locked: the
 // extension stays loaded in the unlock-dialog session mode for the lock
-// screen, and everything else is stopped until the session is unlocked.
+// screen. The modules flagged `keepAlive` do not depend on the panel: they stay
+// built while the screen is locked (their chrome is sunk under the lock screen,
+// see _sinkChrome) so that unlocking does not rebuild the desktop; the others
+// (menu bar, Apple menu, notification bell...) are tied to GNOME's panel, which
+// GNOME rearranges at every lock, and are stopped and started again.
 const MODULES = [
     // First, so the boot cover is up before the other modules build the UI.
-    {key: 'enable-theme-custom', Module: ThemeCustom},
+    {key: 'enable-theme-custom', Module: ThemeCustom, keepAlive: true},
     {key: 'enable-updater', Module: Updater},
-    {key: 'enable-glass-menus', Module: GlassDebug},
+    {key: 'enable-glass-menus', Module: GlassDebug, keepAlive: true},
     {key: 'enable-boot-shutdown', Module: BootShutdown},
     {key: 'enable-lock-screen', Module: LockScreen, locked: true},
     // GDM's own shell (login screen): the only module that runs there.
     {key: 'enable-login-screen', Module: LoginScreen, greeter: true},
-    {key: 'enable-launchpad', Module: Launchpad},
+    {key: 'enable-launchpad', Module: Launchpad, keepAlive: true},
     {key: 'enable-topbar', Module: TopBar},
     {key: 'enable-app-menus', Module: AppMenus},
     {key: 'enable-topbar', Module: SecondaryBars},
-    {key: 'enable-dock', Module: Dock},
-    {key: 'enable-dock', Module: Gaps},
-    {key: 'enable-spotlight', Module: Spotlight},
-    {key: 'enable-glass-menus', Module: GlassMenus},
-    {key: 'enable-window-animations', Module: WindowAnimations},
-    {key: 'enable-dynamic-island', Module: DynamicIsland},
-    {key: 'enable-notifications', Module: Notifications},
+    {key: 'enable-dock', Module: Dock, keepAlive: true},
+    {key: 'enable-dock', Module: Gaps, keepAlive: true},
+    {key: 'enable-spotlight', Module: Spotlight, keepAlive: true},
+    {key: 'enable-glass-menus', Module: GlassMenus, keepAlive: true},
+    {key: 'enable-window-animations', Module: WindowAnimations, keepAlive: true},
+    {key: 'enable-dynamic-island', Module: DynamicIsland, keepAlive: true},
+    {key: 'enable-notifications', Module: Notifications, keepAlive: true},
     {key: 'enable-notification-center', Module: NotificationCenter},
-    {key: 'enable-vibrancy', Module: Vibrancy},
-    {key: 'enable-widgets', Module: Widgets},
-    {key: 'enable-desktop-icons', Module: DesktopIcons},
-    {key: 'enable-wallpaper-picker', Module: WallpaperPicker},
+    {key: 'enable-vibrancy', Module: Vibrancy, keepAlive: true},
+    {key: 'enable-widgets', Module: Widgets, keepAlive: true},
+    {key: 'enable-desktop-icons', Module: DesktopIcons, keepAlive: true},
+    {key: 'enable-wallpaper-picker', Module: WallpaperPicker, keepAlive: true},
     {key: 'enable-menubar-icons', Module: MenuBarIcons},
     {key: 'enable-appearance', Module: Appearance},
-    {key: 'enable-window-layout', Module: WindowLayout},
-    {key: 'enable-window-layout', Module: StageManager},
+    {key: 'enable-window-layout', Module: WindowLayout, keepAlive: true},
+    {key: 'enable-window-layout', Module: StageManager, keepAlive: true},
 ];
 
 export default class GnomacExtension extends Extension {
     enable() {
         this._settings = this.getSettings();
         this._modules = [];
+        this._removeMenuGuard = installMenuGuard();
+        this._chrome = new Map();
+        this._sunk = null;
         // GNOME opens the overview while it starts the session; macOS lands
         // on the desktop. Animations are only forced after that startup
         // animation: lifting the inhibition in the middle of it left the
@@ -124,7 +132,10 @@ export default class GnomacExtension extends Extension {
         }
         this._settings.disconnect(this._settingsId);
         Main.sessionMode.disconnect(this._sessionId);
+        this._restoreChrome();
         this._stop();
+        this._removeMenuGuard?.();
+        this._removeMenuGuard = null;
         adaptive.stop();
         glassPerformance.stop();
         displayInfo.stop();
@@ -157,7 +168,12 @@ export default class GnomacExtension extends Extension {
                 continue;
             const module = new Module(this);
             try {
+                // What the module adds to the UI group, to be able to put it
+                // under the lock screen later.
+                const ui = Main.layoutManager.uiGroup;
+                const before = new Set(ui.get_children());
                 module.enable();
+                this._chrome.set(module, ui.get_children().filter(actor => !before.has(actor)));
                 this._modules.push(module);
             } catch (e) {
                 logError(e, `GNOMAC: cannot enable ${key}`);
@@ -175,6 +191,7 @@ export default class GnomacExtension extends Extension {
                 kept.unshift(module);
                 continue;
             }
+            this._chrome.delete(module);
             try {
                 module.disable();
             } catch (e) {
@@ -207,22 +224,108 @@ export default class GnomacExtension extends Extension {
         }
     }
 
-    // Locking and unlocking switch the set of running modules right away. The
-    // lock screen module runs in both modes: it stays, so a lock or an unlock
-    // only builds or removes what changes (the rebuild at unlock was the pause
-    // in the transition) and the lock screen's own state is not torn down.
+    // Locking and unlocking: the lock screen module runs in both modes, and so
+    // do the modules flagged `keepAlive` (they do not depend on the panel). Only
+    // the panel-bound ones are stopped at the lock and built again at the unlock,
+    // which is little work: rebuilding the whole desktop at every unlock was the
+    // pause in the unlock transition.
     _reload() {
         if (this._reloadId) {
             GLib.source_remove(this._reloadId);
             this._reloadId = 0;
         }
+        const greeter = Main.sessionMode.currentMode === 'gdm';
+        // A setting changed while locked: everything is rebuilt now that it is over.
+        if (this._reloadWhenUnlocked && !Main.sessionMode.isLocked) {
+            this._reloadWhenUnlocked = false;
+            this._restoreChrome();
+            this._stop();
+            this._start();
+            return;
+        }
         const keep = new Set();
         for (const entry of MODULES) {
-            if (entry.locked && this._shouldRun(entry) && this._modules.some(m => m.constructor === entry.Module))
+            if (!this._modules.some(m => m.constructor === entry.Module))
+                continue;
+            if (entry.locked && this._shouldRun(entry))
+                keep.add(entry.Module);
+            else if (entry.keepAlive && !greeter && this._settings.get_boolean(entry.key))
                 keep.add(entry.Module);
         }
         this._stop(keep);
         this._start(keep);
+        if (Main.sessionMode.isLocked)
+            this._sinkChrome();
+        else
+            this._restoreChrome();
+    }
+
+    // The modules that stay alive keep their chrome in the UI group, above GNOME's
+    // lock screen. It is moved under it (the lock screen is opaque) and put back
+    // at the unlock. Overlays that were open are closed first: they would still
+    // be open when the screen is unlocked.
+    _sinkChrome() {
+        if (this._sunk)
+            return;
+        const ui = Main.layoutManager.uiGroup;
+        const shield = Main.layoutManager.screenShieldGroup;
+        if (!shield || shield.get_parent() !== ui)
+            return;
+        for (const module of this._modules) {
+            for (const close of ['close', 'closePalette']) {
+                if (typeof module[close] === 'function') {
+                    try {
+                        module[close]();
+                    } catch {}
+                }
+            }
+            if (module.constructor.name === 'DynamicIsland') {
+                module._pinned = false;
+                module._hoverOpen = false;
+                try {
+                    module._update();
+                } catch {}
+            }
+        }
+        // Copied text must not outlive the session UI (GNOME clears the real
+        // clipboard when it locks).
+        import('./lib/clipboardHistory.js').then(m => m.clearClipboard()).catch(() => {});
+        // Where each one sits is noted before any of them moves (a neighbour
+        // that moves first would be forgotten), then they are put under the shield.
+        this._sunk = [];
+        for (const [module, actors] of this._chrome) {
+            if (!this._modules.includes(module))
+                continue;
+            for (const actor of actors) {
+                if (actor.get_parent() === ui)
+                    this._sunk.push({actor, previous: actor.get_previous_sibling()});
+            }
+        }
+        // Bottom first: the order among them is kept.
+        this._sunk.sort((a, b) => ui.get_children().indexOf(a.actor) - ui.get_children().indexOf(b.actor));
+        for (const {actor} of this._sunk)
+            ui.set_child_below_sibling(actor, shield);
+    }
+
+    _restoreChrome() {
+        const sunk = this._sunk;
+        if (!sunk)
+            return;
+        this._sunk = null;
+        const ui = Main.layoutManager.uiGroup;
+        // From the bottom up, each one back above the sibling it had.
+        for (const {actor, previous} of sunk) {
+            try {
+                if (actor.get_parent() !== ui)
+                    continue;
+                if (previous && previous.get_parent() === ui)
+                    ui.set_child_above_sibling(actor, previous);
+                else
+                    ui.set_child_above_sibling(actor, null);
+            } catch (e) {
+                logError(e, 'GNOMAC: cannot put a UI element back above the lock screen');
+            }
+        }
     }
 
     _scheduleReload() {
@@ -230,6 +333,12 @@ export default class GnomacExtension extends Extension {
             GLib.source_remove(this._reloadId);
         this._reloadId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 250, () => {
             this._reloadId = 0;
+            // A rebuild while the screen is locked would also stop the lock
+            // screen module (and its unlock transition): it waits for the unlock.
+            if (Main.sessionMode.isLocked) {
+                this._reloadWhenUnlocked = true;
+                return GLib.SOURCE_REMOVE;
+            }
             this._stop();
             this._start();
             return GLib.SOURCE_REMOVE;

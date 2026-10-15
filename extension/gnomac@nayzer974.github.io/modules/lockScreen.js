@@ -19,7 +19,7 @@ import {UnlockDialog} from 'resource:///org/gnome/shell/ui/unlockDialog.js';
 import {Avatar} from 'resource:///org/gnome/shell/ui/userWidget.js';
 
 import {t} from '../lib/i18n.js';
-import {hideDesktop, revealDesktop} from '../lib/reveal.js';
+import {hideDesktop, hideElements, prewarmDesktop, revealDesktop} from '../lib/reveal.js';
 
 // ---------------------------------------------------------------------------
 // The unlock transition: lock screen -> desktop, in two beats.
@@ -41,7 +41,6 @@ import {hideDesktop, revealDesktop} from '../lib/reveal.js';
 const LEAVE_MS = 200;
 const FRAME_MS = 32; // let the rebuilt (and hidden) desktop be drawn once before B
 const DISSOLVE_MS = 380;
-const FROST_MS = 400;
 
 function unlockTransition(shield, dialog, extension, done, slow = 1, rebuild = () => {}) {
     const ms = v => Math.round(v * slow);
@@ -62,25 +61,9 @@ function unlockTransition(shield, dialog, extension, done, slow = 1, rebuild = (
 
     const dissolve = () => {
         // B. The wallpaper dissolves into the desktop (already hidden, see below).
-        if (dialog) {
-            const widgets = [...(dialog._backgroundGroup ?? [])];
-            const starts = widgets.map(w => {
-                const effect = w.get_effect('blur');
-                return effect ? {effect, radius: effect.radius, brightness: effect.brightness} : null;
-            }).filter(Boolean);
-            if (starts.length) {
-                const timeline = new Clutter.Timeline({actor: group, duration: ms(FROST_MS)});
-                timeline.connect('new-frame', () => {
-                    const eased = 1 - (1 - timeline.get_progress()) ** 3;
-                    for (const {effect, radius, brightness} of starts) {
-                        effect.set({radius: Math.max(1, Math.round(radius * (1 - eased))),
-                            brightness: brightness + (1 - brightness) * eased});
-                    }
-                });
-                timeline.start();
-            }
-        }
-
+        // The frosted lock wallpaper keeps its blur and just fades: the desktop
+        // behind it starts blurred too (lib/reveal.js) and sharpens, so two full
+        // screen blurs are not animated at once (that was the stutter).
         group.set_pivot_point(0.5, 0.5);
         group.ease({opacity: 0, duration: ms(DISSOLVE_MS), mode: OUT});
 
@@ -103,7 +86,10 @@ function unlockTransition(shield, dialog, extension, done, slow = 1, rebuild = (
         });
         beats.push(id);
     };
-    // Rebuild the desktop once the lock UI is gone, hide it, wait one frame, go.
+    // Rebuild the desktop once the lock UI is gone, hide it, draw it once
+    // invisibly behind the lock layer (its first frame is the slow one: shaders,
+    // textures), then reveal it. The animations of B start on a warm desktop.
+    let cancelPrewarm = null;
     later(ms(LEAVE_MS + 30), () => {
         try {
             rebuild();
@@ -113,9 +99,15 @@ function unlockTransition(shield, dialog, extension, done, slow = 1, rebuild = (
             done();
             return;
         }
-        later(FRAME_MS, dissolve);
+        cancelPrewarm = prewarmDesktop(extension, () => {
+            cancelPrewarm = null;
+            hideElements(extension);
+            later(FRAME_MS, dissolve);
+        });
     });
     return () => {
+        cancelPrewarm?.();
+        cancelPrewarm = null;
         for (const id of beats.splice(0))
             GLib.source_remove(id);
     };
@@ -255,8 +247,20 @@ export class LockScreen {
             // it must not decide. What matters is that the lock screen is up.
             const wanted = this.actor.visible && !this._isGreeter && St.Settings.get().enable_animations &&
                 extension.getSettings().get_boolean('enable-unlock-animation');
-            if (!wanted)
+            if (!wanted) {
+                // GNOME's own slide is used: say why, for whoever looks at the journal.
+                const reasons = [];
+                if (!this.actor.visible)
+                    reasons.push('the lock screen is not visible');
+                if (this._isGreeter)
+                    reasons.push('login screen');
+                if (!St.Settings.get().enable_animations)
+                    reasons.push('animations are off');
+                if (!extension.getSettings().get_boolean('enable-unlock-animation'))
+                    reasons.push('the setting is off');
+                console.log(`GNOMAC unlock: GNOME's own transition (${reasons.join(', ') || 'unknown'})`);
                 return savedShield._continueDeactivate.call(this, animate);
+            }
             // The unlock can be signalled twice (the password, then logind): the
             // second call must not start a second transition.
             if (this._gnomacUnlocking)

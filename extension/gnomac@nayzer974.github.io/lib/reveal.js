@@ -43,8 +43,8 @@ export function removeRevealBlur() {
     }
 }
 
-// Everything the reveal will animate starts hidden, and blurred.
-export function hideDesktop(extension) {
+// Everything the reveal will animate starts hidden (opacity 0) and displaced.
+export function hideElements(extension) {
     Main.panel.remove_all_transitions();
     Main.panel.opacity = 0;
     Main.panel.translation_y = -8;
@@ -72,6 +72,11 @@ export function hideDesktop(extension) {
 
     global.window_group.remove_all_transitions();
     global.window_group.opacity = 0;
+}
+
+// Everything the reveal will animate starts hidden, and blurred.
+export function hideDesktop(extension) {
+    hideElements(extension);
 
     // The blur: the wallpaper starts heavily blurred.
     removeRevealBlur();
@@ -79,6 +84,65 @@ export function hideDesktop(extension) {
         actor.add_effect_with_name(EFFECT_NAME, new Shell.BlurEffect({mode: Shell.BlurMode.ACTOR,
             radius: BLUR_RADIUS, brightness: 0.92}));
     }
+}
+
+// The rebuilt desktop is drawn once, invisibly (opacity 1 of 255), before it is
+// revealed: its first frame compiles shaders and builds textures, which can
+// take hundreds of milliseconds. Done inside the reveal, that frame would eat
+// the animation (a time-based animation that starts with a stall is over when
+// the stall ends). Calls `done` after two painted frames, or at the latest
+// after `limit` ms.
+export function prewarmDesktop(extension, done, limit = 450) {
+    const dim = actor => {
+        if (!actor)
+            return;
+        actor.remove_all_transitions();
+        actor.opacity = 1;
+    };
+    dim(Main.panel);
+    dim(global.window_group);
+    const dock = dockOf(extension);
+    dim(dock?.actor);
+    for (const item of dock?._items ?? [])
+        dim(item);
+    for (const owner of ['widgets', 'icons']) {
+        for (const tile of tilesOf(extension, owner))
+            dim(tile.actor);
+    }
+    let frames = 0;
+    let finished = false;
+    let timer = 0;
+    let paintId = 0;
+    const finish = () => {
+        if (finished)
+            return;
+        finished = true;
+        if (paintId)
+            global.stage.disconnect(paintId);
+        if (timer)
+            GLib.source_remove(timer);
+        done();
+    };
+    paintId = global.stage.connect('after-paint', () => {
+        if (++frames >= 2)
+            finish();
+    });
+    timer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, limit, () => {
+        timer = 0;
+        finish();
+        return GLib.SOURCE_REMOVE;
+    });
+    global.stage.queue_redraw();
+    // A way to give up early (the caller is being torn down).
+    return () => {
+        if (!finished) {
+            finished = true;
+            if (paintId)
+                global.stage.disconnect(paintId);
+            if (timer)
+                GLib.source_remove(timer);
+        }
+    };
 }
 
 // Everything at its final state, the temporary blur removed (also used by the
@@ -135,9 +199,19 @@ function finishActiveReveal() {
 
 // The wallpaper comes out of its blur over `duration` ms, after `delay`. The
 // effects are driven by one timeline on the stage, never on an actor the mode
-// change could stop. A new radius means blurring the whole wallpaper again, the
-// costliest thing here: while the blur is wide it changes in steps of 3 px
-// (invisible), only near sharp does it follow pixel by pixel.
+// change could stop.
+// The radii the blur goes through (px), from wide to sharp.
+const BLUR_STEPS = [48, 40, 32, 26, 20, 15, 11, 8, 5, 3, 1, 0];
+
+// The nearest step at or below `radius`.
+export function blurStep(radius) {
+    for (const step of BLUR_STEPS) {
+        if (radius >= step)
+            return step;
+    }
+    return 0;
+}
+
 export function unblurWallpaper(duration, delay = 0) {
     const effects = blurTargets().map(a => a.get_effect(EFFECT_NAME)).filter(Boolean);
     blurTimeline?.stop();
@@ -152,8 +226,9 @@ export function unblurWallpaper(duration, delay = 0) {
     let lastRadius = -1;
     timeline.connect('new-frame', () => {
         const eased = 1 - (1 - timeline.get_progress()) ** 3;
-        const wide = Math.max(0, Math.round(fromRadius * (1 - eased)));
-        const radius = wide > 12 ? Math.round(wide / 3) * 3 : wide;
+        // A new radius blurs the whole wallpaper again, the costliest thing on
+        // screen: the radius only takes a few values on its way to sharp.
+        const radius = blurStep(fromRadius * (1 - eased));
         for (const effect of effects) {
             if (radius !== lastRadius)
                 effect.radius = radius;

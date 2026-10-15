@@ -26,13 +26,11 @@ import {glassPerformance} from './glassPerformance.js';
 import {timelines} from './animationTimeline.js';
 import {missionControl} from './missionControl.js';
 import {collectDiagnostics} from './diagnostics.js';
+import {BenchCancelled, benchSleep} from './benchControl.js';
 
 const SCENARIOS = [1, 5, 10, 20];
 const PHASE_MS = 900;
-const sleep = ms => new Promise(resolve => GLib.timeout_add(GLib.PRIORITY_DEFAULT, ms, () => {
-    resolve();
-    return GLib.SOURCE_REMOVE;
-}));
+const sleep = benchSleep;
 
 const rssMb = () => {
     try {
@@ -66,15 +64,19 @@ async function scenario(list) {
     });
     const memoryBefore = rssMb();
     const started = GLib.get_monotonic_time();
-    list.forEach(w => w.minimize());
-    await sleep(PHASE_MS);
-    list.forEach(w => w.unminimize(global.get_current_time()));
-    await sleep(PHASE_MS);
-    missionControl.enterMissionControl();
-    await sleep(PHASE_MS);
-    missionControl.exitMissionControl(null);
-    await sleep(PHASE_MS);
-    global.stage.disconnect(id);
+    try {
+        list.forEach(w => w.minimize());
+        await sleep(PHASE_MS);
+        list.forEach(w => w.unminimize(global.get_current_time()));
+        await sleep(PHASE_MS);
+        missionControl.enterMissionControl();
+        await sleep(PHASE_MS);
+        missionControl.exitMissionControl(null);
+        await sleep(PHASE_MS);
+    } finally {
+        // Also when the benchmark is cancelled in the middle.
+        global.stage.disconnect(id);
+    }
     const duration = Math.round((GLib.get_monotonic_time() - started) / 1000);
     const total = intervals.reduce((a, b) => a + b, 0);
     const worst = Math.max(0, ...intervals);
@@ -109,6 +111,11 @@ export async function runMotionBench(extension) {
             results.push(await scenario(available.slice(0, n)));
             await sleep(400);
         }
+    } catch (e) {
+        // Switched off in the middle: nothing to report.
+        if (e instanceof BenchCancelled)
+            return null;
+        throw e;
     } finally {
         glassPerformance.benchmarking = false;
         running = false;

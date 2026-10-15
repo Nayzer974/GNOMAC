@@ -357,6 +357,7 @@ function buildForecast({instance, settings, options, accent}) {
     const source = new WeatherSource({
         get_string: key => (key === 'widget-weather-city'
             ? (options.city || settings.get_string('widget-weather-city')) : ''),
+        get_boolean: key => settings.get_boolean(key),
     }, () => {
         const days = source.data?.forecast;
         if (!days || !row.get_parent())
@@ -377,6 +378,10 @@ function buildForecast({instance, settings, options, accent}) {
             row.add_child(cell);
         }
     });
+    if (!settings.get_boolean('widget-weather')) {
+        const off = label(t('Weather is off', 'Météo désactivée'), 'gnomac-widget-caption');
+        row.add_child(off);
+    }
     source.start();
     return {actor: box, destroy: () => source.stop()};
 }

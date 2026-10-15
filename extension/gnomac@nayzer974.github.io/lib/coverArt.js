@@ -56,23 +56,92 @@ function write(path, bytes) {
     GLib.file_set_contents(path, bytes.get_data ? bytes.get_data() : bytes);
 }
 
+// Reads a stream up to `max` bytes. More than that and it stops at once:
+// the cap is a protection, so it must hold while the data arrives, not after
+// everything was downloaded (the address comes from the player).
+export function readCapped(stream, max, cancellable = null) {
+    const chunks = [];
+    let total = 0;
+    return new Promise((resolve, reject) => {
+        const next = () => stream.read_bytes_async(65536, GLib.PRIORITY_DEFAULT, cancellable, (source, result) => {
+            let bytes;
+            try {
+                bytes = source.read_bytes_finish(result);
+            } catch (e) {
+                reject(e);
+                return;
+            }
+            const size = bytes.get_size();
+            if (size === 0) {
+                const all = new Uint8Array(total);
+                let offset = 0;
+                for (const chunk of chunks) {
+                    all.set(chunk, offset);
+                    offset += chunk.length;
+                }
+                resolve(all);
+                return;
+            }
+            total += size;
+            if (total > max) {
+                cancellable?.cancel();
+                reject(new Error(`cover over ${max} bytes`));
+                return;
+            }
+            chunks.push(new Uint8Array(bytes.toArray()));
+            next();
+        });
+        next();
+    });
+}
+
+// The bytes of a base64 `data:` address, or null when it is not base64 or
+// would decode to more than `max` bytes. The size is judged on the text
+// first: a huge address is never decoded.
+export function dataUriBytes(url, max = MAX_BYTES) {
+    const comma = url.indexOf(',');
+    if (comma < 0 || !/;base64$/i.test(url.slice(0, comma)))
+        return null;
+    const payload = url.slice(comma + 1);
+    // Base64 turns 3 bytes into 4 characters.
+    if (payload.length > Math.ceil(max / 3) * 4 + 8)
+        return null;
+    const bytes = GLib.base64_decode(payload);
+    return bytes.length && bytes.length <= max ? bytes : null;
+}
+
 function download(url, path) {
     session ??= new Soup.Session({timeout: 10});
     const message = Soup.Message.new('GET', url);
+    const cancellable = new Gio.Cancellable();
     return new Promise((resolve, reject) => {
-        session.send_and_read_async(message, GLib.PRIORITY_DEFAULT, null, (source, result) => {
+        session.send_async(message, GLib.PRIORITY_DEFAULT, cancellable, (source, result) => {
+            let stream;
             try {
-                const bytes = source.send_and_read_finish(result);
+                stream = source.send_finish(result);
                 if (message.get_status() !== Soup.Status.OK)
                     throw new Error(`HTTP ${message.get_status()}`);
-                const size = bytes.get_size();
-                if (!size || size > MAX_BYTES)
-                    throw new Error(`cover of ${size} bytes`);
-                write(path, bytes.get_data());
-                resolve();
+                // A server that announces a size over the cap is not read at all.
+                const announced = message.get_response_headers().get_content_length();
+                if (announced > MAX_BYTES)
+                    throw new Error(`cover of ${announced} bytes`);
             } catch (e) {
+                cancellable.cancel();
                 reject(e);
+                return;
             }
+            readCapped(stream, MAX_BYTES, cancellable).then(bytes => {
+                stream.close(null);
+                if (!bytes.length)
+                    throw new Error('empty cover');
+                write(path, bytes);
+                resolve();
+            }).catch(e => {
+                try {
+                    stream.close(null);
+                } catch {}
+                reject(e);
+            });
         });
     });
 }
@@ -87,10 +156,10 @@ async function fetch(url) {
         return `file://${path}`;
     prune();
     if (url.startsWith('data:')) {
-        const comma = url.indexOf(',');
-        if (comma < 0 || !/;base64$/i.test(url.slice(0, comma)))
+        const bytes = dataUriBytes(url);
+        if (!bytes)
             return null;
-        write(path, GLib.base64_decode(url.slice(comma + 1)));
+        write(path, bytes);
         return `file://${path}`;
     }
     if (/^https?:\/\//i.test(url)) {

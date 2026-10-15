@@ -84,6 +84,28 @@ else
     echo "  gjs not found, schedule test skipped"
 fi
 
+step "Island logic, weather switch, covers"
+if command -v node >/dev/null; then
+    node tools/test-island-logic.mjs >/dev/null || fail "tools/test-island-logic.mjs"
+    node tools/test-island-logic.mjs | tail -1
+fi
+if [[ "${CHECK_GJS:-1}" == 1 ]] && command -v gjs >/dev/null; then
+    for t in test-island-logic test-weather test-cover; do
+        gjs -m "tools/$t.js" >"$TMP/$t.log" 2>&1 || { fail "tools/$t.js"; tail -8 "$TMP/$t.log"; continue; }
+        echo "  $t: $(tail -n 1 "$TMP/$t.log")"
+    done
+else
+    echo "  gjs tests skipped"
+fi
+
+step "Installer and login screen sync (isolated home)"
+if [[ "${CHECK_GJS:-1}" == 1 ]]; then
+    tools/test-install.sh >"$TMP/install.log" 2>&1 || { fail "tools/test-install.sh"; grep FAIL "$TMP/install.log"; }
+    tail -n 1 "$TMP/install.log"
+else
+    echo "  skipped (CHECK_GJS=0)"
+fi
+
 step "Names used from GNOME's libraries"
 if [[ "${CHECK_COMPAT:-1}" != 1 ]]; then
     echo "  skipped (CHECK_COMPAT=0)"

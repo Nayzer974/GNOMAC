@@ -247,6 +247,7 @@ function buildWeather({settings, instance, accent}) {
     const source = new WeatherSource({
         get_string: key => (key === 'widget-weather-city'
             ? (instance.options.city || settings.get_string('widget-weather-city')) : ''),
+        get_boolean: key => settings.get_boolean(key),
     }, () => {
         const d = source.data;
         if (!d)
@@ -256,6 +257,8 @@ function buildWeather({settings, instance, accent}) {
         caption.text = d.city || d.description;
         range.text = `${d.description} · ${d.high}° / ${d.low}°`;
     });
+    if (!settings.get_boolean('widget-weather'))
+        caption.text = t('Weather is off', 'Météo désactivée');
     source.start();
     return {actor: box, destroy: () => source.stop()};
 }

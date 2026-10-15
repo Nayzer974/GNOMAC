@@ -26,7 +26,7 @@ import {ActionsPage, ClipboardPage, IdleHome, StatsPage} from '../lib/notchPages
 import {startClipboard, stopClipboard} from '../lib/clipboardHistory.js';
 import {coverFile, destroyCovers} from '../lib/coverArt.js';
 import {bringForward} from '../lib/notificationOpen.js';
-import {MprisWatcher} from '../lib/mprisClient.js';
+import {MprisWatcher, skipControl} from '../lib/mprisClient.js';
 import {PrayerPage} from '../lib/prayerPage.js';
 import {PRAYER_NAMES, PrayerAlerts, readConfig as readPrayerConfig} from '../lib/prayerSchedule.js';
 import {formatHours} from '../lib/prayerTimes.js';
@@ -984,8 +984,10 @@ export class DynamicIsland {
         const player = this._player;
         if (!player)
             return;
-        const canTrack = direction > 0 ? player.canGoNext : player.canGoPrevious;
-        if (canTrack)
+        const control = skipControl(player, direction);
+        if (!control.enabled)
+            return;
+        if (control.kind === 'skip')
             (direction > 0 ? player.next() : player.previous()).then(() => this._pollSoon());
         else
             this._seekBy(direction * 10 * 1e6);
@@ -1331,12 +1333,15 @@ export class DynamicIsland {
                 : 'media-playback-start-symbolic';
             // A player with no track to skip (a browser tab) gets a 10 second
             // jump on these buttons instead of dead ones.
-            const back = player.canGoPrevious;
-            const forward = player.canGoNext;
-            island.prevButton.child.icon_name = back ? 'media-skip-backward-symbolic' : 'media-seek-backward-symbolic';
-            island.nextButton.child.icon_name = forward ? 'media-skip-forward-symbolic' : 'media-seek-forward-symbolic';
-            island.prevButton.reactive = island.nextButton.reactive = player.canSeek || player.canGoNext;
-            island.prevButton.opacity = island.nextButton.opacity = island.prevButton.reactive ? 255 : 120;
+            // Each button on its own: previous needs a previous track (or seeking), next a next one.
+            const back = skipControl(player, -1);
+            const forward = skipControl(player, 1);
+            island.prevButton.child.icon_name = back.kind === 'skip' ? 'media-skip-backward-symbolic' : 'media-seek-backward-symbolic';
+            island.nextButton.child.icon_name = forward.kind === 'skip' ? 'media-skip-forward-symbolic' : 'media-seek-forward-symbolic';
+            island.prevButton.reactive = back.enabled;
+            island.nextButton.reactive = forward.enabled;
+            island.prevButton.opacity = back.enabled ? 255 : 120;
+            island.nextButton.opacity = forward.enabled ? 255 : 120;
         }
     }
 

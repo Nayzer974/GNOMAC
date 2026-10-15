@@ -123,6 +123,13 @@ install_gtk_css() {
   local version="$1"
   local dir="$CONFIG/gtk-$version"
   mkdir -p "$dir"
+  # A gnomac.css of your own (ours always names GNOMAC in its first lines) is
+  # kept aside, once, and given back by uninstall.sh.
+  if [[ -f "$dir/gnomac.css" && ! -e "$dir/gnomac.css.user-backup" ]] &&
+     ! head -n 3 "$dir/gnomac.css" | grep -q 'GNOMAC'; then
+    warn "$dir/gnomac.css is not GNOMAC's: kept as gnomac.css.user-backup"
+    cp "$dir/gnomac.css" "$dir/gnomac.css.user-backup"
+  fi
   cp "$ROOT/theme/gtk-$version/gnomac.css" "$dir/gnomac.css"
   local line='@import url("gnomac.css");'
   touch "$dir/gtk.css"
