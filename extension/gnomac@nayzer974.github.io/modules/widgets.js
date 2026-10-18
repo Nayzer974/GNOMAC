@@ -124,8 +124,11 @@ class WidgetTile {
     // Resize the tile to new pixel dimensions. Rebuilds the content so it
     // renders at native resolution (no pixellation).
     resize(width, height) {
-        this.width = Math.max(88, Math.round(width));
-        this.height = Math.max(88, Math.round(height));
+        const monitor = Main.layoutManager.primaryMonitor;
+        const maxW = monitor ? monitor.width - 40 : 800;
+        const maxH = monitor ? monitor.height - 40 : 600;
+        this.width = Math.min(maxW, Math.max(88, Math.round(width)));
+        this.height = Math.min(maxH, Math.max(88, Math.round(height)));
         this.instance.width = this.width;
         this.instance.height = this.height;
         delete this.instance.size; // custom size overrides predefined span
