@@ -324,10 +324,6 @@ export class Dock {
 
         this.actor.connect('motion-event', (_actor, event) => {
             [this._pointerX] = event.get_coords();
-            // Only kick the ticker if the pointer actually moved since last frame.
-            if (this._pointerX === this._lastPointerX)
-                return Clutter.EVENT_PROPAGATE;
-            this._lastPointerX = this._pointerX;
             this._kick();
             return Clutter.EVENT_PROPAGATE;
         });
@@ -878,11 +874,9 @@ export class Dock {
                 this._expanded = false;
             }
 
-            // Only relayout if something actually changed: pointer moved, hover
-            // spring not settled, or bouncing. Avoids full layout pass when idle.
-            const pointerMoved = this._pointerX !== this._lastPointerX;
-            if (pointerMoved || bouncing || !this._hover.settled)
-                this._relayout();
+            // The ticker only runs when something is animating (hover spring
+            // not settled, or a bounce in progress), so relayout every frame.
+            this._relayout();
         } catch (e) {
             logError(e, 'GNOMAC dock ticker');
         }
