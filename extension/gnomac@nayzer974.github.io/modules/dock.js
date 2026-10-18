@@ -861,27 +861,21 @@ export class Dock {
     _onTick(dt) {
         if (!this.actor)
             return false;
-        try {
-            this._hover.step(dt);
-            let bouncing = false;
-            for (const item of this._items)
-                bouncing = this._updateBounce(item) || bouncing;
+        this._hover.step(dt);
+        let bouncing = false;
+        for (const item of this._items)
+            bouncing = this._updateBounce(item) || bouncing;
 
-            // Collapse the transparent headroom once the dock is at rest, or it
-            // would keep swallowing clicks meant for the windows above it.
-            if (!this.actor.hover && this._hover.target === 0 && this._hover.settled) {
-                this._hover.snap(0);
-                this._expanded = false;
-            }
-
-            // The ticker only runs when something is animating (hover spring
-            // not settled, or a bounce in progress), so relayout every frame.
-            this._relayout();
-        } catch (e) {
-            logError(e, 'GNOMAC dock ticker');
+        // Collapse the transparent headroom once the dock is at rest, or it
+        // would keep swallowing clicks meant for the windows above it.
+        if (!this.actor.hover && this._hover.target === 0 && this._hover.settled) {
+            this._hover.snap(0);
+            this._expanded = false;
         }
 
-        const active = bouncing || !this._hover.settled;
+        this._relayout();
+
+        const active = bouncing || !this._hover.settled || this.actor.hover;
         if (!active) {
             this._ticking = false;
             // Debounce the D-Bus burst: don't publish geometry on every frame
