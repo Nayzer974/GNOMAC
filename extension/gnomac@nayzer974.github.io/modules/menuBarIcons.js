@@ -70,10 +70,12 @@ export class MenuBarIcons {
         this._adoptIndicators();
         // GNOME builds these indicators asynchronously at startup, after
         // extensions are enabled: catch the late ones as they arrive.
-        this._childAddedId = qs._indicators.connect('child-added', () => {
+        this._childAddedId = qs._indicators.connect('child-added', (_parent, child) => {
             this._adoptIndicators();
-            if (!this._networkIds.length)
-                this._watchNetwork();
+            // Only connect signals to the NEW child, not all of them again.
+            // Re-connecting all children on every child-added caused O(N²)
+            // signal handler accumulation.
+            this._watchNetworkChild(child);
             if (this._box && qs._indicators.get_last_child() !== this._box)
                 qs._indicators.set_child_above_sibling(this._box, null);
         });
@@ -259,15 +261,18 @@ export class MenuBarIcons {
         const network = this._qs._network;
         if (!network)
             return;
-        const update = () => this._syncNetwork();
-        for (const child of network.get_children()) {
-            if (!(child instanceof St.Icon))
-                continue;
-            this._networkIds.push([child, child.connect('notify::gicon', update)]);
-            this._networkIds.push([child, child.connect('notify::icon-name', update)]);
-            this._networkIds.push([child, child.connect('notify::visible', update)]);
-        }
+        for (const child of network.get_children())
+            this._watchNetworkChild(child);
         this._syncNetwork();
+    }
+
+    _watchNetworkChild(child) {
+        if (!(child instanceof St.Icon))
+            return;
+        const update = () => this._syncNetwork();
+        this._networkIds.push([child, child.connect('notify::gicon', update)]);
+        this._networkIds.push([child, child.connect('notify::icon-name', update)]);
+        this._networkIds.push([child, child.connect('notify::visible', update)]);
     }
 
     _syncNetwork() {

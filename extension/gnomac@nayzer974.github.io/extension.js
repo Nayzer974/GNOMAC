@@ -59,9 +59,9 @@ const MODULES = [
     {key: 'enable-launchpad', Module: Launchpad, keepAlive: true},
     {key: 'enable-topbar', Module: TopBar},
     {key: 'enable-app-menus', Module: AppMenus},
-    {key: 'enable-topbar', Module: SecondaryBars},
+    {key: 'enable-secondary-bars', Module: SecondaryBars},
     {key: 'enable-dock', Module: Dock, keepAlive: true},
-    {key: 'enable-dock', Module: Gaps, keepAlive: true},
+    {key: 'enable-gaps', Module: Gaps, keepAlive: true},
     {key: 'enable-spotlight', Module: Spotlight, keepAlive: true},
     {key: 'enable-glass-menus', Module: GlassMenus, keepAlive: true},
     {key: 'enable-window-animations', Module: WindowAnimations, keepAlive: true},
@@ -75,7 +75,7 @@ const MODULES = [
     {key: 'enable-menubar-icons', Module: MenuBarIcons},
     {key: 'enable-appearance', Module: Appearance},
     {key: 'enable-window-layout', Module: WindowLayout, keepAlive: true},
-    {key: 'enable-window-layout', Module: StageManager, keepAlive: true},
+    {key: 'enable-stage-manager', Module: StageManager, keepAlive: true},
 ];
 
 export default class GnomacExtension extends Extension {

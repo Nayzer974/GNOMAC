@@ -499,7 +499,7 @@ export class DesktopIcons {
             name: (a, b) => a.info.get_display_name().localeCompare(b.info.get_display_name()),
             type: (a, b) => (a.info.get_content_type() ?? '').localeCompare(b.info.get_content_type() ?? '') ||
                 a.info.get_display_name().localeCompare(b.info.get_display_name()),
-            date: (a, b) => b.info.get_modification_date_time().to_unix() - a.info.get_modification_date_time().to_unix(),
+            date: (a, b) => (b.info.get_modification_date_time()?.to_unix?.() ?? 0) - (a.info.get_modification_date_time()?.to_unix?.() ?? 0),
             size: (a, b) => b.info.get_size() - a.info.get_size(),
         }[kind];
         const {rows} = this._bounds();

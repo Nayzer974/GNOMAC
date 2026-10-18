@@ -613,6 +613,14 @@
       <default>true</default>
       <summary>Turn the GNOME panel into a macOS-style menu bar</summary>
     </key>
+    <key name="enable-secondary-bars" type="b">
+      <default>true</default>
+      <summary>Menu bar on every screen but the primary one (macOS multi-monitor behaviour)</summary>
+    </key>
+    <key name="enable-gaps" type="b">
+      <default>true</default>
+      <summary>Breathing room around maximized windows (thin struts keep them off the screen sides)</summary>
+    </key>
 
     <key name="dock-auto-size" type="b">
       <default>true</default>

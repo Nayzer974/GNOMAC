@@ -68,7 +68,7 @@ class DisplayInfo {
             if (lm[4])
                 lm[5].forEach(spec => primaries.add(spec[0]));
         }
-        return monitors.map(([[connector], modes]) => {
+        return monitors.map(([connector, modes]) => {
             const current = modes.find(mode => mode[6]?.['is-current']) ?? null;
             return {
                 connector,

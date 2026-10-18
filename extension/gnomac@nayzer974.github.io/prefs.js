@@ -95,6 +95,8 @@ export default class GnomacPreferences extends ExtensionPreferences {
         toggle(modules, 'enable-window-layout', 'Disposition des fenêtres', 'Super + Ctrl + flèches : moitiés ; Super + Ctrl + T : palette (quarts, tiers, centrer)');
         toggle(modules, 'enable-stage-manager', 'Stage Manager au démarrage', 'Ctrl + Super + M l’active ou le coupe à tout moment ; la fenêtre active reste au centre, les autres vont dans une bande à gauche');
         toggle(modules, 'enable-topbar', 'Barre de menus', 'Menu système, nom de l\'app active, horloge à droite');
+        toggle(modules, 'enable-secondary-bars', 'Barres secondaires', 'Barre de menus sur chautre écran (comme sur Mac)');
+        toggle(modules, 'enable-gaps', 'Marges des fenêtres', 'Un espace entre les fenêtres maximisées et les bords de l\'écran');
 
         const dock = group('Dock');
         toggle(dock, 'dock-auto-size', 'Taille automatique', 'Suit la hauteur de l’écran : le dock garde ses proportions si la résolution change');

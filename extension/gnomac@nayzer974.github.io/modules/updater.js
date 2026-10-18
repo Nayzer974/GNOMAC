@@ -166,7 +166,10 @@ export class Updater {
     _schedule(seconds) {
         if (this._timeoutId)
             GLib.source_remove(this._timeoutId);
-        this._timeoutId = GLib.timeout_add_seconds(GLib.PRIORITY_LOW, seconds, () => {
+        // Guard against a zero-second delay: GLib.timeout_add_seconds(0, …)
+        // fires immediately, causing an infinite loop that pegs the CPU.
+        const delay = Math.max(3600, seconds || 3600);
+        this._timeoutId = GLib.timeout_add_seconds(GLib.PRIORITY_LOW, delay, () => {
             this._timeoutId = 0;
             const startup = !this._started;
             this._started = true;

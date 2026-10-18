@@ -45,9 +45,13 @@ FAILED=0
 
 check() {
   info "State of the GNOMAC login screen"
-  [[ -s "$DST/metadata.json" && -s "$DST/extension.js" ]] && ok "extension copied: $DST"     || bad "extension missing or EMPTY files in $DST (re-run the installer, then run: sync)"
-  grep -q '"gdm"' "$DST/metadata.json" 2>/dev/null && ok "metadata lists the gdm session mode" \
-    || bad "metadata.json has no \"gdm\" in session-modes"
+  [[ -s "$DST/metadata.json" && -s "$DST/extension.js" ]] && ok "extension copied: $DST" || bad "extension missing or EMPTY files in $DST (re-run the installer, then run: sync)"
+  if [[ -f "$DST/metadata.json" ]]; then
+    grep -q '"gdm"' "$DST/metadata.json" && ok "metadata lists the gdm session mode" \
+      || bad "metadata.json has no \"gdm\" in session-modes"
+  else
+    bad "metadata.json not found in $DST"
+  fi
   [[ -f "$DST/schemas/gschemas.compiled" ]] && ok "schema compiled" || bad "schema not compiled in $DST/schemas"
   if systemctl is-enabled gnomac-gdm-sync.path >/dev/null 2>&1; then
     ok "auto-sync on: the login screen follows your GNOMAC updates"
@@ -102,7 +106,8 @@ elif [[ -n "${SUDO_USER:-}" ]]; then
   for key in picture-uri-dark picture-uri; do
     uri="$(sudo -u "$SUDO_USER" env XDG_RUNTIME_DIR="/run/user/$uid" \
       DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" \
-      gsettings get org.gnome.desktop.background "$key" 2>/dev/null | tr -d "'")" || uri=""
+      gsettings get org.gnome.desktop.background "$key" 2>/dev/null | tr -d "'" 2>/dev/null)"
+    uri="${uri:-}"
     path="${uri#file://}"
     if [[ -n "$path" && -f "$path" ]]; then WALLPAPER="$path"; break; fi
   done

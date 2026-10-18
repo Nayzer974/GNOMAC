@@ -27,7 +27,7 @@ mkdir -p "$WORK/data/gnome-shell/extensions" "$WORK/config/glib-2.0/settings" "$
 cp -r "$ROOT/extension/$UUID" "$EXT"
 cp "$ROOT/tools/smoke-driver.js" "$EXT/smoke-driver.js"
 cp "$ROOT/tools/prefs-smoke.js" "$EXT/prefs-smoke.js"
-glib-compile-schemas "$EXT/schemas"
+glib-compile-schemas "$EXT/schemas" || { echo "glib-compile-schemas failed"; exit 1; }
 
 # Start the driver a few seconds after the extension is enabled.
 python3 - "$EXT/extension.js" <<'EOF'
@@ -85,7 +85,8 @@ EOF
 
 # SMOKE_MONITORS="1280x800 1920x1080" runs with several virtual monitors.
 MONITOR_ARGS=()
-for size in ${SMOKE_MONITORS:-1280x800}; do
+read -ra MONITOR_SIZES <<< "${SMOKE_MONITORS:-1280x800}"
+for size in "${MONITOR_SIZES[@]}"; do
     MONITOR_ARGS+=(--virtual-monitor "$size")
 done
 

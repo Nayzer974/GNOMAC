@@ -46,10 +46,16 @@ fi
 # The installer gets the terminal as ITS input. (The terminal must not become
 # THIS shell's stdin: bash is still reading the script from it.)
 launch() {
-  if [[ ! -t 0 && -r /dev/tty ]]; then
-    exec "$@" </dev/tty
+  if [[ ! -t 0 ]]; then
+    if [[ -r /dev/tty ]]; then
+      exec "$@" </dev/tty
+    else
+      echo "Cannot read from a terminal (no /dev/tty). Run this script interactively." >&2
+      exit 1
+    fi
+  else
+    exec "$@"
   fi
-  exec "$@"
 }
 
 # `--ez` runs the express installer (asks a few questions, sets everything up).

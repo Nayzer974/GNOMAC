@@ -43,9 +43,9 @@ else
   curl -fsSL "https://github.com/$REPO/archive/refs/heads/main.tar.gz" | tar -xz --strip-components=1 -C "$tmp"
   sha="$(curl -fsSL "https://api.github.com/repos/$REPO/commits/main" | python3 -c 'import json,sys; print(json.load(sys.stdin)["sha"])' 2>/dev/null || echo unknown)"
   echo "$sha" > "$tmp/.gnomac-sha"
-  rm -rf "$SRC"
   mkdir -p "$(dirname "$SRC")"
-  mv "$tmp" "$SRC"
+  # Move into place only after the download succeeded; keep SRC intact on failure.
+  mv "$tmp" "$SRC" || { rm -rf "$tmp"; echo "update failed, keeping previous installation"; exit 1; }
 fi
 
 "$SRC/install.sh" --update

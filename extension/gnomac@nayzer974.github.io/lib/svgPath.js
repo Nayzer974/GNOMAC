@@ -138,8 +138,10 @@ export function parsePath(d) {
             lastControl = null;
             break;
         default:
-            // Unknown command: skip it rather than loop forever.
-            i++;
+            // Unknown command: skip its arguments rather than loop forever.
+            // SVG commands have fixed argument counts; skip a reasonable
+            // number so remaining arguments aren't misread as commands.
+            i += 2;
         }
     }
 

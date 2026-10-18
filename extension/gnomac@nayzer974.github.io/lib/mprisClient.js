@@ -175,6 +175,7 @@ export class MprisPlayer {
 
     // Play/pause. Some players ignore PlayPause; then the exact verb is sent.
     async playPause() {
+        if (!this._player) return;
         try {
             await call(this._player, 'PlayPause');
         } catch (e) {
@@ -187,15 +188,18 @@ export class MprisPlayer {
     }
 
     async next() {
+        if (!this._player) return;
         await call(this._player, 'Next').catch(e => log(`GNOMAC island: ${this.busName} Next: ${e.message}`));
     }
 
     async previous() {
+        if (!this._player) return;
         await call(this._player, 'Previous').catch(e => log(`GNOMAC island: ${this.busName} Previous: ${e.message}`));
     }
 
     // Relative jump, microseconds (negative = back).
     async seekBy(offset) {
+        if (!this._player) return;
         await call(this._player, 'Seek', new GLib.Variant('(x)', [Math.round(offset)]))
             .catch(e => log(`GNOMAC island: ${this.busName} Seek: ${e.message}`));
     }
@@ -203,6 +207,7 @@ export class MprisPlayer {
     // Absolute position, microseconds. Needs a track id that is a valid
     // object path; otherwise it is done as a relative jump from the live position.
     async setPosition(position) {
+        if (!this._player) return;
         const id = this.trackId;
         if (id && GLib.Variant.is_object_path(id)) {
             try {
@@ -216,6 +221,7 @@ export class MprisPlayer {
 
     // Brings the player's window forward; false when it cannot.
     async raise() {
+        if (!this._player) return;
         try {
             await call(this._root, 'Raise');
             return true;

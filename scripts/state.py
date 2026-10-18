@@ -75,7 +75,9 @@ def enabled_extensions():
 
 
 def write_extensions(items):
-    dconf("write", "/org/gnome/shell/enabled-extensions", repr(items))
+    # dconf represents an empty list as "@as []", not "[]"
+    value = "@as []" if not items else repr(items)
+    dconf("write", "/org/gnome/shell/enabled-extensions", value)
 
 
 def save():

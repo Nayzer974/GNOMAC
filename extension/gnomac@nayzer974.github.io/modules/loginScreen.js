@@ -200,7 +200,10 @@ export class LoginScreen {
                 const actor = new St.Widget({reactive: false, x: monitor.x, y: monitor.y,
                     width: monitor.width, height: monitor.height, opacity: 0});
                 const uri = Gio.File.new_for_path(path).get_uri();
-                actor.set_style(`background-color: #101018; background-image: url("${uri}"); ` +
+                // Escape the URI so a path containing quotes, backslashes or
+                // parentheses does not break the CSS.
+                const escaped = uri.replace(/["'\\()]/g, '\\$&');
+                actor.set_style(`background-color: #101018; background-image: url("${escaped}"); ` +
                     'background-size: cover; background-position: center;');
                 // Dimmed by a black veil of the opposite strength.
                 const veil = new St.Widget({reactive: false, width: monitor.width, height: monitor.height,

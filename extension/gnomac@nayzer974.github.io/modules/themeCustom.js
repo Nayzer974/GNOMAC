@@ -21,12 +21,39 @@ const USER_CSS = GLib.build_filenamev([CONFIG_DIR, 'user.css']);
 // St sorts rules of equal weight in no reliable order, so a rule of yours could
 // lose to GNOMAC's own. Every declaration of the two files is therefore loaded
 // as !important: what you write always wins, whatever the selector.
+// Brace-depth-aware: nested blocks (@media, @supports, @keyframes) are walked
+// by depth so only the innermost declarations are made !important.
 export function important(css) {
-    return css.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\{([^{}]*)\}/g, (_m, body) => {
-        const declarations = body.split(';').map(d => d.trim()).filter(Boolean)
-            .map(d => (/!important/.test(d) ? d : `${d} !important`));
-        return `{ ${declarations.join('; ')}${declarations.length ? ';' : ''} }`;
-    });
+    const stripped = css.replace(/\/\*[\s\S]*?\*\//g, '');
+    let result = '';
+    let depth = 0;
+    let buffer = '';
+    for (let i = 0; i < stripped.length; i++) {
+        const ch = stripped[i];
+        if (ch === '{') {
+            if (depth === 0) {
+                result += buffer;
+                buffer = '';
+            } else {
+                buffer += ch;
+            }
+            depth++;
+        } else if (ch === '}') {
+            depth--;
+            if (depth === 0) {
+                const declarations = buffer.split(';').map(d => d.trim()).filter(Boolean)
+                    .map(d => (/!important/.test(d) ? d : `${d} !important`));
+                result += `{ ${declarations.join('; ')}${declarations.length ? ';' : ''} }`;
+                buffer = '';
+            } else {
+                buffer += ch;
+            }
+        } else {
+            buffer += ch;
+        }
+    }
+    result += buffer;
+    return result;
 }
 
 const CORNERS = {

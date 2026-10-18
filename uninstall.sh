@@ -66,7 +66,8 @@ rmdir "$CONFIG/gnomac" 2>/dev/null || true
 if [[ -d /usr/share/plymouth/themes/gnomac ]]; then
   echo
   echo "A GNOMAC boot theme is installed. To remove it (needs root):"
-  echo "  sudo plymouth-set-default-theme -R cachyos && sudo rm -rf /usr/share/plymouth/themes/gnomac"
+  CURRENT_THEME=$(plymouth-set-default-theme 2>/dev/null || true)
+  echo "  sudo plymouth-set-default-theme -R ${CURRENT_THEME:-default} && sudo rm -rf /usr/share/plymouth/themes/gnomac"
 fi
 if [[ -d /usr/share/gnomac || -f /etc/dconf/db/gdm.d/90-gnomac ]]; then
   echo

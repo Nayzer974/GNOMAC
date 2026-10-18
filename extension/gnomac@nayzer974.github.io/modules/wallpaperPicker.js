@@ -181,7 +181,10 @@ export class WallpaperPicker {
             return;
         this._index = Math.max(0, Math.min(index, this._items.length - 1));
         this._offset.setTarget(this._index);
-        getTicker().add(this._tick);
+        // Only add the ticker once: repeated calls would register it multiple
+        // times and cause redundant layout passes per frame.
+        if (!getTicker().includes(this._tick))
+            getTicker().add(this._tick);
     }
 
     _onKey(event) {
