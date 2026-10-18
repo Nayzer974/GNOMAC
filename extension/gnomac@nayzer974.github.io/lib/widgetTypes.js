@@ -404,6 +404,8 @@ export function defaultLayout() {
         w('reminders', 'medium', 0, 2, {color: 'orange'}),
         w('music', 'medium', 0, 4, {color: 'pink'}),
         w('progress', 'medium', 4, 4, {color: 'purple'}),
+        w('rss', 'medium', 0, 6, {color: 'teal'}),
+        w('sticky', 'medium', 2, 6, {color: 'yellow'}),
     ];
 }
 
