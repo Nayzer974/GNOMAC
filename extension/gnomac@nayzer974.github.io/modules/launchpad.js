@@ -55,6 +55,7 @@ export class Launchpad {
         this._settings = extension.getSettings();
         this._tick = dt => this._onTick(dt);
         this._root = null;
+        this._fillDebounceId = 0;
     }
 
     enable() {
@@ -62,6 +63,10 @@ export class Launchpad {
     }
 
     disable() {
+        if (this._fillDebounceId) {
+            GLib.source_remove(this._fillDebounceId);
+            this._fillDebounceId = 0;
+        }
         this.close(false);
         if (this._extension.launchpad === this)
             this._extension.launchpad = null;
@@ -129,7 +134,16 @@ export class Launchpad {
             return Clutter.EVENT_STOP;
         });
         this._root.connect('scroll-event', (_a, event) => this._onScroll(event));
-        this._entry.clutter_text.connect('text-changed', () => this._fill());
+        this._entry.clutter_text.connect('text-changed', () => {
+            if (this._fillDebounceId)
+                GLib.source_remove(this._fillDebounceId);
+            // Debounce fill so we don't recreate all tiles on every keystroke.
+            this._fillDebounceId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 150, () => {
+                this._fillDebounceId = 0;
+                this._fill();
+                return GLib.SOURCE_REMOVE;
+            });
+        });
         this._entry.clutter_text.connect('key-press-event', (_a, event) => this._onKey(event));
         this._entry.clutter_text.connect('activate', () => {
             const first = this._tiles?.[0];

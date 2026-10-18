@@ -323,6 +323,10 @@ export class Dock {
 
         this.actor.connect('motion-event', (_actor, event) => {
             [this._pointerX] = event.get_coords();
+            // Only kick the ticker if the pointer actually moved since last frame.
+            if (this._pointerX === this._lastPointerX)
+                return Clutter.EVENT_PROPAGATE;
+            this._lastPointerX = this._pointerX;
             this._kick();
             return Clutter.EVENT_PROPAGATE;
         });
@@ -400,6 +404,10 @@ export class Dock {
         if (this._publishLater) {
             global.compositor.get_laters().remove(this._publishLater);
             this._publishLater = 0;
+        }
+        if (this._publishDebounceId) {
+            GLib.source_remove(this._publishDebounceId);
+            this._publishDebounceId = 0;
         }
         for (const [object, id] of this._signals)
             object.disconnect(id);
@@ -868,12 +876,24 @@ export class Dock {
             this._expanded = false;
         }
 
-        this._relayout();
+        // Only relayout if something actually changed: pointer moved, hover
+        // spring not settled, or bouncing. Avoids full layout pass when idle.
+        const pointerMoved = this._pointerX !== this._lastPointerX;
+        if (pointerMoved || bouncing || !this._hover.settled)
+            this._relayout();
 
         const active = bouncing || !this._hover.settled;
         if (!active) {
             this._ticking = false;
-            this._publishIconGeometry();
+            // Debounce the D-Bus burst: don't publish geometry on every frame
+            // the dock settles; wait until it's truly idle.
+            if (this._publishDebounceId)
+                GLib.source_remove(this._publishDebounceId);
+            this._publishDebounceId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
+                this._publishDebounceId = 0;
+                this._publishIconGeometry();
+                return GLib.SOURCE_REMOVE;
+            });
         }
         return active;
     }

@@ -158,6 +158,7 @@ export class Spotlight {
         this._mode = 'all';
         this._fileCache = new Map();
         this._tick = dt => this._onTick(dt);
+        this._searchDebounceId = 0;
     }
 
     enable() {
@@ -245,7 +246,16 @@ export class Spotlight {
         Main.layoutManager.uiGroup.add_child(this._root);
 
         const text = this._entry.clutter_text;
-        text.connect('text-changed', () => this._search());
+        text.connect('text-changed', () => {
+            if (this._searchDebounceId)
+                GLib.source_remove(this._searchDebounceId);
+            // Debounce search so we don't rebuild the DOM on every keystroke.
+            this._searchDebounceId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 150, () => {
+                this._searchDebounceId = 0;
+                this._search();
+                return GLib.SOURCE_REMOVE;
+            });
+        });
         text.connect('key-press-event', (_actor, event) => this._onKey(event));
         text.connect('activate', () => this._activateSelected());
 
@@ -275,6 +285,10 @@ export class Spotlight {
         }
         this.close(false);
         getTicker().remove(this._tick);
+        if (this._searchDebounceId) {
+            GLib.source_remove(this._searchDebounceId);
+            this._searchDebounceId = 0;
+        }
         this._root?.destroy();
         this._root = null;
         this._restoreSuperSpace();

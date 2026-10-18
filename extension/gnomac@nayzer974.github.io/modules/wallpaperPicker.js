@@ -241,6 +241,7 @@ export class WallpaperPicker {
         const cx = monitor.width / 2;
         const cy = monitor.height / 2 + CAROUSEL_Y;
         const offset = this._offset.value;
+        let restacked = false;
         this._cards.forEach((card, i) => {
             const d = i - offset;
             const ad = Math.abs(d);
@@ -255,11 +256,18 @@ export class WallpaperPicker {
             card.rotation_angle_y = -side * Math.min(ad, 1) * 38;
             card.opacity = Math.round(255 * Math.max(0, 1 - Math.max(0, ad - 2) * 0.25));
             // Nearer cards on top.
-            card.z_position = -ad * 10;
+            const newZ = -ad * 10;
+            if (card.z_position !== newZ) {
+                card.z_position = newZ;
+                restacked = true;
+            }
         });
-        const sorted = [...this._cards].sort((a, b) => a.z_position - b.z_position);
-        for (const card of sorted)
-            this._stage.set_child_above_sibling(card, null);
+        // Only re-stack when z positions actually changed.
+        if (restacked) {
+            const sorted = [...this._cards].sort((a, b) => a.z_position - b.z_position);
+            for (const card of sorted)
+                this._stage.set_child_above_sibling(card, null);
+        }
 
         const item = this._items[this._index];
         if (item)

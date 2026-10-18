@@ -8,6 +8,7 @@
 
 import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
 import St from 'gi://St';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
@@ -269,7 +270,18 @@ export class MenuBarIcons {
     _watchNetworkChild(child) {
         if (!(child instanceof St.Icon))
             return;
-        const update = () => this._syncNetwork();
+        // Throttle network icon updates: multiple notify:: signals can fire
+        // in quick succession, but we only need one _syncNetwork() per frame.
+        let pending = false;
+        const update = () => {
+            if (pending) return;
+            pending = true;
+            GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+                pending = false;
+                this._syncNetwork();
+                return GLib.SOURCE_REMOVE;
+            });
+        };
         this._networkIds.push([child, child.connect('notify::gicon', update)]);
         this._networkIds.push([child, child.connect('notify::icon-name', update)]);
         this._networkIds.push([child, child.connect('notify::visible', update)]);

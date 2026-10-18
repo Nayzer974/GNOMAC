@@ -38,6 +38,9 @@ const MARGIN = 18;
 const BOTTOM_RESERVE = 110; // the dock
 
 class WidgetTile {
+    static _wigglingTiles = new Set();
+    static _wiggleTickerId = 0;
+
     constructor(manager, instance) {
         this.manager = manager;
         this.instance = instance;
@@ -113,21 +116,30 @@ class WidgetTile {
     setEditing(editing) {
         this.badge.visible = editing;
         this.handle.visible = editing;
-        if (editing && !this._wiggle) {
+        if (editing && !WidgetTile._wigglingTiles.has(this)) {
             this._phase = Math.random() * Math.PI * 2;
-            this._wiggle = dt => {
-                if (this.actor.is_finalized?.())
-                    return false;
-                this._phase += dt * 14;
-                if (!this._dragging)
-                    this.actor.rotation_angle_z = Math.sin(this._phase) * 0.9;
-                return true;
-            };
-            getTicker().add(this._wiggle);
-        } else if (!editing && this._wiggle) {
-            getTicker().remove(this._wiggle);
-            this._wiggle = null;
+            WidgetTile._wigglingTiles.add(this);
+            if (WidgetTile._wiggleTickerId === 0)
+                WidgetTile._wiggleTickerId = getTicker().add(WidgetTile._wiggleTicker);
+        } else if (!editing && WidgetTile._wigglingTiles.has(this)) {
+            WidgetTile._wigglingTiles.delete(this);
+            if (WidgetTile._wigglingTiles.size === 0 && WidgetTile._wiggleTickerId) {
+                getTicker().remove(WidgetTile._wiggleTickerId);
+                WidgetTile._wiggleTickerId = 0;
+            }
             this.actor.ease({rotation_angle_z: 0, duration: 160});
+        }
+    }
+
+    // One global ticker for all wiggling tiles instead of one per tile.
+    static _wiggleTicker(dt) {
+        const now = GLib.get_monotonic_time();
+        for (const tile of WidgetTile._wigglingTiles) {
+            if (tile.actor.is_finalized?.())
+                continue;
+            tile._phase = (tile._phase ?? 0) + dt * 14;
+            if (!tile._dragging)
+                tile.actor.rotation_angle_z = Math.sin(tile._phase) * 0.9;
         }
     }
 
@@ -184,8 +196,11 @@ class WidgetTile {
     }
 
     destroy() {
-        if (this._wiggle)
-            getTicker().remove(this._wiggle);
+        WidgetTile._wigglingTiles.delete(this);
+        if (WidgetTile._wigglingTiles.size === 0 && WidgetTile._wiggleTickerId) {
+            getTicker().remove(WidgetTile._wiggleTickerId);
+            WidgetTile._wiggleTickerId = 0;
+        }
         this.built?.destroy?.();
         this.actor.destroy();
     }

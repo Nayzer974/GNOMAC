@@ -545,6 +545,11 @@ export class DynamicIsland {
             // At shell shutdown the island dies before disable() runs.
             if (!this.island || this._islandGone)
                 return GLib.SOURCE_REMOVE;
+            // Skip heavy work when the island is hidden or idle.
+            if (!this.island.visible && this._mode === 'rest')
+                return GLib.SOURCE_CONTINUE;
+            // Read prayer config once per tick, not twice.
+            const prayerConfig = this._prayerAlerts ? readPrayerConfig(this._settings) : null;
             this._syncContent();
             const idle = this._cfg.autoClose;
             if (this._pinned && idle > 0 && !this.island.hover &&
@@ -558,9 +563,10 @@ export class DynamicIsland {
                 if (this._tab === 'stats')
                     this.island.statsView.update();
                 if (this._tab === 'prayer')
-                    this.island.prayerView.update(readPrayerConfig(this._settings));
+                    this.island.prayerView.update(prayerConfig);
             }
-            this._prayerAlerts?.tick(readPrayerConfig(this._settings), GLib.DateTime.new_now_local());
+            if (prayerConfig)
+                this._prayerAlerts?.tick(prayerConfig, GLib.DateTime.new_now_local());
             return GLib.SOURCE_CONTINUE;
         });
 
@@ -1070,7 +1076,9 @@ export class DynamicIsland {
     _pollSoon() {
         if (this._pollTimeout)
             GLib.source_remove(this._pollTimeout);
-        this._pollTimeout = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 250, () => {
+        // Poll at most once per second while media plays; more frequent D-Bus
+        // calls are unnecessary for a progress bar.
+        this._pollTimeout = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
             this._pollTimeout = 0;
             this._pollPosition();
             return GLib.SOURCE_REMOVE;
@@ -1478,6 +1486,16 @@ export class DynamicIsland {
         }
         const timed = now < this._noticeUntil || now < this._workspaceUntil || now < (this._hudUntil ?? 0);
         return playing || timed || presenceMoving || !!this._pendingSize || !this._width.settled || !this._height.settled;
+    }
+
+    // Throttle the Cairo repaint of the notch shape: only repaint when the
+    // width or height actually changed (the shape is otherwise identical).
+    _queueShapeRepaint(width, height) {
+        if (width !== this._lastShapeWidth || height !== this._lastShapeHeight) {
+            this._lastShapeWidth = width;
+            this._lastShapeHeight = height;
+            this.island?.shape?.queue_repaint();
+        }
     }
 
     _layout() {

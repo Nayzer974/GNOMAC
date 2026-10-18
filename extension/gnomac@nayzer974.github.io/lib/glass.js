@@ -464,6 +464,7 @@ class GlassSurface extends St.Widget {
         liveSurfaces.add(this);
         this._margin = Math.max(8, blur * 2);
         this._origin = [0, 0];
+        this._syncDebounceId = 0;
 
         this._wrapper = new Clutter.Actor({clip_to_allocation: true, reactive: false});
         this._blur = new Shell.BlurEffect({
@@ -492,10 +493,14 @@ class GlassSurface extends St.Widget {
         this._glass = new GlassEffect(glass);
         this.add_effect(this._glass);
 
-        this.connect('notify::width', () => this._sync());
-        this.connect('notify::height', () => this._sync());
-        this.connect('notify::mapped', () => this._sync());
+        this.connect('notify::width', () => this._syncLater());
+        this.connect('notify::height', () => this._syncLater());
+        this.connect('notify::mapped', () => this._syncLater());
         this.connect('destroy', () => {
+            if (this._syncDebounceId) {
+                GLib.source_remove(this._syncDebounceId);
+                this._syncDebounceId = 0;
+            }
             liveSurfaces.delete(this);
             this._perfOff?.();
             this._formTimeline?.stop();
@@ -743,6 +748,18 @@ class GlassSurface extends St.Widget {
         return params;
     }
 
+    // Debounced version of _sync() for allocation/mapped signals: coalesces
+    // rapid notify::width/height/mapped events into a single sync at ~20Hz.
+    _syncLater() {
+        if (this._syncDebounceId)
+            GLib.source_remove(this._syncDebounceId);
+        this._syncDebounceId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => {
+            this._syncDebounceId = 0;
+            this._sync();
+            return GLib.SOURCE_REMOVE;
+        });
+    }
+
     _sync() {
         // Sizing children before the surface is on stage only yields St
         // warnings; notify::mapped brings us back here once it is.
@@ -764,9 +781,14 @@ class GlassSurface extends St.Widget {
 
     // The glass blooms where the pointer is, fading in and out. `owner` is
     // the reactive actor that receives the motion; coordinates are local to
-    // this surface.
+    // this surface. Motion events are throttled to ~20Hz to avoid shader
+    // repaints on every mouse move (60–120Hz).
     followPointer(owner, strength = 1) {
         const move = (_a, event) => {
+            const now = GLib.get_monotonic_time();
+            if (now - (this._lastPointerMove ?? 0) < 50000)
+                return;
+            this._lastPointerMove = now;
             const [x, y] = event.get_coords();
             const [ok, lx, ly] = this.transform_stage_point(x, y);
             if (ok)
@@ -774,7 +796,10 @@ class GlassSurface extends St.Widget {
         };
         owner.connect('motion-event', move);
         owner.connect('enter-event', move);
-        owner.connect('leave-event', () => this._glass.setParams({pointer: [-1, -1], glow: 0}));
+        owner.connect('leave-event', () => {
+            this._lastPointerMove = 0;
+            this._glass.setParams({pointer: [-1, -1], glow: 0});
+        });
     }
 
     setBlur(radius) {
