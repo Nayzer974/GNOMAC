@@ -153,14 +153,11 @@ export class Launchpad {
 
         this._page = 0;
         this._offset = new Spring({stiffness: 260, damping: 30, value: 0});
-        // Bubble entrance: starts slightly smaller, grows with a soft overshoot.
-        this._zoom = new Spring({stiffness: 400, damping: 28, value: 0.85});
+        // Smooth entrance: fade in and grow slightly with a spring.
+        this._zoom = new Spring({stiffness: 300, damping: 30, value: 0.92});
         this._zoom.setTarget(1);
         this._root.opacity = 0;
-        this._root.set_scale(0.85, 0.85);
-        // Fade in + scale up driven by the ticker for perfect vblank sync.
-        this._fade = new Spring({stiffness: 500, damping: 30, value: 0});
-        this._fade.setTarget(1);
+        this._root.set_scale(0.92, 0.92);
         this._fill();
         getTicker().add(this._tick);
     }
@@ -292,15 +289,12 @@ export class Launchpad {
             return false;
         this._offset.step(dt);
         this._zoom.step(dt);
-        this._fade.step(dt);
         this._pages.set_position(Math.round(this._offset.value), 0);
-        // Bubble entrance: grid zooms in, glass forms, overlay fades in.
+        // Smooth entrance: zoom in and fade in.
         const z = this._zoom.value;
         this._viewport.set_scale(z, z);
-        this._root.opacity = Math.round(255 * this._fade.value);
-        const glassZ = 0.85 + 0.15 * this._fade.value;
-        this._glass.set_scale(glassZ, glassZ);
-        const active = !(this._offset.settled && this._zoom.settled && this._fade.settled);
+        this._root.opacity = Math.round(255 * z);
+        const active = !(this._offset.settled && this._zoom.settled);
         return active;
     }
 
@@ -319,21 +313,14 @@ export class Launchpad {
             root.destroy();
             return;
         }
-        // Bubble exit: zoom out and fade to the centre, like macOS.
-        this._zoom.setTarget(1.15);
-        this._fade.setTarget(0);
-        this._viewport.set_scale(1, 1);
-        this._onTick(0);
-        const exit = () => {
-            if (!root || root.is_finalized?.())
-                return;
-            const still = !(this._offset.settled && this._zoom.settled && this._fade.settled);
-            if (still) {
-                GLib.timeout_add(GLib.PRIORITY_DEFAULT, 16, exit);
-                return;
-            }
-            root.destroy();
-        };
-        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 16, exit);
+        // Smooth exit: fade out and shrink slightly.
+        root.ease({
+            opacity: 0,
+            scale_x: 0.9,
+            scale_y: 0.9,
+            duration: 200,
+            mode: Clutter.AnimationMode.EASE_IN_QUAD,
+            onStopped: () => root.destroy(),
+        });
     }
 }

@@ -655,50 +655,45 @@ export class BootShutdown {
         }
     }
 
-    // Everything dims, a glass bubble closes around the centre like macOS,
-    // the logo breathes once, a bar fills.
+    // Apple-style shutdown: screen fades to black, logo stays centred,
+    // progress bar fills elegantly. No gimmicks, just premium simplicity.
     _playShutdown(signal) {
         return new Promise(resolve => {
             const [en, fr] = MESSAGES[signal];
             const overlay = new Overlay(this._extension, {caption: t(en, fr)});
             this._shutdown = overlay;
             const ms = this._settings.get_int('shutdown-duration');
+
+            // Dark backdrop fades in first.
+            overlay.base.opacity = 0;
+            overlay.base.ease({opacity: 230, duration: 400, mode: Clutter.AnimationMode.EASE_OUT_QUAD});
+
+            // Logo fades in and stays centred — no breathing, no distractions.
             overlay.logo.stroke = 1;
             overlay.logo.fill = 1;
             overlay.repaintLogo();
+            overlay.logoArea.opacity = 0;
+            overlay.logoArea.ease({opacity: 255, duration: 500, mode: Clutter.AnimationMode.EASE_OUT_QUAD});
 
-            // Bubble entrance: fade in from the centre, then close back to centre.
-            overlay.actor.opacity = 0;
-            overlay.actor.set_scale(0.6, 0.6);
-            overlay.actor.set_pivot_point(0.5, 0.5);
-            overlay.actor.ease({
-                opacity: 255,
-                scale_x: 1,
-                scale_y: 1,
-                duration: 300,
-                mode: Clutter.AnimationMode.EASE_OUT_BACK,
-            });
+            // Caption above the bar.
+            overlay.caption.ease({opacity: 255, duration: 400, delay: 200});
 
-            overlay.caption.ease({opacity: 255, duration: 450, delay: 350});
-            overlay.track.ease({opacity: 255, duration: 350, delay: 350});
-
-            // A last breath: the logo shrinks slightly and a sheen passes.
-            overlay.logoArea.ease({scale_x: 0.94, scale_y: 0.94, duration: ms, delay: 300,
-                mode: Clutter.AnimationMode.EASE_IN_OUT_QUAD});
-
-            // Bubble closes back to centre before the session ends.
+            // Progress bar: fills smoothly, slows down near the end (ease-out).
+            overlay.track.ease({opacity: 255, duration: 400, delay: 200});
             this._tween(overlay.actor, ms, p => {
-                overlay.fill.set_width(Math.round(overlay.barWidth * (1 - (1 - p) ** 2)));
-                overlay.logo.sheen = p * 1.1 - 0.05;
+                // Ease-out: fast at start, slow at the very end for premium feel.
+                const eased = 1 - Math.pow(1 - p, 3);
+                overlay.fill.set_width(Math.round(overlay.barWidth * eased));
+                overlay.logo.sheen = Math.min(1, p * 1.2);
                 overlay.repaintLogo();
-                // Close the bubble to a point at the centre near the end.
-                if (p > 0.75) {
-                    const close = 1 - (p - 0.75) / 0.25;
-                    overlay.actor.set_scale(close, close);
-                }
             }, () => {
-                overlay.actor.set_scale(0.01, 0.01);
-                resolve();
+                // Hold at full for a moment, then fade everything to black.
+                overlay.actor.ease({
+                    opacity: 0,
+                    duration: 500,
+                    mode: Clutter.AnimationMode.EASE_IN_OUT_QUAD,
+                    onStopped: () => resolve(),
+                });
             });
         });
     }

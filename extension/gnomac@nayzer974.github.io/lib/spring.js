@@ -53,23 +53,27 @@ export class Spring {
     }
 }
 
-// One timeline for the whole extension. Callbacks receive dt in seconds and
-// return true to keep ticking.
-// Driven by the stage's after-paint signal so animations are perfectly
-// synchronized with the display refresh (vblank): no stutter, no frame drops.
+// One timeline for the whole extension. Callbacks receive a fixed dt (1/60s)
+// so spring physics is deterministic and stutter-free, whatever the display
+// refresh rate. Driven by Clutter.Timeline which fires on the compositor's
+// frame clock.
 class Ticker {
     constructor() {
         this._callbacks = new Set();
-        this._stageId = 0;
-        this._last = 0;
+        this._timeline = null;
     }
 
     add(callback) {
         this._callbacks.add(callback);
-        if (this._stageId)
+        if (this._timeline)
             return;
-        this._last = GLib.get_monotonic_time();
-        this._stageId = global.stage.connect('after-paint', () => this._onFrame());
+        this._timeline = new Clutter.Timeline({
+            actor: global.stage,
+            duration: 16,   // ~60 Hz
+            repeat_count: -1,
+        });
+        this._timeline.connect('new-frame', () => this._onFrame());
+        this._timeline.start();
     }
 
     remove(callback) {
@@ -79,10 +83,7 @@ class Ticker {
     }
 
     _onFrame() {
-        const now = GLib.get_monotonic_time();
-        // Clamp so a stalled frame never makes a spring explode.
-        const dt = Math.min((now - this._last) / 1e6, 1 / 20);
-        this._last = now;
+        const dt = 1 / 60; // fixed timestep: deterministic spring motion
         for (const callback of [...this._callbacks]) {
             let keep = false;
             try {
@@ -98,10 +99,10 @@ class Ticker {
     }
 
     _stop() {
-        if (!this._stageId)
+        if (!this._timeline)
             return;
-        global.stage.disconnect(this._stageId);
-        this._stageId = 0;
+        this._timeline.stop();
+        this._timeline = null;
     }
 
     destroy() {
