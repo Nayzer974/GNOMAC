@@ -93,6 +93,7 @@ export class Launchpad {
             y: monitor.y,
             width: monitor.width,
             height: monitor.height,
+            opacity: 0,   // start fully hidden so there is no flash of the desktop
         });
 
         this._glass = new GlassSurface({
@@ -156,7 +157,6 @@ export class Launchpad {
         // Smooth entrance: fade in and grow slightly with a spring.
         this._zoom = new Spring({stiffness: 300, damping: 30, value: 0.92});
         this._zoom.setTarget(1);
-        this._root.opacity = 0;
         this._root.set_scale(0.92, 0.92);
         this._fill();
         getTicker().add(this._tick);
@@ -290,10 +290,10 @@ export class Launchpad {
         this._offset.step(dt);
         this._zoom.step(dt);
         this._pages.set_position(Math.round(this._offset.value), 0);
-        // Smooth entrance: zoom in and fade in.
+        // Smooth entrance: fade in (from 0) and grow (from 0.92 to 1).
         const z = this._zoom.value;
         this._viewport.set_scale(z, z);
-        this._root.opacity = Math.round(255 * z);
+        this._root.opacity = Math.round(255 * (z - 0.92) / 0.08);
         const active = !(this._offset.settled && this._zoom.settled);
         return active;
     }
@@ -313,12 +313,12 @@ export class Launchpad {
             root.destroy();
             return;
         }
-        // Smooth exit: fade out and shrink slightly.
+        // Smooth exit: exact reverse of the entrance — fade out and shrink back.
         root.ease({
             opacity: 0,
-            scale_x: 0.9,
-            scale_y: 0.9,
-            duration: 200,
+            scale_x: 0.92,
+            scale_y: 0.92,
+            duration: 240,
             mode: Clutter.AnimationMode.EASE_IN_QUAD,
             onStopped: () => root.destroy(),
         });
