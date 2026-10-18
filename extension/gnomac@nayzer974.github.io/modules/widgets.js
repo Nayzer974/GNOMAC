@@ -470,7 +470,9 @@ export class Widgets {
         for (const w of this._layout) {
             if (w.id === exceptId)
                 continue;
-            const [cols, rows] = SIZE_SPANS[w.size];
+            // Custom-sized tiles (free resize) occupy a 2x2 grid cell by default.
+            const span = w.size ? SIZE_SPANS[w.size] : [2, 2];
+            const [cols, rows] = span;
             for (let c = 0; c < cols; c++)
                 for (let r = 0; r < rows; r++)
                     taken.add(`${w.col + c},${w.row + r}`);
@@ -480,7 +482,7 @@ export class Widgets {
 
     _bounds() {
         const monitor = Main.layoutManager.primaryMonitor;
-        const k = this.scale;
+        const k = Math.max(this.scale, 0.1);
         const margin = this.settings.get_int('widgets-margin');
         return {
             cols: Math.floor((monitor.width / k - 2 * margin) / UNIT),
@@ -489,7 +491,9 @@ export class Widgets {
     }
 
     _fits(instance, col, row, taken = this._occupied(instance.id)) {
-        const [cols, rows] = SIZE_SPANS[instance.size];
+        // Custom-sized tiles (free resize) occupy a 2x2 grid cell by default.
+        const span = instance.size ? SIZE_SPANS[instance.size] : [2, 2];
+        const [cols, rows] = span;
         const bounds = this._bounds();
         if (col < 0 || row < 0 || col + cols > bounds.cols || row + rows > bounds.rows)
             return false;
