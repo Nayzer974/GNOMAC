@@ -83,6 +83,57 @@ mkdir -p "$EXT_DST"
 cp -r "$EXT_SRC/." "$EXT_DST/"
 glib-compile-schemas "$EXT_DST/schemas"
 
+# Automatically add any schema keys that the user's saved config does not yet
+# have (e.g. after several pushes of updates). Existing custom values are
+# never overwritten: only missing keys receive the schema default.
+migrate_settings() {
+  local schema="$EXT_DST/schemas/org.gnome.shell.extensions.gnomac.gschema.xml"
+  [[ -f "$schema" ]] || return 0
+  python3 - "$schema" <<'PY'
+import xml.etree.ElementTree as ET, subprocess, sys
+schema_file = sys.argv[1]
+tree = ET.parse(schema_file)
+root = tree.getroot()
+schema_el = root.find('schema')
+if schema_el is None:
+    sys.exit(0)
+schema_id = schema_el.get('id')
+for key in schema_el.findall('key'):
+    name = key.get('name')
+    default_el = key.find('default')
+    if default_el is None or not default_el.text:
+        continue
+    raw_default = default_el.text.strip()
+    key_type = key.get('type', 's')
+    # Check whether the key already exists in the user's dconf.
+    check = subprocess.run(
+        ['gsettings', 'read', schema_id, name],
+        capture_output=True, text=True)
+    if check.returncode == 0:
+        continue  # key already set by the user: keep it
+    # Convert the XML default to a gsettings-friendly value.
+    if key_type == 'b':
+        val = raw_default  # true / false
+    elif key_type == 's':
+        # XML stores strings as 'value': strip the surrounding quotes.
+        val = raw_default
+        if val.startswith("'") and val.endswith("'"):
+            val = val[1:-1]
+        val = f"'{val}'"
+    elif key_type in ('i', 'd', 'u', 'x', 't'):
+        val = raw_default
+    elif key_type == 'as':
+        val = raw_default  # e.g. ['home', 'stats']
+    else:
+        val = raw_default
+    subprocess.run(
+        ['gsettings', 'set', schema_id, name, val],
+        capture_output=True)
+PY
+}
+
+migrate_settings
+
 enable_extension() {
   local uuid="$1"
   # A freshly copied extension is unknown to a running Wayland session, so
