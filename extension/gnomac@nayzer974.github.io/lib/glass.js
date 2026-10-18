@@ -781,12 +781,13 @@ class GlassSurface extends St.Widget {
 
     // The glass blooms where the pointer is, fading in and out. `owner` is
     // the reactive actor that receives the motion; coordinates are local to
-    // this surface. Motion events are throttled to ~20Hz to avoid shader
-    // repaints on every mouse move (60–120Hz).
+    // this surface. Motion events are throttled to ~60Hz (16ms) to avoid
+    // shader repaints on every raw mouse move (60–120Hz) while keeping the
+    // bloom smooth under the pointer.
     followPointer(owner, strength = 1) {
         const move = (_a, event) => {
             const now = GLib.get_monotonic_time();
-            if (now - (this._lastPointerMove ?? 0) < 50000)
+            if (now - (this._lastPointerMove ?? 0) < 16000)
                 return;
             this._lastPointerMove = now;
             const [x, y] = event.get_coords();
