@@ -273,6 +273,7 @@ export class Widgets {
         this._tiles = [];
         this._layout = [];
         this.editing = false;
+        this._isRemoving = false;
     }
 
     enable() {
@@ -627,17 +628,51 @@ export class Widgets {
         this._rebuild();
     }
 
+    _isRemoving = false;
+
     remove(id) {
+        if (this._isRemoving)
+            return;
         const tile = this._tiles.find(t_ => t_.instance.id === id);
         this._layout = this._layout.filter(w => w.id !== id);
         this.save();
         if (tile) {
+            this._isRemoving = true;
             // Animate out, then destroy the tile and rebuild the layout.
             tile.actor.ease({opacity: 0, scale_x: 0.8, scale_y: 0.8, duration: 200,
                 mode: Clutter.AnimationMode.EASE_IN_QUAD,
                 onStopped: () => {
                     tile.destroy();
+                    this._isRemoving = false;
                     this._rebuild();
+                }});
+        }
+    }
+
+    // Remove every widget from the desktop (clean slate).
+    removeAll() {
+        if (this._isRemoving)
+            return;
+        const tiles = [...this._tiles];
+        if (tiles.length === 0) {
+            this._layout = [];
+            this.save();
+            return;
+        }
+        this._isRemoving = true;
+        let remaining = tiles.length;
+        for (const tile of tiles) {
+            tile.actor.ease({opacity: 0, scale_x: 0.8, scale_y: 0.8, duration: 200,
+                mode: Clutter.AnimationMode.EASE_IN_QUAD,
+                onStopped: () => {
+                    tile.destroy();
+                    remaining--;
+                    if (remaining === 0) {
+                        this._layout = [];
+                        this.save();
+                        this._isRemoving = false;
+                        this._rebuild();
+                    }
                 }});
         }
     }
