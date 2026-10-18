@@ -628,9 +628,38 @@ export class Widgets {
         this._layout = this._layout.filter(w => w.id !== id);
         this.save();
         if (tile) {
+            // Animate out, then destroy the tile and rebuild the layout.
             tile.actor.ease({opacity: 0, scale_x: 0.8, scale_y: 0.8, duration: 200,
                 mode: Clutter.AnimationMode.EASE_IN_QUAD,
-                onStopped: () => this._rebuild()});
+                onStopped: () => {
+                    tile.destroy();
+                    this._rebuild();
+                }});
+        }
+    }
+
+    // Remove every widget from the desktop (clean slate).
+    removeAll() {
+        // Animate all tiles out, then destroy and rebuild empty.
+        const tiles = [...this._tiles];
+        if (tiles.length === 0) {
+            this._layout = [];
+            this.save();
+            return;
+        }
+        let remaining = tiles.length;
+        for (const tile of tiles) {
+            tile.actor.ease({opacity: 0, scale_x: 0.8, scale_y: 0.8, duration: 200,
+                mode: Clutter.AnimationMode.EASE_IN_QUAD,
+                onStopped: () => {
+                    tile.destroy();
+                    remaining--;
+                    if (remaining === 0) {
+                        this._layout = [];
+                        this.save();
+                        this._rebuild();
+                    }
+                }});
         }
     }
 
@@ -738,6 +767,9 @@ export class Widgets {
         const remove = new PopupMenu.PopupMenuItem(t('Remove Widget', 'Retirer le widget'));
         remove.connect('activate', () => this.remove(instance.id));
         menu.addMenuItem(remove);
+        const removeAll = new PopupMenu.PopupMenuItem(t('Remove All Widgets', 'Supprimer tous les widgets'));
+        removeAll.connect('activate', () => this.removeAll());
+        menu.addMenuItem(removeAll);
         menu.open(true);
         this._menu = menu;
     }
@@ -883,8 +915,12 @@ export class Widgets {
         const reset = press(new St.Button({style_class: 'gnomac-notch-pill-button', x_expand: true,
             label: t('Reset', 'Réinitialiser'), can_focus: false}));
         reset.connect('clicked', () => this.resetLayout());
+        const clearAll = press(new St.Button({style_class: 'gnomac-notch-pill-button', x_expand: true,
+            label: t('Remove All', 'Supprimer tous'), css_classes: ['destructive-action']}));
+        clearAll.connect('clicked', () => this.removeAll());
         tools.add_child(tidy);
         tools.add_child(reset);
+        tools.add_child(clearAll);
         box.add_child(tools);
 
         const scroll = new St.ScrollView({x_expand: true, y_expand: true});

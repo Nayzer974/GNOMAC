@@ -25,6 +25,8 @@ class MenuGlass {
         this._tick = dt => this._onTick(dt);
 
         menu.box.add_style_class_name('gnomac-glass-menu');
+        menu.box.set_clip_to_allocation(true);
+        menu.actor.set_clip_to_allocation(true);
         const radius = menu.box.get_theme_node?.()
             ? menu.box.get_theme_node().get_border_radius(St.Corner.TOPLEFT)
             : 20;
