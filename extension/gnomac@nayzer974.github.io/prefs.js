@@ -4,7 +4,7 @@ import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import Gtk from 'gi://Gtk';
 
-import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
+import {ExtensionPreferences} from 'resource:///org/gnome/shell/extensions/js/extensions/prefs.js';
 
 import {addPrayerPreferences} from './lib/prayerPrefs.js';
 
@@ -322,7 +322,11 @@ export default class GnomacPreferences extends ExtensionPreferences {
         const avatar = new Adw.Avatar({size: 56, text: GLib.get_real_name() || GLib.get_user_name(), show_initials: true});
         const photoRow = new Adw.ActionRow({title: 'Photo de profil', subtitle: 'Choisis une image, de préférence carrée'});
         photoRow.add_prefix(avatar);
-        const toast = text => window.add_toast(new Adw.Toast({title: text, timeout: 4}));
+        const toast = text => {
+            try {
+                window.add_toast(new Adw.Toast({title: text, timeout: 4}));
+            } catch {}
+        };
         const showIcon = file => {
             try {
                 if (file && GLib.file_test(file, GLib.FileTest.EXISTS)) {

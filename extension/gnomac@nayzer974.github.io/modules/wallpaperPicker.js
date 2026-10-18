@@ -153,6 +153,7 @@ export class WallpaperPicker {
     close(animate = true) {
         if (!this._root)
             return;
+        this._tickerRegistered?.delete(this._tick);
         getTicker().remove(this._tick);
         if (this._grab) {
             Main.popModal(this._grab);
@@ -183,8 +184,11 @@ export class WallpaperPicker {
         this._offset.setTarget(this._index);
         // Only add the ticker once: repeated calls would register it multiple
         // times and cause redundant layout passes per frame.
-        if (!getTicker().includes(this._tick))
+        this._tickerRegistered ??= new Set();
+        if (!this._tickerRegistered.has(this._tick)) {
+            this._tickerRegistered.add(this._tick);
             getTicker().add(this._tick);
+        }
     }
 
     _onKey(event) {

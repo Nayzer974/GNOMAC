@@ -42,7 +42,10 @@ KEYS = [
 
 
 def dconf(*args):
-    return subprocess.run(["dconf", *args], capture_output=True, text=True)
+    result = subprocess.run(["dconf", *args], capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(f"dconf {' '.join(args)} failed: {result.stderr.strip()}")
+    return result
 
 
 def read(path):

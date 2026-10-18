@@ -242,8 +242,11 @@ export class AppMenus {
     }
 
     _clear() {
-        for (const button of this._buttons)
+        for (const button of this._buttons) {
+            const name = `gnomac-menu-${this._buttons.indexOf(button)}`;
+            Main.panel.removeFromStatusArea?.(name);
             button.destroy();
+        }
         this._buttons = [];
     }
 

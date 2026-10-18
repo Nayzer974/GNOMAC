@@ -161,6 +161,14 @@ export class Updater {
         this._session = null;
         this._source?.destroy();
         this._source = null;
+        // Cancel any in-flight update install so its callback cannot fire
+        // after disable() (use-after-logical-free).
+        if (this._installProc) {
+            try {
+                this._installProc.exit();
+            } catch {}
+            this._installProc = null;
+        }
     }
 
     _schedule(seconds) {
@@ -345,8 +353,9 @@ export class Updater {
             const argv = GLib.file_test(script, GLib.FileTest.EXISTS)
                 ? ['bash', script]
                 : ['bash', '-c', 'curl -fsSL https://raw.githubusercontent.com/Nayzer974/GNOMAC/main/scripts/update.sh | bash'];
-            const proc = Gio.Subprocess.new(argv, Gio.SubprocessFlags.NONE);
-            proc.wait_check_async(null, (p, res) => {
+            this._installProc = Gio.Subprocess.new(argv, Gio.SubprocessFlags.NONE);
+            this._installProc.wait_check_async(null, (p, res) => {
+                this._installProc = null;
                 try {
                     p.wait_check_finish(res);
                     this._settings.set_string('update-dismissed', '');

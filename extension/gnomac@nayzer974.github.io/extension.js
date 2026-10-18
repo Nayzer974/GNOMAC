@@ -51,7 +51,7 @@ const MODULES = [
     // First, so the boot cover is up before the other modules build the UI.
     {key: 'enable-theme-custom', Module: ThemeCustom, keepAlive: true},
     {key: 'enable-updater', Module: Updater},
-    {key: 'enable-glass-menus', Module: GlassDebug, keepAlive: true},
+    {key: 'glass-debug', Module: GlassDebug, keepAlive: true},
     {key: 'enable-boot-shutdown', Module: BootShutdown},
     {key: 'enable-lock-screen', Module: LockScreen, locked: true},
     // GDM's own shell (login screen): the only module that runs there.
@@ -83,6 +83,7 @@ export default class GnomacExtension extends Extension {
         this._settings = this.getSettings();
         this._modules = [];
         this._removeMenuGuard = installMenuGuard();
+        this._reloadWhenUnlocked = false;
         this._chrome = new Map();
         this._sunk = null;
         // GNOME opens the overview while it starts the session; macOS lands

@@ -170,7 +170,7 @@ export class Launchpad {
                 .map(id => appSystem.lookup_app(id))
                 .filter(app => app && app.app_info?.should_show());
         }
-        return appSystem.get_installed()
+        return [...appSystem.get_installed()]
             .filter(info => info.should_show())
             .map(info => appSystem.lookup_app(info.get_id()))
             .filter(Boolean)

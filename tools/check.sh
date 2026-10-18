@@ -6,7 +6,7 @@
 # JavaScript syntax, shell syntax (and shellcheck when installed), Python
 # syntax, the GSettings schema, the JSON files, and the names used from
 # GNOME's libraries (tools/check-compat.py). Exit status 1 if any check fails.
-set -u
+set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 EXT="$ROOT/extension/gnomac@nayzer974.github.io"

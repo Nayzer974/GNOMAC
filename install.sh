@@ -164,7 +164,7 @@ fi
 # The automatic updater compares this commit with the latest one on GitHub.
 SHA="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || cat "$ROOT/.gnomac-sha" 2>/dev/null || echo unknown)"
 mkdir -p "$CONFIG/gnomac"
-printf '{"sha": "%s", "source": "%s", "installed": "%s"}\n' "$SHA" "$ROOT" "$(date -u +%FT%TZ)" > "$CONFIG/gnomac/installed.json"
+python3 -c 'import json,datetime,sys; print(json.dumps({"sha": sys.argv[1], "source": sys.argv[2], "installed": datetime.datetime.utcnow().isoformat() + "Z"}))' "$SHA" "$ROOT" > "$CONFIG/gnomac/installed.json"
 
 # ---------------------------------------------------------------- extras
 if (( WITH_EXTRAS )); then
@@ -186,8 +186,10 @@ if (( WITH_ICONS )); then
   command -v git >/dev/null || die "--icons needs git."
   info "Installing the MacTahoe icon theme"
   icons_tmp="$(mktemp -d)"
+  trap 'rm -rf "$icons_tmp"' EXIT
   git clone --depth 1 https://github.com/vinceliuice/MacTahoe-icon-theme.git "$icons_tmp/MacTahoe-icon-theme"
   (cd "$icons_tmp/MacTahoe-icon-theme" && ./install.sh)
+  trap - EXIT
   rm -rf "$icons_tmp"
   gsettings set org.gnome.desktop.interface icon-theme 'MacTahoe-dark'
 fi
@@ -196,9 +198,11 @@ if (( WITH_CURSORS )); then
   command -v git >/dev/null || die "--cursors needs git."
   info "Installing macOS-style cursors (WhiteSur)"
   cursors_tmp="$(mktemp -d)"
+  trap 'rm -rf "$cursors_tmp"' EXIT
   git clone --depth 1 https://github.com/vinceliuice/WhiteSur-cursors.git "$cursors_tmp/WhiteSur-cursors"
   mkdir -p "${XDG_DATA_HOME:-$HOME/.local/share}/icons/WhiteSur-cursors"
   cp -r "$cursors_tmp/WhiteSur-cursors/dist/." "${XDG_DATA_HOME:-$HOME/.local/share}/icons/WhiteSur-cursors/"
+  trap - EXIT
   rm -rf "$cursors_tmp"
   gsettings set org.gnome.desktop.interface cursor-theme 'WhiteSur-cursors'
 fi

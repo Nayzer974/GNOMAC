@@ -371,6 +371,7 @@ export class DynamicIsland {
         this._phase = 0;
         this._position = 0;
         this._length = 0;
+        this._shownOpacity = 255;
         this._tick = dt => this._onTick(dt);
         this._signals = [];
         // How present each content group is (0..1). Content is never switched
@@ -781,8 +782,6 @@ export class DynamicIsland {
         stopClipboard();
         if (this._osdSaved) {
             Object.assign(Main.osdWindowManager, this._osdSaved);
-            delete Main.osdWindowManager.show;
-            delete Main.osdWindowManager.showAll;
             this._osdSaved = null;
         }
         getTicker().remove(this._tick);
@@ -981,7 +980,7 @@ export class DynamicIsland {
         // The icon answers at once; the player's own signal confirms it.
         const playing = player.status === 'Playing';
         this.island.playButton.child.icon_name = playing ? 'media-playback-start-symbolic' : 'media-playback-pause-symbolic';
-        player.playPause().then(() => this._pollSoon());
+        player.playPause().then(() => this._pollSoon()).catch(() => {});
     }
 
     // Previous / next track; when the player has none (a browser tab, a
@@ -994,7 +993,7 @@ export class DynamicIsland {
         if (!control.enabled)
             return;
         if (control.kind === 'skip')
-            (direction > 0 ? player.next() : player.previous()).then(() => this._pollSoon());
+            (direction > 0 ? player.next() : player.previous()).then(() => this._pollSoon()).catch(() => {});
         else
             this._seekBy(direction * 10 * 1e6);
     }
@@ -1007,7 +1006,7 @@ export class DynamicIsland {
         this._position = Math.max(0, this._livePosition() + offsetUs);
         this._positionAt = GLib.get_monotonic_time();
         this._syncProgress();
-        player.seekBy(offsetUs).then(() => this._pollSoon());
+        player.seekBy(offsetUs).then(() => this._pollSoon()).catch(() => {});
     }
 
     _seekTo(fraction) {
@@ -1019,7 +1018,7 @@ export class DynamicIsland {
         this._position = target;
         this._positionAt = GLib.get_monotonic_time();
         this._syncProgress();
-        player.setPosition(target).then(() => this._pollSoon());
+        player.setPosition(target).then(() => this._pollSoon()).catch(() => {});
     }
 
     // Click or drag on the progress bar.
@@ -1366,7 +1365,7 @@ export class DynamicIsland {
                         return;
                     this._coverPath = path;
                     this._paintCover(player);
-                });
+                }).catch(() => {});
             }
             this._paintCover(player);
         } else if (this._paintedPlayer !== player) {

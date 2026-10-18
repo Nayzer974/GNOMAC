@@ -246,6 +246,7 @@ export class Dock {
         this._items = [];
         this._separators = [];
         this._pointerX = null;
+        this._lastPointerX = null;
         this._expanded = false;
         this._hoveredItem = null;
         this._ticking = false;
@@ -864,23 +865,27 @@ export class Dock {
     _onTick(dt) {
         if (!this.actor)
             return false;
-        this._hover.step(dt);
-        let bouncing = false;
-        for (const item of this._items)
-            bouncing = this._updateBounce(item) || bouncing;
+        try {
+            this._hover.step(dt);
+            let bouncing = false;
+            for (const item of this._items)
+                bouncing = this._updateBounce(item) || bouncing;
 
-        // Collapse the transparent headroom once the dock is at rest, or it
-        // would keep swallowing clicks meant for the windows above it.
-        if (!this.actor.hover && this._hover.target === 0 && this._hover.settled) {
-            this._hover.snap(0);
-            this._expanded = false;
+            // Collapse the transparent headroom once the dock is at rest, or it
+            // would keep swallowing clicks meant for the windows above it.
+            if (!this.actor.hover && this._hover.target === 0 && this._hover.settled) {
+                this._hover.snap(0);
+                this._expanded = false;
+            }
+
+            // Only relayout if something actually changed: pointer moved, hover
+            // spring not settled, or bouncing. Avoids full layout pass when idle.
+            const pointerMoved = this._pointerX !== this._lastPointerX;
+            if (pointerMoved || bouncing || !this._hover.settled)
+                this._relayout();
+        } catch (e) {
+            logError(e, 'GNOMAC dock ticker');
         }
-
-        // Only relayout if something actually changed: pointer moved, hover
-        // spring not settled, or bouncing. Avoids full layout pass when idle.
-        const pointerMoved = this._pointerX !== this._lastPointerX;
-        if (pointerMoved || bouncing || !this._hover.settled)
-            this._relayout();
 
         const active = bouncing || !this._hover.settled;
         if (!active) {

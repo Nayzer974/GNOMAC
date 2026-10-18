@@ -294,6 +294,8 @@ export class DesktopIcons {
         this._settings = extension.getSettings();
         this._tiles = new Map();
         this._ghost = null;
+        this._band = null;
+        this._pendingRename = null;
         this.lastClick = {tile: null, time: 0, x: 0, y: 0};
     }
 
@@ -626,6 +628,7 @@ export class DesktopIcons {
                 return Clutter.EVENT_STOP;
             if (!band) {
                 band = new St.Widget({style_class: 'gnomac-desk-band', reactive: false});
+                this._band = band;
                 this._layer.add_child(band);
             }
             const left = Math.min(x0, x);
