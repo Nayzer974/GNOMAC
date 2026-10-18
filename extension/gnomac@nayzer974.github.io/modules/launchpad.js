@@ -153,11 +153,14 @@ export class Launchpad {
 
         this._page = 0;
         this._offset = new Spring({stiffness: 260, damping: 30, value: 0});
-        this._zoom = new Spring({stiffness: 320, damping: 26, value: 1.12});
+        // Bubble entrance: starts slightly smaller, grows with a soft overshoot.
+        this._zoom = new Spring({stiffness: 400, damping: 28, value: 0.85});
         this._zoom.setTarget(1);
         this._root.opacity = 0;
-        this._root.ease({opacity: 255, duration: 180, mode: Clutter.AnimationMode.EASE_OUT_QUAD});
-
+        this._root.set_scale(0.85, 0.85);
+        // Fade in + scale up driven by the ticker for perfect vblank sync.
+        this._fade = new Spring({stiffness: 500, damping: 30, value: 0});
+        this._fade.setTarget(1);
         this._fill();
         getTicker().add(this._tick);
     }
@@ -289,11 +292,16 @@ export class Launchpad {
             return false;
         this._offset.step(dt);
         this._zoom.step(dt);
+        this._fade.step(dt);
         this._pages.set_position(Math.round(this._offset.value), 0);
-        // The grid zooms in from slightly larger, as macOS does.
+        // Bubble entrance: grid zooms in, glass forms, overlay fades in.
         const z = this._zoom.value;
         this._viewport.set_scale(z, z);
-        return !(this._offset.settled && this._zoom.settled);
+        this._root.opacity = Math.round(255 * this._fade.value);
+        const glassZ = 0.85 + 0.15 * this._fade.value;
+        this._glass.set_scale(glassZ, glassZ);
+        const active = !(this._offset.settled && this._zoom.settled && this._fade.settled);
+        return active;
     }
 
     close(animate = true) {
@@ -311,17 +319,21 @@ export class Launchpad {
             root.destroy();
             return;
         }
-        this._viewport.ease({
-            scale_x: 1.08,
-            scale_y: 1.08,
-            duration: 160,
-            mode: Clutter.AnimationMode.EASE_IN_QUAD,
-        });
-        root.ease({
-            opacity: 0,
-            duration: 160,
-            mode: Clutter.AnimationMode.EASE_IN_QUAD,
-            onStopped: () => root.destroy(),
-        });
+        // Bubble exit: zoom out and fade to the centre, like macOS.
+        this._zoom.setTarget(1.15);
+        this._fade.setTarget(0);
+        this._viewport.set_scale(1, 1);
+        this._onTick(0);
+        const exit = () => {
+            if (!root || root.is_finalized?.())
+                return;
+            const still = !(this._offset.settled && this._zoom.settled && this._fade.settled);
+            if (still) {
+                GLib.timeout_add(GLib.PRIORITY_DEFAULT, 16, exit);
+                return;
+            }
+            root.destroy();
+        };
+        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 16, exit);
     }
 }
