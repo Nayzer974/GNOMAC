@@ -38,7 +38,7 @@ import {EndSessionDialog} from 'resource:///org/gnome/shell/ui/endSessionDialog.
 import {GlassSurface, glassParamsFromSettings} from '../lib/glass.js';
 import {easeInOut, easeOut, greetingOrder, paintLogo, paintWord} from '../lib/bootArt.js';
 import {LensSurface} from '../lib/lensEffect.js';
-import {hideDesktop, removeRevealBlur, revealDesktop, settleDesktop, unblurWallpaper} from '../lib/reveal.js';
+import {hideDesktop, hideElements, prewarmDesktop, removeRevealBlur, revealDesktop, settleDesktop, unblurWallpaper} from '../lib/reveal.js';
 import {t} from '../lib/i18n.js';
 
 // How long the cover takes to dissolve.
@@ -277,6 +277,8 @@ export class BootShutdown {
     }
 
     _stopAll() {
+        this._cancelWarm?.();
+        this._cancelWarm = null;
         for (const timeline of [...this._timelines])
             timeline.stop();
         this._timelines.clear();
@@ -289,6 +291,27 @@ export class BootShutdown {
 
     // opts: {logo, hello, classic}. Waits for GNOME to finish starting unless
     // a test passes `immediate`.
+    // Draws the hidden desktop once under the cover, then calls `callback`.
+    _warm(overlay, callback) {
+        if (this._boot !== overlay || this._skipped || !this._chromeHidden) {
+            callback();
+            return;
+        }
+        try {
+            hideDesktop(this._extension);
+        } catch (e) {
+            logError(e, 'GNOMAC boot: desktop not prepared');
+            callback();
+            return;
+        }
+        this._cancelWarm = prewarmDesktop(this._extension, () => {
+            this._cancelWarm = null;
+            if (this._boot === overlay && !this._skipped)
+                hideElements(this._extension);
+            callback();
+        });
+    }
+
     _playBoot(opts = {}) {
         const {logo = true, hello = true, classic = false, immediate = false, mist = false, lens = false} = opts;
         this._stopAll();
@@ -345,14 +368,21 @@ export class BootShutdown {
             }
         };
 
+        // Under the black cover the desktop is drawn once, invisibly, before any
+        // animation starts: the first frame of the glass, the blur and the lens
+        // compiles shaders and builds textures (several hundred milliseconds),
+        // and a time-based animation that starts with such a frame is over
+        // when it ends (that was the jerky start of the lens).
+        const warmThen = callback => whenReady(() => this._warm(overlay, callback));
+
         if (mist || lens) {
             // Black until GNOME is ready, then the haze lifts (or the lens opens).
-            whenReady(next);
+            warmThen(next);
             return;
         }
 
         if (!logo) {
-            whenReady(next);
+            warmThen(next);
             return;
         }
 
@@ -396,7 +426,7 @@ export class BootShutdown {
             overlay.fill.set_width(0);
             this._tween(overlay.actor, duration, p => {
                 overlay.fill.set_width(Math.round(overlay.barWidth * (1 - (1 - p) ** 2)));
-            }, () => whenReady(next));
+            }, () => warmThen(next));
         });
     }
 

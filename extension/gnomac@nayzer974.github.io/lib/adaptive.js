@@ -24,6 +24,8 @@ class Adaptive {
         this._timeout = 0;
         this._thumb = null;
         this._cache = new Map();
+        this._generation = 0;
+        this._cancellable = null;
     }
 
     start() {
@@ -35,10 +37,20 @@ class Adaptive {
                 this._ids.push(this._settings.connect(`changed::${key}`, () => this._queue()));
             } catch {}
         }
-        this._measure();
+        // The wallpaper is not decoded at every login: the last reading is
+        // reused while it is still the same file (decoding it blocked the shell
+        // for half a second or more, right as the start-up animation began).
+        // Only a wallpaper not seen before is decoded here, once: the glass
+        // is about to be built from the reading, so it has to be there. A
+        // wallpaper changed later in the session is read off the main loop.
+        if (!this._useCache())
+            this._measureNow();
     }
 
     stop() {
+        this._generation++;
+        this._cancellable?.cancel();
+        this._cancellable = null;
         if (this._timeout) {
             GLib.source_remove(this._timeout);
             this._timeout = 0;
@@ -59,40 +71,124 @@ class Adaptive {
         });
     }
 
-    // Mean luminance and saturation of the wallpaper, from a 32x32 thumbnail.
-    _measure() {
+    // The wallpaper file in use and a stamp that changes when it does.
+    _wallpaper() {
+        const dark = new Gio.Settings({schema_id: 'org.gnome.desktop.interface'}).get_string('color-scheme') === 'prefer-dark';
+        const uri = this._settings.get_string(dark ? 'picture-uri-dark' : 'picture-uri') || this._settings.get_string('picture-uri');
+        if (!uri)
+            return null;
+        const file = Gio.File.new_for_uri(uri);
+        const path = file.get_path();
+        if (!path || path.endsWith('.xml') || !GLib.file_test(path, GLib.FileTest.EXISTS))
+            return null;
+        const modified = file.query_info('time::modified', Gio.FileQueryInfoFlags.NONE, null).get_attribute_uint64('time::modified');
+        return {file, path, key: `${path}|${modified}`};
+    }
+
+    _cacheFile() {
+        return GLib.build_filenamev([GLib.get_user_cache_dir(), 'gnomac', 'adaptive.json']);
+    }
+
+    // The previous reading of this same wallpaper, if any.
+    _useCache() {
         try {
-            const dark = new Gio.Settings({schema_id: 'org.gnome.desktop.interface'}).get_string('color-scheme') === 'prefer-dark';
-            let uri = this._settings.get_string(dark ? 'picture-uri-dark' : 'picture-uri') || this._settings.get_string('picture-uri');
-            if (!uri)
+            const wallpaper = this._wallpaper();
+            if (!wallpaper)
+                return true;   // nothing to read: the defaults stand
+            const [ok, bytes] = GLib.file_get_contents(this._cacheFile());
+            if (!ok)
+                return false;
+            const saved = JSON.parse(new TextDecoder().decode(bytes));
+            if (saved.key !== wallpaper.key || !saved.thumb)
+                return false;
+            this._apply(Uint8Array.from(GLib.base64_decode(saved.thumb)), saved.channels, saved.stride);
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    _saveCache(key, bytes, channels, stride) {
+        try {
+            GLib.mkdir_with_parents(GLib.path_get_dirname(this._cacheFile()), 0o755);
+            GLib.file_set_contents(this._cacheFile(), JSON.stringify(
+                {key, channels, stride, thumb: GLib.base64_encode(bytes)}));
+        } catch {}
+    }
+
+    // Mean luminance and saturation from the 32x32 thumbnail's pixels.
+    _apply(bytes, channels, stride) {
+        this._thumb = {bytes, channels, stride};
+        this._cache.clear();
+        let luma = 0;
+        let sat = 0;
+        let n = 0;
+        for (let i = 0; i + 2 < bytes.length; i += channels) {
+            const r = bytes[i] / 255;
+            const g = bytes[i + 1] / 255;
+            const b = bytes[i + 2] / 255;
+            luma += 0.2126 * r + 0.7152 * g + 0.0722 * b;
+            sat += Math.max(r, g, b) - Math.min(r, g, b);
+            n++;
+        }
+        if (n) {
+            this.luminance = luma / n;
+            this.saturation = sat / n;
+        }
+    }
+
+    // Reads the wallpaper at once (login, new wallpaper): the cache is written.
+    _measureNow() {
+        try {
+            const wallpaper = this._wallpaper();
+            if (!wallpaper)
                 return;
-            const file = Gio.File.new_for_uri(uri);
-            const path = file.get_path();
-            if (!path || !GLib.file_test(path, GLib.FileTest.EXISTS) || path.endsWith('.xml'))
-                return;
-            const pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(path, 32, 32, false);
-            this._thumb = {bytes: pixbuf.get_pixels(), channels: pixbuf.get_n_channels(), stride: pixbuf.get_rowstride()};
-            this._cache.clear();
-            const bytes = pixbuf.get_pixels();
-            const channels = pixbuf.get_n_channels();
-            let luma = 0;
-            let sat = 0;
-            let n = 0;
-            for (let i = 0; i + 2 < bytes.length; i += channels) {
-                const r = bytes[i] / 255;
-                const g = bytes[i + 1] / 255;
-                const b = bytes[i + 2] / 255;
-                luma += 0.2126 * r + 0.7152 * g + 0.0722 * b;
-                sat += Math.max(r, g, b) - Math.min(r, g, b);
-                n++;
-            }
-            if (n) {
-                this.luminance = luma / n;
-                this.saturation = sat / n;
-            }
+            const pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(wallpaper.path, 32, 32, false);
+            const bytes = Uint8Array.from(pixbuf.get_pixels());
+            this._apply(bytes, pixbuf.get_n_channels(), pixbuf.get_rowstride());
+            this._saveCache(wallpaper.key, bytes, pixbuf.get_n_channels(), pixbuf.get_rowstride());
         } catch (e) {
             logError(e, 'GNOMAC adaptive glass: wallpaper not measured');
         }
+    }
+
+    // Reads the wallpaper into a 32x32 thumbnail. The decoding runs in a thread
+    // (GdkPixbuf's async API), never on the main loop.
+    _measure() {
+        let wallpaper;
+        try {
+            wallpaper = this._wallpaper();
+        } catch (e) {
+            logError(e, 'GNOMAC adaptive glass: wallpaper not found');
+            return;
+        }
+        if (!wallpaper)
+            return;
+        this._cancellable?.cancel();
+        const cancellable = this._cancellable = new Gio.Cancellable();
+        const generation = ++this._generation;
+        wallpaper.file.read_async(GLib.PRIORITY_LOW, cancellable, (file, readResult) => {
+            let stream;
+            try {
+                stream = file.read_finish(readResult);
+            } catch {
+                return;
+            }
+            GdkPixbuf.Pixbuf.new_from_stream_at_scale_async(stream, 32, 32, false, cancellable, (_s, result) => {
+                try {
+                    const pixbuf = GdkPixbuf.Pixbuf.new_from_stream_finish(result);
+                    stream.close(null);
+                    if (generation !== this._generation)
+                        return;
+                    const bytes = Uint8Array.from(pixbuf.get_pixels());
+                    this._apply(bytes, pixbuf.get_n_channels(), pixbuf.get_rowstride());
+                    this._saveCache(wallpaper.key, bytes, pixbuf.get_n_channels(), pixbuf.get_rowstride());
+                } catch (e) {
+                    if (!cancellable.is_cancelled())
+                        logError(e, 'GNOMAC adaptive glass: wallpaper not measured');
+                }
+            });
+        });
     }
 
     // The part of the wallpaper under `bounds` (stage pixels, primary monitor):

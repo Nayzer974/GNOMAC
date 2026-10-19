@@ -312,6 +312,13 @@ const Island = GObject.registerClass({
         this.dashboard.add_child(this.pages);
         this.dashboard.add_child(tabs);
         this.add_child(this.dashboard);
+
+        // Only the resting row is on show when the island is first put on the
+        // stage: St resolves styles and allocations for every visible actor, and
+        // for the dashboard (calendar, pages, chips) that was most of the time
+        // enabling the island took. _layout() shows each part when it is needed.
+        for (const part of [this.media, this.hud, this.notice, this.dashboard])
+            part.visible = false;
     }
 
     showTab(tab) {

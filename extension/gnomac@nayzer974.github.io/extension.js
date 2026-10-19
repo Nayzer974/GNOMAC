@@ -97,7 +97,10 @@ export default class GnomacExtension extends Extension {
                 this._forceAnimations();
             });
         }
-        this._start();
+        // At login the modules are built a few at a time, between frames: built in
+        // one go they blocked the shell for about a second, right when the
+        // start-up animation begins.
+        this._start(new Set(), {sliced: true});
         // Any change rebuilds the modules; debounce so dragging a slider in
         // the preferences does not rebuild on every step.
         // Runtime state (Pomodoro timings, reminders) is read live by its
@@ -156,35 +159,78 @@ export default class GnomacExtension extends Extension {
     }
 
     // `keep`: modules (classes) that are already running and stay as they are.
-    _start(keep = new Set()) {
+    // `sliced`: build the modules a few at a time, between frames (start-up).
+    _start(keep = new Set(), {sliced = false} = {}) {
+        this._cancelStart();
         this._forceAnimations();
         adaptive.start();
         displayInfo.start();
         glassPerformance.refreshHz = () => displayInfo.refreshHz;
         glassPerformance.start(this.getSettings());
-        for (const entry of MODULES) {
-            const {key, Module} = entry;
-            if (keep.has(Module) || !this._shouldRun(entry))
-                continue;
-            const module = new Module(this);
-            try {
-                // What the module adds to the UI group, to be able to put it
-                // under the lock screen later.
-                const ui = Main.layoutManager.uiGroup;
-                const before = new Set(ui.get_children());
-                module.enable();
-                this._chrome.set(module, ui.get_children().filter(actor => !before.has(actor)));
-                this._modules.push(module);
-            } catch (e) {
-                logError(e, `GNOMAC: cannot enable ${key}`);
-                try {
-                    module.disable();
-                } catch {}
+        const entries = MODULES.filter(entry => !keep.has(entry.Module) && this._shouldRun(entry));
+        if (!sliced) {
+            for (const entry of entries)
+                this._enableModule(entry);
+            return;
+        }
+        const started = GLib.get_monotonic_time();
+        const token = this._startToken = {longest: 0};
+        let index = 0;
+        const step = () => {
+            if (this._startToken !== token)
+                return GLib.SOURCE_REMOVE;
+            this._startId = 0;
+            const begin = GLib.get_monotonic_time();
+            while (index < entries.length) {
+                this._enableModule(entries[index++]);
+                // After a few milliseconds of work the frames get their turn.
+                if (index < entries.length && GLib.get_monotonic_time() - begin > 6000)
+                    break;
             }
+            token.longest = Math.max(token.longest, GLib.get_monotonic_time() - begin);
+            if (index < entries.length) {
+                this._startId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, step);
+                return GLib.SOURCE_REMOVE;
+            }
+            this._startToken = null;
+            console.log(`GNOMAC startup: ${entries.length} modules built in ${Math.round((GLib.get_monotonic_time() - started) / 1000)} ms, ` +
+                `longest block ${Math.round(token.longest / 1000)} ms`);
+            return GLib.SOURCE_REMOVE;
+        };
+        // The first ones (the boot cover) are built at once.
+        step();
+    }
+
+    _enableModule(entry) {
+        const {key, Module} = entry;
+        const module = new Module(this);
+        try {
+            // What the module adds to the UI group, to be able to put it
+            // under the lock screen later.
+            const ui = Main.layoutManager.uiGroup;
+            const before = new Set(ui.get_children());
+            module.enable();
+            this._chrome.set(module, ui.get_children().filter(actor => !before.has(actor)));
+            this._modules.push(module);
+        } catch (e) {
+            logError(e, `GNOMAC: cannot enable ${key}`);
+            try {
+                module.disable();
+            } catch {}
+        }
+    }
+
+    // A start-up still building modules stops here (a stop or a reload came first).
+    _cancelStart() {
+        this._startToken = null;
+        if (this._startId) {
+            GLib.source_remove(this._startId);
+            this._startId = 0;
         }
     }
 
     _stop(keep = new Set()) {
+        this._cancelStart();
         const kept = [];
         for (const module of this._modules.reverse()) {
             if (keep.has(module.constructor)) {

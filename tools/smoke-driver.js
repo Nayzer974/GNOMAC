@@ -615,6 +615,34 @@ export async function run(extension) {
             log(`FAIL optimizations: ${e}\n${e.stack ?? ''}`);
         }
 
+        // 1m. Start-up: the modules were built between frames, the wallpaper
+        //     reading came from a thread and is cached for the next login.
+        try {
+            const ok = (label, cond, detail = '') => log(cond ? `${label} ok` : `FAIL ${label} ${detail}`);
+            const {adaptive} = await import('./lib/adaptive.js');
+            ok('the start-up finished building the modules', extension._startToken === null && extension._modules.length >= 20,
+                `${extension._modules.length} modules`);
+            const cacheFile = GLib.build_filenamev([GLib.get_user_cache_dir(), 'gnomac', 'adaptive.json']);
+            const hasWallpaper = !!adaptive._wallpaper?.();
+            if (hasWallpaper) {
+                ok('the wallpaper was read', !!adaptive._thumb);
+                ok('and the reading was saved for the next login', GLib.file_test(cacheFile, GLib.FileTest.EXISTS));
+                const luminance = adaptive.luminance;
+                adaptive.stop();
+                adaptive._thumb = null;
+                adaptive.luminance = 0.123;
+                const t0 = GLib.get_monotonic_time();
+                adaptive.start();
+                const ms = (GLib.get_monotonic_time() - t0) / 1000;
+                ok(`a known wallpaper is not decoded again (start() took ${ms.toFixed(1)} ms)`, !!adaptive._thumb && Math.abs(adaptive.luminance - luminance) < 0.01 && ms < 30,
+                    `${ms} ms, luminance ${adaptive.luminance} vs ${luminance}`);
+            } else {
+                log('note: no wallpaper file in this session, wallpaper reading not tested');
+            }
+        } catch (e) {
+            log(`FAIL start-up checks: ${e}\n${e.stack ?? ''}`);
+        }
+
         // 1e. The preferences window opens (it runs in its own process, so a
         //     typing mistake in prefs.js only shows when it is opened).
         try {

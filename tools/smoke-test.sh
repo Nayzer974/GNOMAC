@@ -9,6 +9,7 @@
 #   SMOKE_MONITORS='1280x800 1024x768' tools/smoke-test.sh   several monitors
 #   GNOMAC_SMOKE_SHOT=DIR tools/smoke-test.sh   also save screenshots in DIR
 #   SMOKE_APPS=150 tools/smoke-test.sh      add launchers, to see how the Launchpad copes
+#   SMOKE_CACHE_DIR=DIR tools/smoke-test.sh keep the cache between runs (second login of a session)
 #
 # Exit status: 0 = loaded, driven to the end, no error; 1 = errors or the
 # driver did not finish; 2 = the test could not run.
@@ -41,7 +42,7 @@ hook = """        GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 8, () => {
             return GLib.SOURCE_REMOVE;
         });
 """
-marker = "        this._start();\n"
+marker = "        this._start(new Set(), {sliced: true});\n"
 assert marker in src, "extension.js changed: cannot place the smoke hook"
 open(path, 'w').write(src.replace(marker, marker + hook, 1))
 EOF
@@ -100,7 +101,7 @@ for size in ${SMOKE_MONITORS:-1280x800}; do
 done
 
 LOG="$WORK/shell.log"
-env XDG_DATA_HOME="$WORK/data" XDG_CONFIG_HOME="$WORK/config" XDG_CACHE_HOME="$WORK/cache" \
+env XDG_DATA_HOME="$WORK/data" XDG_CONFIG_HOME="$WORK/config" XDG_CACHE_HOME="${SMOKE_CACHE_DIR:-$WORK/cache}" \
     GSETTINGS_BACKEND=keyfile GTK_A11Y=none NO_AT_BRIDGE=1 \
     timeout "$((MAX_SECONDS + 15))" dbus-run-session -- \
     timeout "$MAX_SECONDS" gnome-shell --headless --wayland --no-x11 \
@@ -127,7 +128,7 @@ fi
 
 errors="$(grep -E "GNOMAC-SMOKE: FAIL|JS ERROR|Gjs-CRITICAL|-CRITICAL|TypeError|ReferenceError|SyntaxError|has been already disposed|is not a function|is not defined|GNOMAC [a-z ]*:|GNOMAC:" "$RUN" \
     | sed -E 's/^\(gnome-shell:[0-9]+\): //; s/[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]+: //' \
-    | grep -vE "KMS thread|search provider" || true)"
+    | grep -vE "KMS thread|search provider|GNOMAC startup:" || true)"
 if [[ -n "$errors" ]]; then
     status=1
     echo "---- errors (count, message)"
