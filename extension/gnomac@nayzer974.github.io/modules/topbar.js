@@ -224,6 +224,8 @@ export class TopBar {
         Main.panel._rightBox.add_child(container);
 
         const original = dateMenu._clockDisplay;
+        if (!original)
+            return;
         this._clock = new St.Label({style_class: 'clock gnomac-clock', y_align: Clutter.ActorAlign.CENTER});
         original.get_parent().insert_child_above(this._clock, original);
         original.hide();

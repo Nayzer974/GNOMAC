@@ -139,9 +139,9 @@ export function parsePath(d) {
             break;
         default:
             // Unknown command: skip its arguments rather than loop forever.
-            // SVG commands have fixed argument counts; skip a reasonable
-            // number so remaining arguments aren't misread as commands.
-            i += 2;
+            // SVG commands have up to 6 arguments (cubic curve); skip enough
+            // so remaining arguments aren't misread as subsequent commands.
+            i += 6;
         }
     }
 

@@ -371,6 +371,7 @@ export class DynamicIsland {
         this._phase = 0;
         this._position = 0;
         this._length = 0;
+        this._progress = 0;
         this._shownOpacity = 255;
         this._tick = dt => this._onTick(dt);
         this._signals = [];
@@ -864,7 +865,7 @@ export class DynamicIsland {
                 return;
             // Players without Raise: the application of the same name.
             Shell.AppSystem.get_default().lookup_app(`${player.desktopEntry}.desktop`)?.activate();
-        });
+        }).catch(() => {});
     }
 
     // Plugging the charger in (or unplugging it) shows a short notice in the
@@ -948,16 +949,18 @@ export class DynamicIsland {
     }
 
     async _bluetoothConnected(path) {
-        const device = await this._getAll(path, 'org.bluez.Device1');
-        if (!device || this._islandGone)
-            return;
-        const battery = await this._getAll(path, 'org.bluez.Battery1');
-        const unpack = v => v?.deepUnpack?.() ?? v;
-        this._onBluetoothDevice({
-            name: unpack(device.Alias) ?? unpack(device.Name) ?? 'Bluetooth',
-            icon: unpack(device.Icon),
-            battery: battery ? unpack(battery.Percentage) : null,
-        });
+        try {
+            const device = await this._getAll(path, 'org.bluez.Device1');
+            if (!device || this._islandGone)
+                return;
+            const battery = await this._getAll(path, 'org.bluez.Battery1');
+            const unpack = v => v?.deepUnpack?.() ?? v;
+            this._onBluetoothDevice({
+                name: unpack(device.Alias) ?? unpack(device.Name) ?? 'Bluetooth',
+                icon: unpack(device.Icon),
+                battery: battery ? unpack(battery.Percentage) : null,
+            });
+        } catch {}
     }
 
     _onBluetoothDevice({name, icon, battery}) {
@@ -1089,13 +1092,15 @@ export class DynamicIsland {
         const player = this._player;
         if (!player)
             return;
-        const position = await player.fetchPosition();
-        if (this._player !== player || this._islandGone || !this.island)
-            return;
-        this._position = position;
-        this._positionAt = GLib.get_monotonic_time();
-        this._length = player.length;
-        this._syncProgress();
+        try {
+            const position = await player.fetchPosition();
+            if (this._player !== player || this._islandGone || !this.island)
+                return;
+            this._position = position;
+            this._positionAt = GLib.get_monotonic_time();
+            this._length = player.length;
+            this._syncProgress();
+        } catch {}
     }
 
     _watchSource(source) {

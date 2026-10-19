@@ -106,7 +106,7 @@ elif [[ -n "${SUDO_USER:-}" ]]; then
   for key in picture-uri-dark picture-uri; do
     uri="$(sudo -u "$SUDO_USER" env XDG_RUNTIME_DIR="/run/user/$uid" \
       DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" \
-      gsettings get org.gnome.desktop.background "$key" 2>/dev/null | tr -d "'" 2>/dev/null)"
+      gsettings get org.gnome.desktop.background "$key" 2>/dev/null | tr -d "'" 2>/dev/null)" || uri=""
     uri="${uri:-}"
     path="${uri#file://}"
     if [[ -n "$path" && -f "$path" ]]; then WALLPAPER="$path"; break; fi

@@ -169,7 +169,7 @@ export async function showDiagnostics(extension) {
     if (panel.get_stage()) {
         placePanel();
     } else {
-        panel.connect('notify::width', () => {
+        panel._placeId = panel.connect('notify::width', () => {
             placePanel();
             panel.disconnect(panel._placeId);
         });

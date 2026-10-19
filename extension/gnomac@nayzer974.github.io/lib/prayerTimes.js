@@ -73,7 +73,8 @@ export function computeHours({year, month, day}, {latitude, longitude}, timezone
     const angleTime = (angle, t, ccw) => {
         const {declination} = sunPosition(jd + t);
         const noon = midDay(t);
-        const x = (-sin(angle) - sin(declination) * sin(latitude)) / (cos(declination) * cos(latitude));
+        const denom = cos(declination) * cos(latitude);
+        const x = denom === 0 ? 0 : (-sin(angle) - sin(declination) * sin(latitude)) / denom;
         const delta = acos(x) / 15;
         return noon + (ccw ? -delta : delta);
     };

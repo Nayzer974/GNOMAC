@@ -615,6 +615,7 @@ export class Widgets {
 
     setMaterial(id, material) {
         const instance = this._layout.find(w => w.id === id);
+        if (!instance) return;
         instance.material = material;
         this.save();
         this._rebuild();
@@ -622,6 +623,7 @@ export class Widgets {
 
     setColor(id, color) {
         const instance = this._layout.find(w => w.id === id);
+        if (!instance) return;
         instance.color = color;
         // "Tinted" without a colour is the old default blue; with one, the
         // colour shows, so picking a colour on a clear tile tints it.
@@ -707,6 +709,7 @@ export class Widgets {
 
     add(type) {
         const def = WIDGET_TYPES[type];
+        if (!def) return;
         const instance = {
             id: `w-${type}-${Date.now().toString(36)}`,
             type,

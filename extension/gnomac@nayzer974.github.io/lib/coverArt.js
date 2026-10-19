@@ -148,7 +148,9 @@ function download(url, path) {
 
 async function fetch(url) {
     if (url.startsWith('file://')) {
-        const path = GLib.filename_from_uri(url)[0];
+        const [ok, path] = GLib.filename_from_uri(url);
+            if (!ok || !path)
+                return null;
         return GLib.file_test(path, GLib.FileTest.IS_REGULAR) ? url : null;
     }
     const path = pathFor(url);

@@ -220,16 +220,19 @@ python3 -c 'import json,datetime,sys; print(json.dumps({"sha": sys.argv[1], "sou
 # ---------------------------------------------------------------- extras
 if (( WITH_EXTRAS )); then
   command -v curl >/dev/null && command -v unzip >/dev/null || die "--extras needs curl and unzip."
-  tmp="$(mktemp -d)"
-  trap 'rm -rf "$tmp"' EXIT
+  extras_tmp="$(mktemp -d)"
+  trap 'rm -rf "$extras_tmp"' EXIT
   for pk in "${EXTRA_EXTENSIONS[@]}"; do
     info "Fetching extension #$pk from extensions.gnome.org"
     meta="$(curl -fsSL "https://extensions.gnome.org/extension-info/?pk=$pk&shell_version=$SHELL_MAJOR")" || {
       warn "Extension #$pk has no release for GNOME $SHELL_MAJOR, skipped."; continue; }
-    read -r uuid url < <(python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["uuid"], d["download_url"])' <<<"$meta")
-    curl -fsSL "https://extensions.gnome.org$url" -o "$tmp/$pk.zip"
-    gnome-extensions install --force "$tmp/$pk.zip"
-    enable_extension "$uuid"
+    if ! read -r uuid url < <(python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["uuid"], d["download_url"])' <<<"$meta" 2>/dev/null); then
+      warn "Extension #$pk returned invalid metadata, skipped."; continue; fi
+    curl -fsSL "https://extensions.gnome.org$url" -o "$extras_tmp/$pk.zip" || {
+      warn "Extension #$pk download failed, skipped."; continue; }
+    gnome-extensions install --force "$extras_tmp/$pk.zip" || {
+      warn "Extension #$pk install failed, skipped."; continue; }
+    enable_extension "$uuid" || warn "Extension #$pk enable failed."
   done
 fi
 
@@ -238,11 +241,12 @@ if (( WITH_ICONS )); then
   info "Installing the MacTahoe icon theme"
   icons_tmp="$(mktemp -d)"
   trap 'rm -rf "$icons_tmp"' EXIT
-  git clone --depth 1 https://github.com/vinceliuice/MacTahoe-icon-theme.git "$icons_tmp/MacTahoe-icon-theme"
-  (cd "$icons_tmp/MacTahoe-icon-theme" && ./install.sh)
+  git clone --depth 1 https://github.com/vinceliuice/MacTahoe-icon-theme.git "$icons_tmp/MacTahoe-icon-theme" || {
+    warn "Icon theme clone failed, skipped."; trap - EXIT; rm -rf "$icons_tmp"; }
+  (cd "$icons_tmp/MacTahoe-icon-theme" && ./install.sh) || warn "Icon theme install failed."
   trap - EXIT
   rm -rf "$icons_tmp"
-  gsettings set org.gnome.desktop.interface icon-theme 'MacTahoe-dark'
+  gsettings set org.gnome.desktop.interface icon-theme 'MacTahoe-dark' || warn "Icon theme set failed."
 fi
 
 if (( WITH_CURSORS )); then
@@ -250,12 +254,13 @@ if (( WITH_CURSORS )); then
   info "Installing macOS-style cursors (WhiteSur)"
   cursors_tmp="$(mktemp -d)"
   trap 'rm -rf "$cursors_tmp"' EXIT
-  git clone --depth 1 https://github.com/vinceliuice/WhiteSur-cursors.git "$cursors_tmp/WhiteSur-cursors"
+  git clone --depth 1 https://github.com/vinceliuice/WhiteSur-cursors.git "$cursors_tmp/WhiteSur-cursors" || {
+    warn "Cursors clone failed, skipped."; trap - EXIT; rm -rf "$cursors_tmp"; }
   mkdir -p "${XDG_DATA_HOME:-$HOME/.local/share}/icons/WhiteSur-cursors"
-  cp -r "$cursors_tmp/WhiteSur-cursors/dist/." "${XDG_DATA_HOME:-$HOME/.local/share}/icons/WhiteSur-cursors/"
+  cp -r "$cursors_tmp/WhiteSur-cursors/dist/." "${XDG_DATA_HOME:-$HOME/.local/share}/icons/WhiteSur-cursors/" || warn "Cursors copy failed."
   trap - EXIT
   rm -rf "$cursors_tmp"
-  gsettings set org.gnome.desktop.interface cursor-theme 'WhiteSur-cursors'
+  gsettings set org.gnome.desktop.interface cursor-theme 'WhiteSur-cursors' || warn "Cursors set failed."
 fi
 
 if (( WITH_PLYMOUTH )); then

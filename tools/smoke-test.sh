@@ -11,7 +11,7 @@
 #
 # Exit status: 0 = loaded, driven to the end, no error; 1 = errors or the
 # driver did not finish; 2 = the test could not run.
-set -u
+set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 UUID="gnomac@nayzer974.github.io"

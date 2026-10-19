@@ -56,6 +56,7 @@ export class MenuBarIcons {
         this._path = extension.path;
         this._hidden = [];
         this._networkIds = [];
+        this._batterySignalId = 0;
     }
 
     _icon(name) {
@@ -245,6 +246,9 @@ export class MenuBarIcons {
         for (const [object, id] of this._networkIds)
             object.disconnect(id);
         this._networkIds = [];
+        if (this._batterySignalId && this._upower) {
+            try { this._upower.disconnect(this._batterySignalId); } catch {}
+        }
         this._upower = null;
         this._box?.destroy();
         this._box = null;
@@ -311,7 +315,7 @@ export class MenuBarIcons {
                 if (error || !this._box)
                     return;
                 this._upower = proxy;
-                proxy.connect('g-properties-changed', () => this._syncBattery());
+                this._batterySignalId = proxy.connect('g-properties-changed', () => this._syncBattery());
                 this._syncBattery();
             });
     }

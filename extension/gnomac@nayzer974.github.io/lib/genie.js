@@ -29,7 +29,7 @@ export class Genie {
         this.actor = new Clutter.Actor({x: rect.x, y: rect.y, reactive: false});
         parent.add_child(this.actor);
 
-        const stripHeight = rect.height / STRIPS;
+        const stripHeight = Math.max(1, rect.height / STRIPS);
         this._strips = [];
         for (let i = 0; i < STRIPS; i++) {
             const y0 = i * stripHeight;

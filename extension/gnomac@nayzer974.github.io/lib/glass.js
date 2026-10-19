@@ -795,12 +795,23 @@ class GlassSurface extends St.Widget {
             if (ok)
                 this._glass.setParams({pointer: [lx, ly], glow: strength});
         };
-        owner.connect('motion-event', move);
-        owner.connect('enter-event', move);
-        owner.connect('leave-event', () => {
-            this._lastPointerMove = 0;
-            this._glass.setParams({pointer: [-1, -1], glow: 0});
-        });
+        this._pointerIds = [
+            owner.connect('motion-event', move),
+            owner.connect('enter-event', move),
+            owner.connect('leave-event', () => {
+                this._lastPointerMove = 0;
+                this._glass.setParams({pointer: [-1, -1], glow: 0});
+            }),
+        ];
+    }
+
+    stopFollowingPointer(owner) {
+        if (!this._pointerIds)
+            return;
+        for (const id of this._pointerIds) {
+            try { owner.disconnect(id); } catch {}
+        }
+        this._pointerIds = null;
     }
 
     setBlur(radius) {
