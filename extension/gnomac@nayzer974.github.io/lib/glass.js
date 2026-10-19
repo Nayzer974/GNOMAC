@@ -19,6 +19,7 @@ import St from 'gi://St';
 
 import * as Background from 'resource:///org/gnome/shell/ui/background.js';
 import {TOKENS, qualityOf} from './glassTokens.js';
+import {createThrottle} from './throttle.js';
 import {adaptive} from './adaptive.js';
 import {glassPerformance} from './glassPerformance.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
@@ -766,15 +767,38 @@ class GlassSurface extends St.Widget {
     // the reactive actor that receives the motion; coordinates are local to
     // this surface.
     followPointer(owner, strength = 1) {
+        // Motion is followed once per 8 ms at most (one picture per frame is
+        // all the screen shows); entering and leaving always go through.
+        const gate = createThrottle(8000);
         const move = (_a, event) => {
             const [x, y] = event.get_coords();
             const [ok, lx, ly] = this.transform_stage_point(x, y);
             if (ok)
                 this._glass.setParams({pointer: [lx, ly], glow: strength});
         };
-        owner.connect('motion-event', move);
-        owner.connect('enter-event', move);
-        owner.connect('leave-event', () => this._glass.setParams({pointer: [-1, -1], glow: 0}));
+        const ids = [
+            owner.connect('motion-event', (a, event) => {
+                if (gate(GLib.get_monotonic_time()))
+                    move(a, event);
+            }),
+            owner.connect('enter-event', (a, event) => {
+                gate.reset();
+                gate(GLib.get_monotonic_time());
+                move(a, event);
+            }),
+            owner.connect('leave-event', () => {
+                gate.reset();
+                this._glass.setParams({pointer: [-1, -1], glow: 0});
+            }),
+        ];
+        // To stop following (the owner may outlive this surface).
+        return () => {
+            for (const id of ids) {
+                try {
+                    owner.disconnect(id);
+                } catch {}
+            }
+        };
     }
 
     setBlur(radius) {

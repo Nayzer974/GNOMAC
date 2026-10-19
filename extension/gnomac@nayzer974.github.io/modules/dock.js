@@ -401,6 +401,10 @@ export class Dock {
             global.compositor.get_laters().remove(this._publishLater);
             this._publishLater = 0;
         }
+        if (this._publishDebounceId) {
+            GLib.source_remove(this._publishDebounceId);
+            this._publishDebounceId = 0;
+        }
         for (const [object, id] of this._signals)
             object.disconnect(id);
         this._signals = [];
@@ -873,9 +877,21 @@ export class Dock {
         const active = bouncing || !this._hover.settled;
         if (!active) {
             this._ticking = false;
-            this._publishIconGeometry();
+            this._publishSoon();
         }
         return active;
+    }
+
+    // The dock settles many times in a row while the pointer sweeps over it:
+    // the rectangles are published once it has been still for a moment.
+    _publishSoon() {
+        if (this._publishDebounceId)
+            GLib.source_remove(this._publishDebounceId);
+        this._publishDebounceId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
+            this._publishDebounceId = 0;
+            this._publishIconGeometry();
+            return GLib.SOURCE_REMOVE;
+        });
     }
 
     // Tell mutter where each app sits in the dock: minimize animations

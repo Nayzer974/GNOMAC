@@ -4,6 +4,7 @@
 // macOS zoom-in/zoom-out when it opens and closes.
 
 import Clutter from 'gi://Clutter';
+import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
 import Pango from 'gi://Pango';
 import Shell from 'gi://Shell';
@@ -55,13 +56,25 @@ export class Launchpad {
         this._settings = extension.getSettings();
         this._tick = dt => this._onTick(dt);
         this._root = null;
+        this._appCache = null;
+        this._fillId = 0;
     }
 
     enable() {
         this._extension.launchpad = this;
+        // The sorted list of applications is kept until the installed ones change.
+        const appSystem = Shell.AppSystem.get_default();
+        this._installedId = appSystem.connect('installed-changed', () => {
+            this._appCache = null;
+        });
     }
 
     disable() {
+        if (this._installedId) {
+            Shell.AppSystem.get_default().disconnect(this._installedId);
+            this._installedId = 0;
+        }
+        this._appCache = null;
         this.close(false);
         if (this._extension.launchpad === this)
             this._extension.launchpad = null;
@@ -92,7 +105,8 @@ export class Launchpad {
 
         this._glass = new GlassSurface({
             backdrop: 'windows',
-            blur: 60,
+            // Full screen: its cost grows with the radius, 40 looks the same behind icons.
+            blur: 40,
             glass: {radius: 0, refraction: 0, thickness: 1, chroma: 0, rim: 0, sheen: 0,
                 tint: [0.05, 0.05, 0.07, 0.35]},
         });
@@ -129,9 +143,11 @@ export class Launchpad {
             return Clutter.EVENT_STOP;
         });
         this._root.connect('scroll-event', (_a, event) => this._onScroll(event));
-        this._entry.clutter_text.connect('text-changed', () => this._fill());
+        // Typing: the grid is rebuilt once the typing pauses, not on every key.
+        this._entry.clutter_text.connect('text-changed', () => this._fillSoon());
         this._entry.clutter_text.connect('key-press-event', (_a, event) => this._onKey(event));
         this._entry.clutter_text.connect('activate', () => {
+            this._flushFill();
             const first = this._tiles?.[0];
             if (first)
                 this._launch(first.app);
@@ -156,39 +172,56 @@ export class Launchpad {
                 .map(id => appSystem.lookup_app(id))
                 .filter(app => app && app.app_info?.should_show());
         }
-        return appSystem.get_installed()
+        this._appCache ??= appSystem.get_installed()
             .filter(info => info.should_show())
             .map(info => appSystem.lookup_app(info.get_id()))
             .filter(Boolean)
             .sort((a, b) => a.get_name().localeCompare(b.get_name()));
+        return this._appCache;
     }
 
+    // Pending rebuild of the grid after a keystroke.
+    _fillSoon() {
+        if (this._fillId)
+            GLib.source_remove(this._fillId);
+        // Clearing the search comes back at once; typing waits for a pause.
+        const delay = this._entry.text ? 140 : 0;
+        this._fillId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, delay, () => {
+            this._fillId = 0;
+            if (this._root)
+                this._fill();
+            return GLib.SOURCE_REMOVE;
+        });
+    }
+
+    _flushFill() {
+        if (!this._fillId)
+            return;
+        GLib.source_remove(this._fillId);
+        this._fillId = 0;
+        if (this._root)
+            this._fill();
+    }
+
+    // The tiles of a page are built when the page comes within reach (the
+    // current one and its neighbours), not all at once: with a hundred
+    // applications that is most of the cost of opening the Launchpad.
     _fill() {
         this._pages.destroy_all_children();
         this._dots.destroy_all_children();
         const monitor = this._monitor;
-        const apps = this._apps();
-        const pageCount = Math.max(1, Math.ceil(apps.length / PER_PAGE));
+        this._results = this._apps();
+        const pageCount = Math.max(1, Math.ceil(this._results.length / PER_PAGE));
         const gridWidth = monitor.width * 0.78;
-        const gridTop = 130;
-        const gridHeight = monitor.height - gridTop - 110;
-        const cellW = gridWidth / COLUMNS;
-        const cellH = gridHeight / ROWS;
-        const left = (monitor.width - gridWidth) / 2;
+        this._grid = {
+            gridTop: 130,
+            cellW: gridWidth / COLUMNS,
+            cellH: (monitor.height - 130 - 110) / ROWS,
+            left: (monitor.width - gridWidth) / 2,
+        };
 
         this._tiles = [];
-        apps.forEach((app, i) => {
-            const page = Math.floor(i / PER_PAGE);
-            const slot = i % PER_PAGE;
-            const tile = new AppTile(app, this._iconSize);
-            tile.set_width(Math.round(cellW));
-            tile.set_position(
-                Math.round(page * monitor.width + left + (slot % COLUMNS) * cellW),
-                Math.round(gridTop + Math.floor(slot / COLUMNS) * cellH));
-            tile.connect('activate', () => this._launch(app));
-            this._pages.add_child(tile);
-            this._tiles.push(tile);
-        });
+        this._built = new Set();
 
         for (let i = 0; i < pageCount; i++) {
             const dot = new St.Button({style_class: 'gnomac-launchpad-dot', can_focus: false});
@@ -196,8 +229,38 @@ export class Launchpad {
             this._dots.add_child(dot);
         }
         this._pageCount = pageCount;
-        this._goTo(Math.min(this._page, pageCount - 1));
+        this._page = Math.min(this._page, pageCount - 1);
+        this._buildAround(this._page);
+        this._goTo(this._page);
         this._layoutChrome();
+    }
+
+    _buildAround(page) {
+        for (const p of [page, page + 1, page - 1])
+            this._buildPage(p);
+    }
+
+    _buildPage(page) {
+        if (page < 0 || page >= this._pageCount || this._built.has(page))
+            return;
+        this._built.add(page);
+        const monitor = this._monitor;
+        const {gridTop, cellW, cellH, left} = this._grid;
+        const first = page * PER_PAGE;
+        this._results.slice(first, first + PER_PAGE).forEach((app, slot) => {
+            const tile = new AppTile(app, this._iconSize);
+            tile.set_width(Math.round(cellW));
+            tile.set_position(
+                Math.round(page * monitor.width + left + (slot % COLUMNS) * cellW),
+                Math.round(gridTop + Math.floor(slot / COLUMNS) * cellH));
+            tile.connect('activate', () => this._launch(app));
+            this._pages.add_child(tile);
+            // The first result stays first: Enter launches it.
+            if (page === 0 && slot === 0)
+                this._tiles.unshift(tile);
+            else
+                this._tiles.push(tile);
+        });
     }
 
     _layoutChrome() {
@@ -212,6 +275,7 @@ export class Launchpad {
 
     _goTo(page) {
         this._page = Math.max(0, Math.min(page, this._pageCount - 1));
+        this._buildAround(this._page);
         this._offset.setTarget(-this._page * this._monitor.width);
         this._dots.get_children().forEach((dot, i) => {
             if (i === this._page)
@@ -286,6 +350,10 @@ export class Launchpad {
         if (!this._root)
             return;
         getTicker().remove(this._tick);
+        if (this._fillId) {
+            GLib.source_remove(this._fillId);
+            this._fillId = 0;
+        }
         if (this._grab) {
             Main.popModal(this._grab);
             this._grab = null;

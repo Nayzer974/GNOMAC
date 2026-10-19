@@ -87,6 +87,7 @@ fi
 step "Island logic, weather switch, covers"
 if command -v node >/dev/null; then
     node tools/test-island-logic.mjs >/dev/null || fail "tools/test-island-logic.mjs"
+    node tools/test-throttle.mjs >/dev/null || fail "tools/test-throttle.mjs"
     node tools/test-island-logic.mjs | tail -1
 fi
 if [[ "${CHECK_GJS:-1}" == 1 ]] && command -v gjs >/dev/null; then

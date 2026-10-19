@@ -552,15 +552,21 @@ export class DynamicIsland {
                 this._pinned = false;
                 this._update();
             }
+            // The prayer settings are about twelve keys: read once a second, and
+            // only while the feature is on (it is off by default).
+            const prayer = this._settings.get_boolean('prayer-enabled') ? readPrayerConfig(this._settings) : null;
             if (this._mode === 'dashboard') {
                 if (this._hasMedia() && this._tab === 'home')
                     this._pollPosition();
                 if (this._tab === 'stats')
                     this.island.statsView.update();
-                if (this._tab === 'prayer')
-                    this.island.prayerView.update(readPrayerConfig(this._settings));
+                if (this._tab === 'prayer' && prayer)
+                    this.island.prayerView.update(prayer);
             }
-            this._prayerAlerts?.tick(readPrayerConfig(this._settings), GLib.DateTime.new_now_local());
+            if (prayer)
+                this._prayerAlerts?.tick(prayer, GLib.DateTime.new_now_local());
+            else
+                this._prayerAlerts?.reset();
             return GLib.SOURCE_CONTINUE;
         });
 

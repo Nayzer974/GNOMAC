@@ -55,6 +55,10 @@
       [
         "Unlocking is smoother: the desktop stays built under the lock screen instead of being rebuilt at every unlock, and GNOME's stale quick-settings items no longer flood the log at every lock",
         "Le déverrouillage est plus fluide : le bureau reste construit sous l’écran de verrouillage au lieu d’être refait à chaque déverrouillage, et les éléments périmés des Réglages rapides de GNOME n’inondent plus le journal à chaque verrouillage"
+      ],
+      [
+        "Faster: the Launchpad opens in about half the time (pages built when they come within reach, app list kept, typing debounced), the pointer glow and the dock's icon geometry do less work, and the island reads the prayer settings only while the feature is on",
+        "Plus rapide : le Launchpad s’ouvre en deux fois moins de temps (pages construites quand elles approchent, liste des apps gardée, saisie regroupée), la lueur du pointeur et la géométrie des icônes du dock travaillent moins, et l’encoche ne lit les réglages de prière que si la fonction est active"
       ]
     ]
   },

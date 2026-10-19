@@ -8,6 +8,7 @@
 #   SMOKE_KEEP=1 tools/smoke-test.sh        also keep the full log
 #   SMOKE_MONITORS='1280x800 1024x768' tools/smoke-test.sh   several monitors
 #   GNOMAC_SMOKE_SHOT=DIR tools/smoke-test.sh   also save screenshots in DIR
+#   SMOKE_APPS=150 tools/smoke-test.sh      add launchers, to see how the Launchpad copes
 #
 # Exit status: 0 = loaded, driven to the end, no error; 1 = errors or the
 # driver did not finish; 2 = the test could not run.
@@ -65,6 +66,15 @@ for i in range(4):
     png(f"{sys.argv[1]}/wall{i}.png", 480, 300,
         lambda x, y, i=i: ((x * 255) // 480, (y * 255) // 300, 60 + 50 * i))
 EOF2
+
+# SMOKE_APPS=150 adds that many launchers (a real machine has dozens or hundreds).
+if [[ -n "${SMOKE_APPS:-}" ]]; then
+    mkdir -p "$WORK/data/applications"
+    for i in $(seq 1 "$SMOKE_APPS"); do
+        printf '[Desktop Entry]\nType=Application\nName=Smoke app %03d\nExec=true\nIcon=application-x-executable\n' "$i" \
+            > "$WORK/data/applications/smoke-$i.desktop"
+    done
+fi
 
 favorites=""
 for app in org.gnome.Nautilus org.gnome.Console org.gnome.TextEditor org.gnome.Calculator org.gnome.Settings; do

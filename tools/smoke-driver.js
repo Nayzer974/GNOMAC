@@ -11,6 +11,7 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import {getTicker as getTickerForTest} from './lib/spring.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 import {readConfig as readPrayerConfigForTest} from './lib/prayerSchedule.js';
 import * as MessageTray from 'resource:///org/gnome/shell/ui/messageTray.js';
@@ -253,6 +254,11 @@ export async function run(extension) {
             cfg.set_int('island-notice-seconds', 1);
             await wait(1800);
             const isl = extension._modules.find(m => m.constructor.name === 'DynamicIsland');
+            // The machine's real battery events must not mix with the test's own.
+            if (isl._powerSub) {
+                Gio.DBus.system.signal_unsubscribe(isl._powerSub);
+                isl._powerSub = 0;
+            }
             const title = () => isl.island.noticeTitle.text;
             const ok = (label, cond, detail = '') => log(cond ? `${label} ok` : `FAIL ${label} ${detail}`);
 
@@ -518,6 +524,95 @@ export async function run(extension) {
             log('session mode change with menus around ok');
         } catch (e) {
             log(`FAIL menu guard: ${e}\n${e.stack ?? ''}`);
+        }
+
+        // 1k. The Launchpad: how long it takes to open, that it ends full screen
+        //     and settled, that pages are built when they come within reach,
+        //     that typing is debounced, and that closing leaves nothing behind.
+        try {
+            const lp = extension._modules.find(m => m.constructor.name === 'Launchpad');
+            const monitor = Main.layoutManager.primaryMonitor;
+            const ok = (label, cond, detail = '') => log(cond ? `${label} ok` : `FAIL ${label} ${detail}`);
+            const meter = gapMeter();
+            const t0 = GLib.get_monotonic_time();
+            lp.open();
+            const openMs = Math.round((GLib.get_monotonic_time() - t0) / 1000);
+            await wait(900);
+            const gap = meter.stop();
+            const apps = lp._results?.length ?? lp._tiles.length;
+            log(`launchpad: open() took ${openMs} ms, longest main-loop gap while opening ${gap} ms, ${apps} apps, ${lp._tiles.length} tiles built`);
+            ok('launchpad ends full screen', lp._root.width === monitor.width && lp._root.height === monitor.height &&
+                lp._root.scale_x === 1 && lp._root.scale_y === 1, `${lp._root.width}x${lp._root.height} scale ${lp._root.scale_x}`);
+            ok('launchpad ends opaque and unzoomed', lp._root.opacity === 255 && Math.abs(lp._viewport.scale_x - 1) < 0.001,
+                `opacity ${lp._root.opacity} zoom ${lp._viewport.scale_x}`);
+            if (lp._built) {
+                ok('only the pages in reach are built', lp._built.size <= 2 || lp._pageCount <= 3, `${[...lp._built]}`);
+                if (lp._pageCount > 3) {
+                    lp._goTo(lp._pageCount - 1);
+                    ok('paging builds the pages ahead', lp._built.has(lp._pageCount - 1) && lp._built.has(lp._pageCount - 2));
+                    lp._goTo(0);
+                }
+            }
+            const before = lp._tiles.length;
+            if (lp._pageCount > 1)
+                lp._goTo(0);
+            lp._entry.text = 'zzz-no-such-app';
+            await wait(40);
+            ok('typing does not rebuild the grid at once', lp._tiles.length === before, `${before} -> ${lp._tiles.length}`);
+            await wait(400);
+            ok('the grid follows once typing pauses', lp._tiles.length === 0, `${lp._tiles.length}`);
+            lp._entry.text = '';
+            await wait(100);
+            ok('clearing the search brings every app back at once', lp._results.length === apps && lp._tiles.length === Math.min(apps, 2 * 35),
+                `${lp._results.length}/${apps} apps, ${lp._tiles.length} tiles`);
+            const callbacks = () => getTickerForTest()._callbacks.size;
+            lp.close();
+            await wait(500);
+            ok('closing destroys the Launchpad', lp._root === null && !Main.layoutManager.uiGroup.get_children().some(a => a.name === 'gnomacLaunchpad'));
+            ok('and leaves no timer or ticker callback', !lp._fillId && callbacks() < 6, `${callbacks()}`);
+            lp.open();
+            lp.close(false);
+            ok('open then close at once is clean', lp._root === null);
+        } catch (e) {
+            log(`FAIL launchpad: ${e}\n${e.stack ?? ''}`);
+        }
+
+        // 1l. Optimizations: the dock publishes its geometry once after a burst of
+        //     settles, the pointer glow can be stopped, and the island reads the
+        //     prayer settings only while the feature is on.
+        try {
+            const ok = (label, cond, detail = '') => log(cond ? `${label} ok` : `FAIL ${label} ${detail}`);
+            const dock = extension._modules.find(m => m.constructor.name === 'Dock');
+            let calls = 0;
+            const original = dock._publishIconGeometry.bind(dock);
+            dock._publishIconGeometry = () => {
+                calls++;
+                original();
+            };
+            for (let i = 0; i < 20; i++)
+                dock._publishSoon();
+            await wait(50);
+            ok('the dock waits before publishing its geometry', calls === 0, String(calls));
+            await wait(250);
+            ok('and publishes it once after a burst of settles', calls === 1, String(calls));
+            dock._publishIconGeometry = original;
+            const stop = dock._glass.followPointer(new St.Widget());
+            ok('followPointer hands back a way to stop', typeof stop === 'function');
+            stop();
+
+            const island = extension._modules.find(m => m.constructor.name === 'DynamicIsland');
+            let reads = 0;
+            const getDouble = island._settings.get_double.bind(island._settings);
+            island._settings.get_double = key => {
+                if (key.startsWith('prayer-'))
+                    reads++;
+                return getDouble(key);
+            };
+            await wait(2600);
+            ok('the island does not read the prayer settings while the feature is off', reads === 0, String(reads));
+            island._settings.get_double = getDouble;
+        } catch (e) {
+            log(`FAIL optimizations: ${e}\n${e.stack ?? ''}`);
         }
 
         // 1e. The preferences window opens (it runs in its own process, so a
