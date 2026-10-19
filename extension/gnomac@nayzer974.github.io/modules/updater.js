@@ -161,23 +161,12 @@ export class Updater {
         this._session = null;
         this._source?.destroy();
         this._source = null;
-        // Cancel any in-flight update install so its callback cannot fire
-        // after disable() (use-after-logical-free).
-        if (this._installProc) {
-            try {
-                this._installProc.exit();
-            } catch {}
-            this._installProc = null;
-        }
     }
 
     _schedule(seconds) {
         if (this._timeoutId)
             GLib.source_remove(this._timeoutId);
-        // Guard against a zero-second delay: GLib.timeout_add_seconds(0, …)
-        // fires immediately, causing an infinite loop that pegs the CPU.
-        const delay = Math.max(3600, seconds || 3600);
-        this._timeoutId = GLib.timeout_add_seconds(GLib.PRIORITY_LOW, delay, () => {
+        this._timeoutId = GLib.timeout_add_seconds(GLib.PRIORITY_LOW, seconds, () => {
             this._timeoutId = 0;
             const startup = !this._started;
             this._started = true;
@@ -353,9 +342,8 @@ export class Updater {
             const argv = GLib.file_test(script, GLib.FileTest.EXISTS)
                 ? ['bash', script]
                 : ['bash', '-c', 'curl -fsSL https://raw.githubusercontent.com/Nayzer974/GNOMAC/main/scripts/update.sh | bash'];
-            this._installProc = Gio.Subprocess.new(argv, Gio.SubprocessFlags.NONE);
-            this._installProc.wait_check_async(null, (p, res) => {
-                this._installProc = null;
+            const proc = Gio.Subprocess.new(argv, Gio.SubprocessFlags.NONE);
+            proc.wait_check_async(null, (p, res) => {
                 try {
                     p.wait_check_finish(res);
                     this._settings.set_string('update-dismissed', '');

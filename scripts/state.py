@@ -42,10 +42,7 @@ KEYS = [
 
 
 def dconf(*args):
-    result = subprocess.run(["dconf", *args], capture_output=True, text=True)
-    if result.returncode != 0:
-        raise RuntimeError(f"dconf {' '.join(args)} failed: {result.stderr.strip()}")
-    return result
+    return subprocess.run(["dconf", *args], capture_output=True, text=True)
 
 
 def read(path):
@@ -78,9 +75,7 @@ def enabled_extensions():
 
 
 def write_extensions(items):
-    # dconf represents an empty list as "@as []", not "[]"
-    value = "@as []" if not items else repr(items)
-    dconf("write", "/org/gnome/shell/enabled-extensions", value)
+    dconf("write", "/org/gnome/shell/enabled-extensions", repr(items))
 
 
 def save():

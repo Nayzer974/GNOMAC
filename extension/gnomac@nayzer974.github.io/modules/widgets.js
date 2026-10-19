@@ -38,26 +38,15 @@ const MARGIN = 18;
 const BOTTOM_RESERVE = 110; // the dock
 
 class WidgetTile {
-    static _wigglingTiles = new Set();
-    static _wiggleTickerId = 0;
-
     constructor(manager, instance) {
         this.manager = manager;
         this.instance = instance;
         const settings = manager.settings;
         const type = WIDGET_TYPES[instance.type];
-
-        // Support custom pixel sizes for free resizing, otherwise fall back to
-        // the predefined grid spans (small, medium, large…).
-        if (instance.width && instance.height) {
-            this.width = instance.width;
-            this.height = instance.height;
-        } else {
-            const [cols, rows] = SIZE_SPANS[instance.size];
-            // A tile spans `cols` x `rows` units of CELL px, gaps included.
-            this.width = cols * CELL + (cols / 2 - 1) * CELL_GAP;
-            this.height = rows * CELL + (rows / 2 - 1) * CELL_GAP;
-        }
+        const [cols, rows] = SIZE_SPANS[instance.size];
+        // A tile spans `cols` x `rows` units of CELL px, gaps included.
+        this.width = cols * CELL + (cols / 2 - 1) * CELL_GAP;
+        this.height = rows * CELL + (rows / 2 - 1) * CELL_GAP;
         this.accent = (ACCENTS[instance.color ?? 'auto'] ?? ACCENTS.auto).rgb;
 
         this.actor = new St.Widget({width: this.width, height: this.height, reactive: true,
@@ -121,76 +110,24 @@ class WidgetTile {
         this.glass.setStageOrigin(x, y);
     }
 
-    // Resize the tile to new pixel dimensions. Rebuilds the content so it
-    // renders at native resolution (no pixellation).
-    resize(width, height) {
-        const monitor = Main.layoutManager.primaryMonitor;
-        const maxW = monitor ? monitor.width - 40 : 800;
-        const maxH = monitor ? monitor.height - 40 : 600;
-        this.width = Math.min(maxW, Math.max(88, Math.round(width)));
-        this.height = Math.min(maxH, Math.max(88, Math.round(height)));
-        this.instance.width = this.width;
-        this.instance.height = this.height;
-        delete this.instance.size; // custom size overrides predefined span
-        this.actor.set_size(this.width, this.height);
-        this.glass.set_size(this.width, this.height);
-        this.content.set_size(this.width, this.height);
-        this.handle.x = this.width - 22;
-        this.handle.y = this.height - 22;
-        // Rebuild content at the new size so it renders natively (no scaling).
-        this.content.destroy_all_children();
-        const settings = this.manager.settings;
-        const type = WIDGET_TYPES[this.instance.type];
-        try {
-            this.built = type.build({
-                settings,
-                size: this.instance.size,
-                options: this.instance.options,
-                width: this.width,
-                height: this.height,
-                accent: this.accent,
-                instance: {
-                    options: this.instance.options,
-                    save: () => this.manager.save(),
-                },
-            });
-            if (this.built.flush)
-                this.content.add_style_class_name('flush');
-            this.content.add_child(this.built.actor);
-        } catch (e) {
-            logError(e, `GNOMAC widget ${this.instance.type} resize`);
-        }
-        this.manager.save();
-        this.manager._placeAll();
-    }
-
     setEditing(editing) {
         this.badge.visible = editing;
         this.handle.visible = editing;
-        if (editing && !WidgetTile._wigglingTiles.has(this)) {
+        if (editing && !this._wiggle) {
             this._phase = Math.random() * Math.PI * 2;
-            WidgetTile._wigglingTiles.add(this);
-            if (WidgetTile._wiggleTickerId === 0)
-                WidgetTile._wiggleTickerId = getTicker().add(WidgetTile._wiggleTicker);
-        } else if (!editing && WidgetTile._wigglingTiles.has(this)) {
-            WidgetTile._wigglingTiles.delete(this);
-            if (WidgetTile._wigglingTiles.size === 0 && WidgetTile._wiggleTickerId) {
-                getTicker().remove(WidgetTile._wiggleTickerId);
-                WidgetTile._wiggleTickerId = 0;
-            }
+            this._wiggle = dt => {
+                if (this.actor.is_finalized?.())
+                    return false;
+                this._phase += dt * 14;
+                if (!this._dragging)
+                    this.actor.rotation_angle_z = Math.sin(this._phase) * 0.9;
+                return true;
+            };
+            getTicker().add(this._wiggle);
+        } else if (!editing && this._wiggle) {
+            getTicker().remove(this._wiggle);
+            this._wiggle = null;
             this.actor.ease({rotation_angle_z: 0, duration: 160});
-        }
-    }
-
-    // One global ticker for all wiggling tiles instead of one per tile.
-    static _wiggleTicker(dt) {
-        const now = GLib.get_monotonic_time();
-        for (const tile of WidgetTile._wigglingTiles) {
-            if (tile.actor.is_finalized?.())
-                continue;
-            tile._phase = (tile._phase ?? 0) + dt * 14;
-            if (!tile._dragging)
-                tile.actor.rotation_angle_z = Math.sin(tile._phase) * 0.9;
         }
     }
 
@@ -203,7 +140,10 @@ class WidgetTile {
             const [x, y] = event.get_coords();
             drag = {x, y, ox: this.actor.x, oy: this.actor.y, moved: false};
             this._dragging = true;
+            this.actor.ease({rotation_angle_z: 0, duration: 80});
             this.actor.get_parent()?.set_child_above_sibling(this.actor, null);
+            this.actor.ease({scale_x: this.manager.scale * 1.04, scale_y: this.manager.scale * 1.04, duration: 140,
+                mode: Clutter.AnimationMode.EASE_OUT_QUAD});
             return Clutter.EVENT_STOP;
         });
         this.actor.connect('motion-event', (_a, event) => {
@@ -219,6 +159,8 @@ class WidgetTile {
             if (!drag)
                 return Clutter.EVENT_PROPAGATE;
             this._dragging = false;
+            this.actor.ease({scale_x: this.manager.scale, scale_y: this.manager.scale, duration: 160,
+                mode: Clutter.AnimationMode.EASE_OUT_BACK});
             if (drag.moved)
                 this.manager.dropTile(this);
             this.manager.hidePreview();
@@ -226,26 +168,9 @@ class WidgetTile {
             return Clutter.EVENT_STOP;
         });
 
-        // Resize handle: drag to freely resize the tile (pixel-perfect, no scaling).
-        let resizing = null;
-        this.handle.connect('button-press-event', (_a, event) => {
-            if (!this.manager.editing)
-                return Clutter.EVENT_PROPAGATE;
-            const [x, y] = event.get_coords();
-            resizing = {x, y, ow: this.width, oh: this.height};
-            return Clutter.EVENT_STOP;
-        });
-        this.handle.connect('motion-event', (_a, event) => {
-            if (!resizing)
-                return Clutter.EVENT_PROPAGATE;
-            const [x, y] = event.get_coords();
-            const nw = Math.max(88, resizing.ow + (x - resizing.x));
-            const nh = Math.max(88, resizing.oh + (y - resizing.y));
-            this.resize(nw, nh);
-            return Clutter.EVENT_STOP;
-        });
-        this.handle.connect('button-release-event', () => {
-            resizing = null;
+        // Resize handle: cycles through the sizes the type allows.
+        this.handle.connect('button-press-event', () => {
+            this.manager.cycleSize(this.instance.id);
             return Clutter.EVENT_STOP;
         });
 
@@ -259,11 +184,8 @@ class WidgetTile {
     }
 
     destroy() {
-        WidgetTile._wigglingTiles.delete(this);
-        if (WidgetTile._wigglingTiles.size === 0 && WidgetTile._wiggleTickerId) {
-            getTicker().remove(WidgetTile._wiggleTickerId);
-            WidgetTile._wiggleTickerId = 0;
-        }
+        if (this._wiggle)
+            getTicker().remove(this._wiggle);
         this.built?.destroy?.();
         this.actor.destroy();
     }
@@ -276,7 +198,6 @@ export class Widgets {
         this._tiles = [];
         this._layout = [];
         this.editing = false;
-        this._isRemoving = false;
     }
 
     enable() {
@@ -427,44 +348,10 @@ export class Widgets {
         for (const tile of this._tiles) {
             const {col, row} = tile.instance;
             const [x, y] = this._cellToPoint(col, row, tile.width);
-            // Render at native resolution (no set_scale): adjust size directly
-            // so content stays crisp at any widgets-scale value.
-            const w = Math.round(tile.width * k);
-            const h = Math.round(tile.height * k);
-            tile.actor.set_size(w, h);
-            tile.glass.set_size(w, h);
-            tile.content.set_size(w, h);
-            tile.handle.x = w - 22;
-            tile.handle.y = h - 22;
-            // Rebuild content at the new size only when it actually changed.
-            if (!tile._renderedSize || tile._renderedSize.w !== w || tile._renderedSize.h !== h) {
-                tile._renderedSize = {w, h};
-                tile.content.destroy_all_children();
-                const settings = this.settings;
-                const type = WIDGET_TYPES[tile.instance.type];
-                try {
-                    tile.built = type.build({
-                        settings,
-                        size: tile.instance.size,
-                        options: tile.instance.options,
-                        width: w,
-                        height: h,
-                        accent: tile.accent,
-                        instance: {
-                            options: tile.instance.options,
-                            save: () => this.save(),
-                        },
-                    });
-                    if (tile.built.flush)
-                        tile.content.add_style_class_name('flush');
-                    tile.content.add_child(tile.built.actor);
-                } catch (e) {
-                    logError(e, `GNOMAC widget ${tile.instance.type} place`);
-                }
-            }
-            // Pivot at centre so the visual corner sits correctly.
             tile.actor.set_pivot_point(0.5, 0.5);
-            tile.place(x - w / 2, y - h / 2);
+            tile.actor.set_scale(k, k);
+            // The pivot is the centre, so the visual corner sits (1 - k) / 2 inside.
+            tile.place(x - (tile.width * (1 - k)) / 2, y - (tile.height * (1 - k)) / 2);
         }
     }
 
@@ -474,9 +361,7 @@ export class Widgets {
         for (const w of this._layout) {
             if (w.id === exceptId)
                 continue;
-            // Custom-sized tiles (free resize) occupy a 2x2 grid cell by default.
-            const span = w.size ? SIZE_SPANS[w.size] : [2, 2];
-            const [cols, rows] = span;
+            const [cols, rows] = SIZE_SPANS[w.size];
             for (let c = 0; c < cols; c++)
                 for (let r = 0; r < rows; r++)
                     taken.add(`${w.col + c},${w.row + r}`);
@@ -486,7 +371,7 @@ export class Widgets {
 
     _bounds() {
         const monitor = Main.layoutManager.primaryMonitor;
-        const k = Math.max(this.scale, 0.1);
+        const k = this.scale;
         const margin = this.settings.get_int('widgets-margin');
         return {
             cols: Math.floor((monitor.width / k - 2 * margin) / UNIT),
@@ -495,9 +380,7 @@ export class Widgets {
     }
 
     _fits(instance, col, row, taken = this._occupied(instance.id)) {
-        // Custom-sized tiles (free resize) occupy a 2x2 grid cell by default.
-        const span = instance.size ? SIZE_SPANS[instance.size] : [2, 2];
-        const [cols, rows] = span;
+        const [cols, rows] = SIZE_SPANS[instance.size];
         const bounds = this._bounds();
         if (col < 0 || row < 0 || col + cols > bounds.cols || row + rows > bounds.rows)
             return false;
@@ -615,7 +498,6 @@ export class Widgets {
 
     setMaterial(id, material) {
         const instance = this._layout.find(w => w.id === id);
-        if (!instance) return;
         instance.material = material;
         this.save();
         this._rebuild();
@@ -623,7 +505,6 @@ export class Widgets {
 
     setColor(id, color) {
         const instance = this._layout.find(w => w.id === id);
-        if (!instance) return;
         instance.color = color;
         // "Tinted" without a colour is the old default blue; with one, the
         // colour shows, so picking a colour on a clear tile tints it.
@@ -633,83 +514,19 @@ export class Widgets {
         this._rebuild();
     }
 
-    _isRemoving = false;
-
     remove(id) {
-        if (this._isRemoving)
-            return;
         const tile = this._tiles.find(t_ => t_.instance.id === id);
         this._layout = this._layout.filter(w => w.id !== id);
         this.save();
         if (tile) {
-            this._isRemoving = true;
-            // Animate out, then destroy the tile and rebuild the layout.
             tile.actor.ease({opacity: 0, scale_x: 0.8, scale_y: 0.8, duration: 200,
                 mode: Clutter.AnimationMode.EASE_IN_QUAD,
-                onStopped: () => {
-                    tile.destroy();
-                    this._isRemoving = false;
-                    this._rebuild();
-                }});
-        }
-    }
-
-    // Remove every widget from the desktop (clean slate).
-    removeAll() {
-        if (this._isRemoving)
-            return;
-        const tiles = [...this._tiles];
-        if (tiles.length === 0) {
-            this._layout = [];
-            this.save();
-            return;
-        }
-        this._isRemoving = true;
-        let remaining = tiles.length;
-        for (const tile of tiles) {
-            tile.actor.ease({opacity: 0, scale_x: 0.8, scale_y: 0.8, duration: 200,
-                mode: Clutter.AnimationMode.EASE_IN_QUAD,
-                onStopped: () => {
-                    tile.destroy();
-                    remaining--;
-                    if (remaining === 0) {
-                        this._layout = [];
-                        this.save();
-                        this._isRemoving = false;
-                        this._rebuild();
-                    }
-                }});
-        }
-    }
-
-    // Remove every widget from the desktop (clean slate).
-    removeAll() {
-        // Animate all tiles out, then destroy and rebuild empty.
-        const tiles = [...this._tiles];
-        if (tiles.length === 0) {
-            this._layout = [];
-            this.save();
-            return;
-        }
-        let remaining = tiles.length;
-        for (const tile of tiles) {
-            tile.actor.ease({opacity: 0, scale_x: 0.8, scale_y: 0.8, duration: 200,
-                mode: Clutter.AnimationMode.EASE_IN_QUAD,
-                onStopped: () => {
-                    tile.destroy();
-                    remaining--;
-                    if (remaining === 0) {
-                        this._layout = [];
-                        this.save();
-                        this._rebuild();
-                    }
-                }});
+                onStopped: () => this._rebuild()});
         }
     }
 
     add(type) {
         const def = WIDGET_TYPES[type];
-        if (!def) return;
         const instance = {
             id: `w-${type}-${Date.now().toString(36)}`,
             type,
@@ -812,9 +629,6 @@ export class Widgets {
         const remove = new PopupMenu.PopupMenuItem(t('Remove Widget', 'Retirer le widget'));
         remove.connect('activate', () => this.remove(instance.id));
         menu.addMenuItem(remove);
-        const removeAll = new PopupMenu.PopupMenuItem(t('Remove All Widgets', 'Supprimer tous les widgets'));
-        removeAll.connect('activate', () => this.removeAll());
-        menu.addMenuItem(removeAll);
         menu.open(true);
         this._menu = menu;
     }
@@ -960,12 +774,8 @@ export class Widgets {
         const reset = press(new St.Button({style_class: 'gnomac-notch-pill-button', x_expand: true,
             label: t('Reset', 'Réinitialiser'), can_focus: false}));
         reset.connect('clicked', () => this.resetLayout());
-        const clearAll = press(new St.Button({style_class: 'gnomac-notch-pill-button', x_expand: true,
-            label: t('Remove All', 'Supprimer tous'), css_classes: ['destructive-action']}));
-        clearAll.connect('clicked', () => this.removeAll());
         tools.add_child(tidy);
         tools.add_child(reset);
-        tools.add_child(clearAll);
         box.add_child(tools);
 
         const scroll = new St.ScrollView({x_expand: true, y_expand: true});

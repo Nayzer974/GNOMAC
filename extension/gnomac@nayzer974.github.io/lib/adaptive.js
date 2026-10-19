@@ -11,10 +11,7 @@ import GLib from 'gi://GLib';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 const smooth = (a, b, x) => {
-    const d = b - a;
-    if (d === 0)
-        return x <= a ? 0 : 1;
-    const t = Math.min(1, Math.max(0, (x - a) / d));
+    const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
     return t * t * (3 - 2 * t);
 };
 

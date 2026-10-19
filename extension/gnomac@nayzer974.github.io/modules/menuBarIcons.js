@@ -8,7 +8,6 @@
 
 import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
-import GLib from 'gi://GLib';
 import St from 'gi://St';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
@@ -56,7 +55,6 @@ export class MenuBarIcons {
         this._path = extension.path;
         this._hidden = [];
         this._networkIds = [];
-        this._batterySignalId = 0;
     }
 
     _icon(name) {
@@ -72,12 +70,10 @@ export class MenuBarIcons {
         this._adoptIndicators();
         // GNOME builds these indicators asynchronously at startup, after
         // extensions are enabled: catch the late ones as they arrive.
-        this._childAddedId = qs._indicators.connect('child-added', (_parent, child) => {
+        this._childAddedId = qs._indicators.connect('child-added', () => {
             this._adoptIndicators();
-            // Only connect signals to the NEW child, not all of them again.
-            // Re-connecting all children on every child-added caused O(N²)
-            // signal handler accumulation.
-            this._watchNetworkChild(child);
+            if (!this._networkIds.length)
+                this._watchNetwork();
             if (this._box && qs._indicators.get_last_child() !== this._box)
                 qs._indicators.set_child_above_sibling(this._box, null);
         });
@@ -246,9 +242,6 @@ export class MenuBarIcons {
         for (const [object, id] of this._networkIds)
             object.disconnect(id);
         this._networkIds = [];
-        if (this._batterySignalId && this._upower) {
-            try { this._upower.disconnect(this._batterySignalId); } catch {}
-        }
         this._upower = null;
         this._box?.destroy();
         this._box = null;
@@ -266,29 +259,15 @@ export class MenuBarIcons {
         const network = this._qs._network;
         if (!network)
             return;
-        for (const child of network.get_children())
-            this._watchNetworkChild(child);
+        const update = () => this._syncNetwork();
+        for (const child of network.get_children()) {
+            if (!(child instanceof St.Icon))
+                continue;
+            this._networkIds.push([child, child.connect('notify::gicon', update)]);
+            this._networkIds.push([child, child.connect('notify::icon-name', update)]);
+            this._networkIds.push([child, child.connect('notify::visible', update)]);
+        }
         this._syncNetwork();
-    }
-
-    _watchNetworkChild(child) {
-        if (!(child instanceof St.Icon))
-            return;
-        // Throttle network icon updates: multiple notify:: signals can fire
-        // in quick succession, but we only need one _syncNetwork() per frame.
-        let pending = false;
-        const update = () => {
-            if (pending) return;
-            pending = true;
-            GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
-                pending = false;
-                this._syncNetwork();
-                return GLib.SOURCE_REMOVE;
-            });
-        };
-        this._networkIds.push([child, child.connect('notify::gicon', update)]);
-        this._networkIds.push([child, child.connect('notify::icon-name', update)]);
-        this._networkIds.push([child, child.connect('notify::visible', update)]);
     }
 
     _syncNetwork() {
@@ -315,7 +294,7 @@ export class MenuBarIcons {
                 if (error || !this._box)
                     return;
                 this._upower = proxy;
-                this._batterySignalId = proxy.connect('g-properties-changed', () => this._syncBattery());
+                proxy.connect('g-properties-changed', () => this._syncBattery());
                 this._syncBattery();
             });
     }

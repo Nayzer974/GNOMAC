@@ -53,14 +53,13 @@ export class Spring {
     }
 }
 
-// One timeline for the whole extension. Callbacks receive a fixed dt (1/60s)
-// so spring physics is deterministic and stutter-free, whatever the display
-// refresh rate. Driven by Clutter.Timeline which fires on the compositor's
-// frame clock.
+// One timeline for the whole extension. Callbacks receive dt in seconds and
+// return true to keep ticking.
 class Ticker {
     constructor() {
         this._callbacks = new Set();
         this._timeline = null;
+        this._last = 0;
     }
 
     add(callback) {
@@ -69,9 +68,10 @@ class Ticker {
             return;
         this._timeline = new Clutter.Timeline({
             actor: global.stage,
-            duration: 16,   // ~60 Hz
+            duration: 1000,
             repeat_count: -1,
         });
+        this._last = GLib.get_monotonic_time();
         this._timeline.connect('new-frame', () => this._onFrame());
         this._timeline.start();
     }
@@ -83,7 +83,10 @@ class Ticker {
     }
 
     _onFrame() {
-        const dt = 1 / 60; // fixed timestep: deterministic spring motion
+        const now = GLib.get_monotonic_time();
+        // Clamp so a stalled frame never makes a spring explode.
+        const dt = Math.min((now - this._last) / 1e6, 1 / 20);
+        this._last = now;
         for (const callback of [...this._callbacks]) {
             let keep = false;
             try {

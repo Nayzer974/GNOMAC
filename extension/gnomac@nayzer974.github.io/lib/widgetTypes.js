@@ -177,17 +177,14 @@ function buildReminders({settings, accent}) {
     box.add_child(entry);
     const render = () => {
         list.destroy_all_children();
-        const reminders = settings.get_strv('widget-reminders').slice(-5);
-        for (let i = 0; i < reminders.length; i++) {
-            const text = reminders[i];
-            const originalIndex = settings.get_strv('widget-reminders').indexOf(text);
+        for (const text of settings.get_strv('widget-reminders').slice(-5)) {
             const row = new St.BoxLayout({style_class: 'gnomac-widget-reminder'});
             const done = press(new St.Button({style_class: 'gnomac-widget-check', can_focus: false}));
             if (accent)
                 done.set_style(`border-color: ${css(accent)};`);
             done.connect('clicked', () => {
                 const all = settings.get_strv('widget-reminders');
-                const index = all.indexOf(text);
+                const index = all.lastIndexOf(text);
                 if (index >= 0)
                     all.splice(index, 1);
                 settings.set_strv('widget-reminders', all);
@@ -404,8 +401,6 @@ export function defaultLayout() {
         w('reminders', 'medium', 0, 2, {color: 'orange'}),
         w('music', 'medium', 0, 4, {color: 'pink'}),
         w('progress', 'medium', 4, 4, {color: 'purple'}),
-        w('rss', 'medium', 0, 6, {color: 'teal'}),
-        w('sticky', 'medium', 2, 6, {color: 'yellow'}),
     ];
 }
 

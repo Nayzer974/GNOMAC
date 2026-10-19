@@ -43,21 +43,21 @@ function systemActionEntries(extension) {
         entry(t('Liquid Glass Debug', 'Débogage Liquid Glass'), ['glass', 'verre', 'debug', 'liquid', 'fps'],
             'applications-engineering-symbolic', () => extension?.glassDebug?.toggle()),
         entry(t('Mission Control (experimental)', 'Mission Control (expérimental)'), ['mission', 'control', 'expose', 'fenetres', 'windows'],
-            'view-grid-symbolic', () => import('../lib/missionControl.js').then(m => (m.missionControl.active ? m.exitMissionControl(null) : m.enterMissionControl())).catch(() => {})),
+            'view-grid-symbolic', () => import('../lib/missionControl.js').then(m => (m.missionControl.active ? m.exitMissionControl(null) : m.enterMissionControl()))),
         entry(t('Install the Login Screen', 'Installer l’écran de connexion'), ['login', 'gdm', 'connexion', 'ecran', 'écran', 'lock'],
-            'system-lock-screen-symbolic', () => import('../lib/gdmInstall.js').then(m => m.installLoginScreen(false)).catch(() => {})),
+            'system-lock-screen-symbolic', () => import('../lib/gdmInstall.js').then(m => m.installLoginScreen(false))),
         entry(t('Check the Login Screen', 'Vérifier l’écran de connexion'), ['login', 'gdm', 'connexion', 'verifier', 'vérifier', 'check'],
-            'system-lock-screen-symbolic', () => import('../lib/gdmInstall.js').then(m => m.checkLoginScreen()).catch(() => {})),
+            'system-lock-screen-symbolic', () => import('../lib/gdmInstall.js').then(m => m.checkLoginScreen())),
         entry(t('What’s New in GNOMAC', 'Nouveautés de GNOMAC'), ['nouveautes', 'nouveautés', 'whats', 'new', 'changelog', 'version'],
             'starred-symbolic', () => extension?.updater?.showWhatsNew(true)),
         entry(t('Notification Center', 'Centre de notifications'), ['notifications', 'notification', 'centre', 'center', 'cloche'],
             'preferences-system-notifications-symbolic', () => extension?.notificationCenter?.toggle()),
         entry(t('GNOMAC Diagnostics', 'GNOMAC Diagnostics'), ['diagnostics', 'diagnostic', 'gnomac', 'gpu', 'info', 'system'],
-            'dialog-information-symbolic', () => import('../lib/diagnostics.js').then(m => m.showDiagnostics(extension)).catch(() => {})),
+            'dialog-information-symbolic', () => import('../lib/diagnostics.js').then(m => m.showDiagnostics(extension))),
         entry(t('Motion Benchmark', 'Motion Benchmark'), ['motion', 'benchmark', 'bench', 'fps', 'windows', 'animations'],
-            'utilities-system-monitor-symbolic', () => import('../lib/motionBench.js').then(m => m.runMotionBench(extension)).catch(() => {})),
+            'utilities-system-monitor-symbolic', () => import('../lib/motionBench.js').then(m => m.runMotionBench(extension))),
         entry(t('Glass Benchmark', 'Glass Benchmark'), ['glass', 'benchmark', 'bench', 'fps', 'performance'],
-            'utilities-system-monitor-symbolic', () => import('../lib/glassBench.js').then(m => m.runGlassBench(extension)).catch(() => {})),
+            'utilities-system-monitor-symbolic', () => import('../lib/glassBench.js').then(m => m.runGlassBench(extension))),
         entry(t('Glass Inspector', 'Glass Inspector'), ['glass', 'inspector', 'inspecteur', 'fps', 'debug'],
             'utilities-system-monitor-symbolic', () => extension?.glassDebug?.toggleInspector()),
         entry(t('Liquid Glass Groups', 'Groupes Liquid Glass'), ['glass', 'groups', 'groupes', 'verre', 'debug', 'blur'],
@@ -158,7 +158,6 @@ export class Spotlight {
         this._mode = 'all';
         this._fileCache = new Map();
         this._tick = dt => this._onTick(dt);
-        this._searchDebounceId = 0;
     }
 
     enable() {
@@ -246,16 +245,7 @@ export class Spotlight {
         Main.layoutManager.uiGroup.add_child(this._root);
 
         const text = this._entry.clutter_text;
-        text.connect('text-changed', () => {
-            if (this._searchDebounceId)
-                GLib.source_remove(this._searchDebounceId);
-            // Debounce search so we don't rebuild the DOM on every keystroke.
-            this._searchDebounceId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 150, () => {
-                this._searchDebounceId = 0;
-                this._search();
-                return GLib.SOURCE_REMOVE;
-            });
-        });
+        text.connect('text-changed', () => this._search());
         text.connect('key-press-event', (_actor, event) => this._onKey(event));
         text.connect('activate', () => this._activateSelected());
 
@@ -285,10 +275,6 @@ export class Spotlight {
         }
         this.close(false);
         getTicker().remove(this._tick);
-        if (this._searchDebounceId) {
-            GLib.source_remove(this._searchDebounceId);
-            this._searchDebounceId = 0;
-        }
         this._root?.destroy();
         this._root = null;
         this._restoreSuperSpace();

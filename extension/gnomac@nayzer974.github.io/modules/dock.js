@@ -246,7 +246,6 @@ export class Dock {
         this._items = [];
         this._separators = [];
         this._pointerX = null;
-        this._lastPointerX = null;
         this._expanded = false;
         this._hoveredItem = null;
         this._ticking = false;
@@ -394,17 +393,6 @@ export class Dock {
             DND.removeDragMonitor(this._dragMonitor);
             this._dragMonitor = null;
         }
-        // Close any open dock menus so they don't stay stuck on screen.
-        for (const item of this._items) {
-            if (item.menu) {
-                try {
-                    item.menu.close();
-                } catch {}
-                item.menu = null;
-            }
-        }
-        this._menuManager?.destroy();
-        this._menuManager = null;
         this._trash?.destroy();
         this._trash = null;
         this._downloads?.destroy();
@@ -412,10 +400,6 @@ export class Dock {
         if (this._publishLater) {
             global.compositor.get_laters().remove(this._publishLater);
             this._publishLater = 0;
-        }
-        if (this._publishDebounceId) {
-            GLib.source_remove(this._publishDebounceId);
-            this._publishDebounceId = 0;
         }
         for (const [object, id] of this._signals)
             object.disconnect(id);
@@ -445,6 +429,7 @@ export class Dock {
             this.actor.destroy();
             this.actor = null;
         }
+        this._menuManager = null;
     }
 
     _connect(object, signal, callback) {
@@ -885,18 +870,10 @@ export class Dock {
 
         this._relayout();
 
-        const active = bouncing || !this._hover.settled || this.actor.hover;
+        const active = bouncing || !this._hover.settled;
         if (!active) {
             this._ticking = false;
-            // Debounce the D-Bus burst: don't publish geometry on every frame
-            // the dock settles; wait until it's truly idle.
-            if (this._publishDebounceId)
-                GLib.source_remove(this._publishDebounceId);
-            this._publishDebounceId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
-                this._publishDebounceId = 0;
-                this._publishIconGeometry();
-                return GLib.SOURCE_REMOVE;
-            });
+            this._publishIconGeometry();
         }
         return active;
     }
@@ -1053,11 +1030,6 @@ export class Dock {
                     return;
                 Main.uiGroup.add_child(item.menu.actor);
                 this._menuManager.addMenu(item.menu);
-                // Close menu when clicking outside.
-                item.menu.connect('open-state-changed', (_m, open) => {
-                    if (!open)
-                        item.menu = null;
-                });
             }
             this._tooltip.opacity = 0;
             item.menu.open(BoxPointer.PopupAnimation.FULL);
@@ -1071,11 +1043,6 @@ export class Dock {
             item.menu.setApp(item.app);
             Main.uiGroup.add_child(item.menu.actor);
             this._menuManager.addMenu(item.menu);
-            // Close menu when clicking outside.
-            item.menu.connect('open-state-changed', (_m, open) => {
-                if (!open)
-                    item.menu = null;
-            });
         }
         this._tooltip.opacity = 0;
         item.menu.open(BoxPointer.PopupAnimation.FULL);

@@ -83,57 +83,6 @@ mkdir -p "$EXT_DST"
 cp -r "$EXT_SRC/." "$EXT_DST/"
 glib-compile-schemas "$EXT_DST/schemas"
 
-# Automatically add any schema keys that the user's saved config does not yet
-# have (e.g. after several pushes of updates). Existing custom values are
-# never overwritten: only missing keys receive the schema default.
-migrate_settings() {
-  local schema="$EXT_DST/schemas/org.gnome.shell.extensions.gnomac.gschema.xml"
-  [[ -f "$schema" ]] || return 0
-  python3 - "$schema" <<'PY'
-import xml.etree.ElementTree as ET, subprocess, sys
-schema_file = sys.argv[1]
-tree = ET.parse(schema_file)
-root = tree.getroot()
-schema_el = root.find('schema')
-if schema_el is None:
-    sys.exit(0)
-schema_id = schema_el.get('id')
-for key in schema_el.findall('key'):
-    name = key.get('name')
-    default_el = key.find('default')
-    if default_el is None or not default_el.text:
-        continue
-    raw_default = default_el.text.strip()
-    key_type = key.get('type', 's')
-    # Check whether the key already exists in the user's dconf.
-    check = subprocess.run(
-        ['gsettings', 'read', schema_id, name],
-        capture_output=True, text=True)
-    if check.returncode == 0:
-        continue  # key already set by the user: keep it
-    # Convert the XML default to a gsettings-friendly value.
-    if key_type == 'b':
-        val = raw_default  # true / false
-    elif key_type == 's':
-        # XML stores strings as 'value': strip the surrounding quotes.
-        val = raw_default
-        if val.startswith("'") and val.endswith("'"):
-            val = val[1:-1]
-        val = f"'{val}'"
-    elif key_type in ('i', 'd', 'u', 'x', 't'):
-        val = raw_default
-    elif key_type == 'as':
-        val = raw_default  # e.g. ['home', 'stats']
-    else:
-        val = raw_default
-    subprocess.run(
-        ['gsettings', 'set', schema_id, name, val],
-        capture_output=True)
-PY
-}
-
-migrate_settings
-
 enable_extension() {
   local uuid="$1"
   # A freshly copied extension is unknown to a running Wayland session, so
@@ -215,24 +164,21 @@ fi
 # The automatic updater compares this commit with the latest one on GitHub.
 SHA="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || cat "$ROOT/.gnomac-sha" 2>/dev/null || echo unknown)"
 mkdir -p "$CONFIG/gnomac"
-python3 -c 'import json,datetime,sys; print(json.dumps({"sha": sys.argv[1], "source": sys.argv[2], "installed": datetime.datetime.utcnow().isoformat() + "Z"}))' "$SHA" "$ROOT" > "$CONFIG/gnomac/installed.json"
+printf '{"sha": "%s", "source": "%s", "installed": "%s"}\n' "$SHA" "$ROOT" "$(date -u +%FT%TZ)" > "$CONFIG/gnomac/installed.json"
 
 # ---------------------------------------------------------------- extras
 if (( WITH_EXTRAS )); then
   command -v curl >/dev/null && command -v unzip >/dev/null || die "--extras needs curl and unzip."
-  extras_tmp="$(mktemp -d)"
-  trap 'rm -rf "$extras_tmp"' EXIT
+  tmp="$(mktemp -d)"
+  trap 'rm -rf "$tmp"' EXIT
   for pk in "${EXTRA_EXTENSIONS[@]}"; do
     info "Fetching extension #$pk from extensions.gnome.org"
     meta="$(curl -fsSL "https://extensions.gnome.org/extension-info/?pk=$pk&shell_version=$SHELL_MAJOR")" || {
       warn "Extension #$pk has no release for GNOME $SHELL_MAJOR, skipped."; continue; }
-    if ! read -r uuid url < <(python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["uuid"], d["download_url"])' <<<"$meta" 2>/dev/null); then
-      warn "Extension #$pk returned invalid metadata, skipped."; continue; fi
-    curl -fsSL "https://extensions.gnome.org$url" -o "$extras_tmp/$pk.zip" || {
-      warn "Extension #$pk download failed, skipped."; continue; }
-    gnome-extensions install --force "$extras_tmp/$pk.zip" || {
-      warn "Extension #$pk install failed, skipped."; continue; }
-    enable_extension "$uuid" || warn "Extension #$pk enable failed."
+    read -r uuid url < <(python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["uuid"], d["download_url"])' <<<"$meta")
+    curl -fsSL "https://extensions.gnome.org$url" -o "$tmp/$pk.zip"
+    gnome-extensions install --force "$tmp/$pk.zip"
+    enable_extension "$uuid"
   done
 fi
 
@@ -240,27 +186,21 @@ if (( WITH_ICONS )); then
   command -v git >/dev/null || die "--icons needs git."
   info "Installing the MacTahoe icon theme"
   icons_tmp="$(mktemp -d)"
-  trap 'rm -rf "$icons_tmp"' EXIT
-  git clone --depth 1 https://github.com/vinceliuice/MacTahoe-icon-theme.git "$icons_tmp/MacTahoe-icon-theme" || {
-    warn "Icon theme clone failed, skipped."; trap - EXIT; rm -rf "$icons_tmp"; }
-  (cd "$icons_tmp/MacTahoe-icon-theme" && ./install.sh) || warn "Icon theme install failed."
-  trap - EXIT
+  git clone --depth 1 https://github.com/vinceliuice/MacTahoe-icon-theme.git "$icons_tmp/MacTahoe-icon-theme"
+  (cd "$icons_tmp/MacTahoe-icon-theme" && ./install.sh)
   rm -rf "$icons_tmp"
-  gsettings set org.gnome.desktop.interface icon-theme 'MacTahoe-dark' || warn "Icon theme set failed."
+  gsettings set org.gnome.desktop.interface icon-theme 'MacTahoe-dark'
 fi
 
 if (( WITH_CURSORS )); then
   command -v git >/dev/null || die "--cursors needs git."
   info "Installing macOS-style cursors (WhiteSur)"
   cursors_tmp="$(mktemp -d)"
-  trap 'rm -rf "$cursors_tmp"' EXIT
-  git clone --depth 1 https://github.com/vinceliuice/WhiteSur-cursors.git "$cursors_tmp/WhiteSur-cursors" || {
-    warn "Cursors clone failed, skipped."; trap - EXIT; rm -rf "$cursors_tmp"; }
+  git clone --depth 1 https://github.com/vinceliuice/WhiteSur-cursors.git "$cursors_tmp/WhiteSur-cursors"
   mkdir -p "${XDG_DATA_HOME:-$HOME/.local/share}/icons/WhiteSur-cursors"
-  cp -r "$cursors_tmp/WhiteSur-cursors/dist/." "${XDG_DATA_HOME:-$HOME/.local/share}/icons/WhiteSur-cursors/" || warn "Cursors copy failed."
-  trap - EXIT
+  cp -r "$cursors_tmp/WhiteSur-cursors/dist/." "${XDG_DATA_HOME:-$HOME/.local/share}/icons/WhiteSur-cursors/"
   rm -rf "$cursors_tmp"
-  gsettings set org.gnome.desktop.interface cursor-theme 'WhiteSur-cursors' || warn "Cursors set failed."
+  gsettings set org.gnome.desktop.interface cursor-theme 'WhiteSur-cursors'
 fi
 
 if (( WITH_PLYMOUTH )); then

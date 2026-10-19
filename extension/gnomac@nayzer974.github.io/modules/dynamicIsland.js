@@ -371,8 +371,6 @@ export class DynamicIsland {
         this._phase = 0;
         this._position = 0;
         this._length = 0;
-        this._progress = 0;
-        this._shownOpacity = 255;
         this._tick = dt => this._onTick(dt);
         this._signals = [];
         // How present each content group is (0..1). Content is never switched
@@ -547,11 +545,6 @@ export class DynamicIsland {
             // At shell shutdown the island dies before disable() runs.
             if (!this.island || this._islandGone)
                 return GLib.SOURCE_REMOVE;
-            // Skip heavy work when the island is hidden or idle.
-            if (!this.island.visible && this._mode === 'rest')
-                return GLib.SOURCE_CONTINUE;
-            // Read prayer config once per tick, not twice.
-            const prayerConfig = this._prayerAlerts ? readPrayerConfig(this._settings) : null;
             this._syncContent();
             const idle = this._cfg.autoClose;
             if (this._pinned && idle > 0 && !this.island.hover &&
@@ -565,10 +558,9 @@ export class DynamicIsland {
                 if (this._tab === 'stats')
                     this.island.statsView.update();
                 if (this._tab === 'prayer')
-                    this.island.prayerView.update(prayerConfig);
+                    this.island.prayerView.update(readPrayerConfig(this._settings));
             }
-            if (prayerConfig)
-                this._prayerAlerts?.tick(prayerConfig, GLib.DateTime.new_now_local());
+            this._prayerAlerts?.tick(readPrayerConfig(this._settings), GLib.DateTime.new_now_local());
             return GLib.SOURCE_CONTINUE;
         });
 
@@ -576,22 +568,10 @@ export class DynamicIsland {
         if (this._cfg.hud)
             this._routeOsd(Main.osdWindowManager);
 
-        this._update();
-        // Position the island immediately so it never flashes in the top-left corner.
+        // Placed at once: the first tick comes a frame later, and until then the
+        // island would sit in the top-left corner of the screen.
         this._layout();
-        // Force the island to rest state (not pinned) so it doesn't appear activated.
-        this._pinned = false;
-        this._mode = 'rest';
-        this.island.visible = true;
-        this.island.opacity = this._shownOpacity;
-        // Ensure the island starts centered on the primary monitor.
-        const monitor = Main.layoutManager.primaryMonitor;
-        if (monitor) {
-            const width = Math.round(Math.max(this._sizes.rest.height, this._width.value));
-            const height = Math.round(Math.max(this._sizes.rest.height, this._height.value));
-            this.island.set_position(Math.round(monitor.x + (monitor.width - width) / 2), monitor.y);
-            this.island.set_size(width, height);
-        }
+        this._update();
     }
 
     _routeOsd(osd) {
@@ -798,6 +778,8 @@ export class DynamicIsland {
         stopClipboard();
         if (this._osdSaved) {
             Object.assign(Main.osdWindowManager, this._osdSaved);
+            delete Main.osdWindowManager.show;
+            delete Main.osdWindowManager.showAll;
             this._osdSaved = null;
         }
         getTicker().remove(this._tick);
@@ -880,7 +862,7 @@ export class DynamicIsland {
                 return;
             // Players without Raise: the application of the same name.
             Shell.AppSystem.get_default().lookup_app(`${player.desktopEntry}.desktop`)?.activate();
-        }).catch(() => {});
+        });
     }
 
     // Plugging the charger in (or unplugging it) shows a short notice in the
@@ -964,18 +946,16 @@ export class DynamicIsland {
     }
 
     async _bluetoothConnected(path) {
-        try {
-            const device = await this._getAll(path, 'org.bluez.Device1');
-            if (!device || this._islandGone)
-                return;
-            const battery = await this._getAll(path, 'org.bluez.Battery1');
-            const unpack = v => v?.deepUnpack?.() ?? v;
-            this._onBluetoothDevice({
-                name: unpack(device.Alias) ?? unpack(device.Name) ?? 'Bluetooth',
-                icon: unpack(device.Icon),
-                battery: battery ? unpack(battery.Percentage) : null,
-            });
-        } catch {}
+        const device = await this._getAll(path, 'org.bluez.Device1');
+        if (!device || this._islandGone)
+            return;
+        const battery = await this._getAll(path, 'org.bluez.Battery1');
+        const unpack = v => v?.deepUnpack?.() ?? v;
+        this._onBluetoothDevice({
+            name: unpack(device.Alias) ?? unpack(device.Name) ?? 'Bluetooth',
+            icon: unpack(device.Icon),
+            battery: battery ? unpack(battery.Percentage) : null,
+        });
     }
 
     _onBluetoothDevice({name, icon, battery}) {
@@ -998,7 +978,7 @@ export class DynamicIsland {
         // The icon answers at once; the player's own signal confirms it.
         const playing = player.status === 'Playing';
         this.island.playButton.child.icon_name = playing ? 'media-playback-start-symbolic' : 'media-playback-pause-symbolic';
-        player.playPause().then(() => this._pollSoon()).catch(() => {});
+        player.playPause().then(() => this._pollSoon());
     }
 
     // Previous / next track; when the player has none (a browser tab, a
@@ -1011,7 +991,7 @@ export class DynamicIsland {
         if (!control.enabled)
             return;
         if (control.kind === 'skip')
-            (direction > 0 ? player.next() : player.previous()).then(() => this._pollSoon()).catch(() => {});
+            (direction > 0 ? player.next() : player.previous()).then(() => this._pollSoon());
         else
             this._seekBy(direction * 10 * 1e6);
     }
@@ -1024,7 +1004,7 @@ export class DynamicIsland {
         this._position = Math.max(0, this._livePosition() + offsetUs);
         this._positionAt = GLib.get_monotonic_time();
         this._syncProgress();
-        player.seekBy(offsetUs).then(() => this._pollSoon()).catch(() => {});
+        player.seekBy(offsetUs).then(() => this._pollSoon());
     }
 
     _seekTo(fraction) {
@@ -1036,7 +1016,7 @@ export class DynamicIsland {
         this._position = target;
         this._positionAt = GLib.get_monotonic_time();
         this._syncProgress();
-        player.setPosition(target).then(() => this._pollSoon()).catch(() => {});
+        player.setPosition(target).then(() => this._pollSoon());
     }
 
     // Click or drag on the progress bar.
@@ -1093,9 +1073,7 @@ export class DynamicIsland {
     _pollSoon() {
         if (this._pollTimeout)
             GLib.source_remove(this._pollTimeout);
-        // Poll at most once per second while media plays; more frequent D-Bus
-        // calls are unnecessary for a progress bar.
-        this._pollTimeout = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
+        this._pollTimeout = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 250, () => {
             this._pollTimeout = 0;
             this._pollPosition();
             return GLib.SOURCE_REMOVE;
@@ -1107,15 +1085,13 @@ export class DynamicIsland {
         const player = this._player;
         if (!player)
             return;
-        try {
-            const position = await player.fetchPosition();
-            if (this._player !== player || this._islandGone || !this.island)
-                return;
-            this._position = position;
-            this._positionAt = GLib.get_monotonic_time();
-            this._length = player.length;
-            this._syncProgress();
-        } catch {}
+        const position = await player.fetchPosition();
+        if (this._player !== player || this._islandGone || !this.island)
+            return;
+        this._position = position;
+        this._positionAt = GLib.get_monotonic_time();
+        this._length = player.length;
+        this._syncProgress();
     }
 
     _watchSource(source) {
@@ -1385,7 +1361,7 @@ export class DynamicIsland {
                         return;
                     this._coverPath = path;
                     this._paintCover(player);
-                }).catch(() => {});
+                });
             }
             this._paintCover(player);
         } else if (this._paintedPlayer !== player) {
@@ -1505,16 +1481,6 @@ export class DynamicIsland {
         }
         const timed = now < this._noticeUntil || now < this._workspaceUntil || now < (this._hudUntil ?? 0);
         return playing || timed || presenceMoving || !!this._pendingSize || !this._width.settled || !this._height.settled;
-    }
-
-    // Throttle the Cairo repaint of the notch shape: only repaint when the
-    // width or height actually changed (the shape is otherwise identical).
-    _queueShapeRepaint(width, height) {
-        if (width !== this._lastShapeWidth || height !== this._lastShapeHeight) {
-            this._lastShapeWidth = width;
-            this._lastShapeHeight = height;
-            this.island?.shape?.queue_repaint();
-        }
     }
 
     _layout() {

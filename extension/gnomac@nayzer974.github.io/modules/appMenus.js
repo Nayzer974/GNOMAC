@@ -242,11 +242,8 @@ export class AppMenus {
     }
 
     _clear() {
-        for (const button of this._buttons) {
-            const name = `gnomac-menu-${this._buttons.indexOf(button)}`;
-            Main.panel.removeFromStatusArea?.(name);
+        for (const button of this._buttons)
             button.destroy();
-        }
         this._buttons = [];
     }
 
@@ -260,8 +257,7 @@ export class AppMenus {
         const menus = standardMenus(app);
         // Right after the app name, like macOS.
         const appName = Main.panel.statusArea['gnomac-appname'];
-        const idx = appName ? Main.panel._leftBox.get_children().indexOf(appName.container) : -1;
-        let position = idx >= 0 ? idx + 1 : 2;
+        let position = appName ? Main.panel._leftBox.get_children().indexOf(appName.container) + 1 : 2;
         menus.forEach((spec, i) => {
             const button = new MenuTitle(spec);
             button.connect('destroy', () => (button._gone = true));

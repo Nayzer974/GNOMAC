@@ -50,14 +50,12 @@ echo "  macOS 27 look and feel for GNOME. About two minutes."
 echo
 
 WITH_DEPS=0; WITH_ICONS=0; WITH_CURSORS=0; WITH_PLY=0; WITH_GDM=0; WITH_SYNC=0
-if ask "Install the needed packages with pacman (Inter font, git, curl…)?" y; then WITH_DEPS=1; fi
-if ask "Add the macOS-style cursors (WhiteSur)?" n; then WITH_CURSORS=1; fi
-if ask "Add the macOS-style icon theme (MacTahoe)?" n; then WITH_ICONS=1; fi
-if ask "Install the boot splash (the logo at start-up, needs sudo)?" y; then WITH_PLY=1; fi
-if ask "Install the macOS login screen (needs sudo)?" y; then WITH_GDM=1; fi
-if (( WITH_GDM )); then
-  if ask "Keep the login screen up to date automatically (a root service copies your GNOMAC folder after each update: trust it only on your own machine)?" n; then WITH_SYNC=1; fi
-fi
+ask "Install the needed packages with pacman (Inter font, git, curl…)?" y && WITH_DEPS=1
+ask "Add the macOS-style cursors (WhiteSur)?" n && WITH_CURSORS=1
+ask "Add the macOS-style icon theme (MacTahoe)?" n && WITH_ICONS=1
+ask "Install the boot splash (the logo at start-up, needs sudo)?" y && WITH_PLY=1
+ask "Install the macOS login screen (needs sudo)?" y && WITH_GDM=1
+(( WITH_GDM )) && ask "Keep the login screen up to date automatically (a root service copies your GNOMAC folder after each update: trust it only on your own machine)?" n && WITH_SYNC=1
 echo
 
 # 1. The extension, window controls and your settings backup.
@@ -83,14 +81,12 @@ fi
 
 # 3. Login screen.
 if (( WITH_GDM )); then
-  if [[ "$(basename "$(readlink -f /etc/systemd/system/display-manager.service 2>/dev/null)")" == gdm.service \
-     || "$(basename "$(readlink -f /etc/systemd/system/display-manager.service 2>/dev/null)")" == gdm-wayland.service ]] \
-     || command -v gdm3 >/dev/null; then
+  if [[ "$(basename "$(readlink -f /etc/systemd/system/display-manager.service 2>/dev/null)")" == gdm*.service ]] \
+     || command -v gdm >/dev/null; then
     info "Login screen: sudo will ask for your password."
     sync_flag=()
     (( WITH_SYNC )) && sync_flag=(--auto-sync)
-    # Use ${sync_flag[@]+…} so an empty array passes no argument on bash < 4.4.
-    if sudo "$ROOT/gdm/install-gdm.sh" ${sync_flag[@]+"${sync_flag[@]}"}; then
+    if sudo "$ROOT/gdm/install-gdm.sh" "${sync_flag[@]}"; then
       ok "Login screen installed"
     else
       warn "Login screen: see the ✗ lines above."

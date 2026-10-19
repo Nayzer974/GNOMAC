@@ -73,8 +73,7 @@ export function computeHours({year, month, day}, {latitude, longitude}, timezone
     const angleTime = (angle, t, ccw) => {
         const {declination} = sunPosition(jd + t);
         const noon = midDay(t);
-        const denom = cos(declination) * cos(latitude);
-        const x = denom === 0 ? 0 : (-sin(angle) - sin(declination) * sin(latitude)) / denom;
+        const x = (-sin(angle) - sin(declination) * sin(latitude)) / (cos(declination) * cos(latitude));
         const delta = acos(x) / 15;
         return noon + (ccw ? -delta : delta);
     };
@@ -112,14 +111,12 @@ export function computeHours({year, month, day}, {latitude, longitude}, timezone
     const night = fixHour(times.sunrise - times.sunset);
     const portion = angle => ({angle: angle / 60, seventh: 1 / 7, middle: 1 / 2}[highLatitude] ?? angle / 60) * night;
     const diff = (a, b) => fixHour(b - a);
-    // Guard against NaN: at extreme latitudes sunrise/sunset may never reach
-    // the required angle, returning NaN. Clamp to a fallback time instead.
-    if (Number.isNaN(times.fajr) || diff(times.fajr, times.sunrise) > portion(method.fajr) || Number.isNaN(times.sunrise))
-        times.fajr = (Number.isNaN(times.sunrise) ? 5 : times.sunrise) - portion(method.fajr);
+    if (Number.isNaN(times.fajr) || diff(times.fajr, times.sunrise) > portion(method.fajr))
+        times.fajr = times.sunrise - portion(method.fajr);
     if (method.ishaMinutes) {
         times.isha = times.maghrib + method.ishaMinutes / 60;
-    } else if (Number.isNaN(times.isha) || diff(times.sunset, times.isha) > portion(method.isha) || Number.isNaN(times.sunset)) {
-        times.isha = (Number.isNaN(times.sunset) ? 19 : times.sunset) + portion(method.isha);
+    } else if (Number.isNaN(times.isha) || diff(times.sunset, times.isha) > portion(method.isha)) {
+        times.isha = times.sunset + portion(method.isha);
     }
 
     const result = {};

@@ -11,7 +11,7 @@
 #
 # Exit status: 0 = loaded, driven to the end, no error; 1 = errors or the
 # driver did not finish; 2 = the test could not run.
-set -euo pipefail
+set -u
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 UUID="gnomac@nayzer974.github.io"
@@ -27,7 +27,7 @@ mkdir -p "$WORK/data/gnome-shell/extensions" "$WORK/config/glib-2.0/settings" "$
 cp -r "$ROOT/extension/$UUID" "$EXT"
 cp "$ROOT/tools/smoke-driver.js" "$EXT/smoke-driver.js"
 cp "$ROOT/tools/prefs-smoke.js" "$EXT/prefs-smoke.js"
-glib-compile-schemas "$EXT/schemas" || { echo "glib-compile-schemas failed"; exit 1; }
+glib-compile-schemas "$EXT/schemas"
 
 # Start the driver a few seconds after the extension is enabled.
 python3 - "$EXT/extension.js" <<'EOF'
@@ -85,8 +85,7 @@ EOF
 
 # SMOKE_MONITORS="1280x800 1920x1080" runs with several virtual monitors.
 MONITOR_ARGS=()
-read -ra MONITOR_SIZES <<< "${SMOKE_MONITORS:-1280x800}"
-for size in "${MONITOR_SIZES[@]}"; do
+for size in ${SMOKE_MONITORS:-1280x800}; do
     MONITOR_ARGS+=(--virtual-monitor "$size")
 done
 

@@ -122,10 +122,8 @@ export class StatsPage {
         const now = GLib.get_monotonic_time();
         if (this._prevNet) {
             const dt = (now - this._prevNet.time) / 1e6;
-            if (dt > 0) {
-                const fmt = bytes => bytes > 1048576 ? `${(bytes / 1048576).toFixed(1)} Mo/s` : `${Math.round(bytes / 1024)} Ko/s`;
-                this.net.text = `↓ ${fmt((rx - this._prevNet.rx) / dt)}    ↑ ${fmt((tx - this._prevNet.tx) / dt)}`;
-            }
+            const fmt = bytes => bytes > 1048576 ? `${(bytes / 1048576).toFixed(1)} Mo/s` : `${Math.round(bytes / 1024)} Ko/s`;
+            this.net.text = `↓ ${fmt((rx - this._prevNet.rx) / dt)}    ↑ ${fmt((tx - this._prevNet.tx) / dt)}`;
         }
         this._prevNet = {rx, tx, time: now};
     }
@@ -316,16 +314,14 @@ export class IdleHome {
                     def.run();
                 });
             } else {
-                button.connect('clicked', async () => {
+                button.connect('clicked', () => {
                     const on = button.checked;
                     button.setActive(on);
                     if (def.settings) {
                         const [schema, key, invert] = def.settings;
                         new Gio.Settings({schema_id: schema}).set_boolean(key, invert ? !on : on);
                     } else {
-                        try {
-                            await def.set(on);
-                        } catch {}
+                        def.set(on);
                     }
                 });
                 this._chips.push([def, button]);

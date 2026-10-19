@@ -171,7 +171,7 @@ class MacUnlockLayout extends Clutter.LayoutManager {
         d._notificationsBox.allocate(notificationsBox);
 
         const button = d._otherUserButton;
-        if (button?.visible) {
+        if (button.visible) {
             const [, , bw, bh] = button.get_preferred_size();
             const buttonBox = new Clutter.ActorBox();
             buttonBox.x1 = Math.round(width - bw * 2);
@@ -189,9 +189,8 @@ function decorate(dialog) {
 
     // macOS shows the date above the time.
     const clock = dialog._clock;
-    if (clock?._date && clock?._time)
-        clock.set_child_below_sibling(clock._date, clock._time);
-    clock?._hint?.hide();
+    clock.set_child_below_sibling(clock._date, clock._time);
+    clock._hint.hide();
 
     // Pull the clock out of the shared stack so it can live at the top.
     dialog._stack.remove_child(clock);

@@ -40,18 +40,12 @@ else
   # copy is only replaced once the download has worked (offline, it stays).
   command -v curl >/dev/null && command -v tar >/dev/null || { echo "need git, or curl and tar"; exit 1; }
   tmp="$(mktemp -d)"
-  trap 'rm -rf "$tmp"' EXIT
-  if ! curl -fsSL "https://github.com/$REPO/archive/refs/heads/main.tar.gz" | tar -xz --strip-components=1 -C "$tmp"; then
-    echo "update failed: could not download source archive" >&2
-    rm -rf "$tmp"
-    trap - EXIT
-    exit 1
-  fi
+  curl -fsSL "https://github.com/$REPO/archive/refs/heads/main.tar.gz" | tar -xz --strip-components=1 -C "$tmp"
   sha="$(curl -fsSL "https://api.github.com/repos/$REPO/commits/main" | python3 -c 'import json,sys; print(json.load(sys.stdin)["sha"])' 2>/dev/null || echo unknown)"
   echo "$sha" > "$tmp/.gnomac-sha"
+  rm -rf "$SRC"
   mkdir -p "$(dirname "$SRC")"
-  # Move into place only after the download succeeded; keep SRC intact on failure.
-  mv "$tmp" "$SRC" || { rm -rf "$tmp"; echo "update failed, keeping previous installation"; exit 1; }
+  mv "$tmp" "$SRC"
 fi
 
 "$SRC/install.sh" --update

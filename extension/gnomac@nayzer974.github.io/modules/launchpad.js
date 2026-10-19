@@ -55,7 +55,6 @@ export class Launchpad {
         this._settings = extension.getSettings();
         this._tick = dt => this._onTick(dt);
         this._root = null;
-        this._fillDebounceId = 0;
     }
 
     enable() {
@@ -63,10 +62,6 @@ export class Launchpad {
     }
 
     disable() {
-        if (this._fillDebounceId) {
-            GLib.source_remove(this._fillDebounceId);
-            this._fillDebounceId = 0;
-        }
         this.close(false);
         if (this._extension.launchpad === this)
             this._extension.launchpad = null;
@@ -93,13 +88,11 @@ export class Launchpad {
             y: monitor.y,
             width: monitor.width,
             height: monitor.height,
-            opacity: 0,   // start fully hidden so there is no flash of the desktop
         });
 
-        // Use a lighter blur during animation for smoothness; it sharpens once settled.
         this._glass = new GlassSurface({
             backdrop: 'windows',
-            blur: 40,
+            blur: 60,
             glass: {radius: 0, refraction: 0, thickness: 1, chroma: 0, rim: 0, sheen: 0,
                 tint: [0.05, 0.05, 0.07, 0.35]},
         });
@@ -136,16 +129,7 @@ export class Launchpad {
             return Clutter.EVENT_STOP;
         });
         this._root.connect('scroll-event', (_a, event) => this._onScroll(event));
-        this._entry.clutter_text.connect('text-changed', () => {
-            if (this._fillDebounceId)
-                GLib.source_remove(this._fillDebounceId);
-            // Debounce fill so we don't recreate all tiles on every keystroke.
-            this._fillDebounceId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 150, () => {
-                this._fillDebounceId = 0;
-                this._fill();
-                return GLib.SOURCE_REMOVE;
-            });
-        });
+        this._entry.clutter_text.connect('text-changed', () => this._fill());
         this._entry.clutter_text.connect('key-press-event', (_a, event) => this._onKey(event));
         this._entry.clutter_text.connect('activate', () => {
             const first = this._tiles?.[0];
@@ -155,10 +139,11 @@ export class Launchpad {
 
         this._page = 0;
         this._offset = new Spring({stiffness: 260, damping: 30, value: 0});
-        // Smooth entrance: fade in and grow slightly with a spring.
-        this._zoom = new Spring({stiffness: 400, damping: 28, value: 0.85});
+        this._zoom = new Spring({stiffness: 320, damping: 26, value: 1.12});
         this._zoom.setTarget(1);
-        this._root.set_scale(0.85, 0.85);
+        this._root.opacity = 0;
+        this._root.ease({opacity: 255, duration: 180, mode: Clutter.AnimationMode.EASE_OUT_QUAD});
+
         this._fill();
         getTicker().add(this._tick);
     }
@@ -171,7 +156,7 @@ export class Launchpad {
                 .map(id => appSystem.lookup_app(id))
                 .filter(app => app && app.app_info?.should_show());
         }
-        return [...appSystem.get_installed()]
+        return appSystem.get_installed()
             .filter(info => info.should_show())
             .map(info => appSystem.lookup_app(info.get_id()))
             .filter(Boolean)
@@ -291,17 +276,10 @@ export class Launchpad {
         this._offset.step(dt);
         this._zoom.step(dt);
         this._pages.set_position(Math.round(this._offset.value), 0);
-        // Smooth entrance: fade in (from 0) and grow (from 0.85 to 1).
+        // The grid zooms in from slightly larger, as macOS does.
         const z = this._zoom.value;
-        if (this._viewport.scale_x !== z) {
-            this._viewport.set_scale(z, z);
-        }
-        const opacity = Math.round(255 * (z - 0.85) / 0.15);
-        if (this._root.opacity !== opacity) {
-            this._root.opacity = opacity;
-        }
-        const active = !(this._offset.settled && this._zoom.settled);
-        return active;
+        this._viewport.set_scale(z, z);
+        return !(this._offset.settled && this._zoom.settled);
     }
 
     close(animate = true) {
@@ -319,25 +297,17 @@ export class Launchpad {
             root.destroy();
             return;
         }
-        // Smooth exit: exact reverse of the entrance — fade out and shrink back with a spring.
-        this._zoom.setTarget(0.85);
-        this._offset.setTarget(0);
-        // Fade out over the spring duration using the ticker.
-        const startTime = GLib.get_monotonic_time();
-        const fadeTick = dt => {
-            if (!root || root.is_finalized?.())
-                return false;
-            const elapsed = (GLib.get_monotonic_time() - startTime) / 1e6;
-            const t = Math.min(1, elapsed / 0.24);
-            const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic
-            root.opacity = Math.round(255 * (1 - t));
-            root.set_scale(0.85 + 0.15 * (1 - t), 0.85 + 0.15 * (1 - t));
-            if (t >= 1) {
-                root.destroy();
-                return false;
-            }
-            return true;
-        };
-        getTicker().add(fadeTick);
+        this._viewport.ease({
+            scale_x: 1.08,
+            scale_y: 1.08,
+            duration: 160,
+            mode: Clutter.AnimationMode.EASE_IN_QUAD,
+        });
+        root.ease({
+            opacity: 0,
+            duration: 160,
+            mode: Clutter.AnimationMode.EASE_IN_QUAD,
+            onStopped: () => root.destroy(),
+        });
     }
 }

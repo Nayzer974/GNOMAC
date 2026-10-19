@@ -51,7 +51,7 @@ const MODULES = [
     // First, so the boot cover is up before the other modules build the UI.
     {key: 'enable-theme-custom', Module: ThemeCustom, keepAlive: true},
     {key: 'enable-updater', Module: Updater},
-    {key: 'glass-debug', Module: GlassDebug, keepAlive: true},
+    {key: 'enable-glass-menus', Module: GlassDebug, keepAlive: true},
     {key: 'enable-boot-shutdown', Module: BootShutdown},
     {key: 'enable-lock-screen', Module: LockScreen, locked: true},
     // GDM's own shell (login screen): the only module that runs there.
@@ -59,9 +59,9 @@ const MODULES = [
     {key: 'enable-launchpad', Module: Launchpad, keepAlive: true},
     {key: 'enable-topbar', Module: TopBar},
     {key: 'enable-app-menus', Module: AppMenus},
-    {key: 'enable-secondary-bars', Module: SecondaryBars},
+    {key: 'enable-topbar', Module: SecondaryBars},
     {key: 'enable-dock', Module: Dock, keepAlive: true},
-    {key: 'enable-gaps', Module: Gaps, keepAlive: true},
+    {key: 'enable-dock', Module: Gaps, keepAlive: true},
     {key: 'enable-spotlight', Module: Spotlight, keepAlive: true},
     {key: 'enable-glass-menus', Module: GlassMenus, keepAlive: true},
     {key: 'enable-window-animations', Module: WindowAnimations, keepAlive: true},
@@ -75,7 +75,7 @@ const MODULES = [
     {key: 'enable-menubar-icons', Module: MenuBarIcons},
     {key: 'enable-appearance', Module: Appearance},
     {key: 'enable-window-layout', Module: WindowLayout, keepAlive: true},
-    {key: 'enable-stage-manager', Module: StageManager, keepAlive: true},
+    {key: 'enable-window-layout', Module: StageManager, keepAlive: true},
 ];
 
 export default class GnomacExtension extends Extension {
@@ -83,7 +83,6 @@ export default class GnomacExtension extends Extension {
         this._settings = this.getSettings();
         this._modules = [];
         this._removeMenuGuard = installMenuGuard();
-        this._reloadWhenUnlocked = false;
         this._chrome = new Map();
         this._sunk = null;
         // GNOME opens the overview while it starts the session; macOS lands

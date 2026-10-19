@@ -3,5 +3,3 @@ dist/
 gschemas.compiled
 node_modules/
 .vm/
-__pycache__/
-*.pyc

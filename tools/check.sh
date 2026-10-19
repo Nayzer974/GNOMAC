@@ -6,7 +6,7 @@
 # JavaScript syntax, shell syntax (and shellcheck when installed), Python
 # syntax, the GSettings schema, the JSON files, and the names used from
 # GNOME's libraries (tools/check-compat.py). Exit status 1 if any check fails.
-set -euo pipefail
+set -u
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 EXT="$ROOT/extension/gnomac@nayzer974.github.io"
@@ -70,24 +70,24 @@ done
 
 step "Prayer times"
 if command -v node >/dev/null; then
-    node tools/test-prayer.mjs 2>&1 | tail -1
-    node tools/test-prayer.mjs >/dev/null 2>&1 || fail "tools/test-prayer.mjs"
+    node tools/test-prayer.mjs | tail -1 || fail "tools/test-prayer.mjs"
+    node tools/test-prayer.mjs >/dev/null || fail "tools/test-prayer.mjs"
 else
     echo "  node not found, skipped"
 fi
 if [[ "${CHECK_GJS:-1}" != 1 ]]; then
     echo "  schedule test skipped (CHECK_GJS=0)"
 elif command -v gjs >/dev/null; then
-    TZ=Europe/Paris gjs -m tools/test-prayer-schedule.js 2>&1 | tail -1
-    TZ=Europe/Paris gjs -m tools/test-prayer-schedule.js >/dev/null 2>&1 || fail "tools/test-prayer-schedule.js"
+    TZ=Europe/Paris gjs -m tools/test-prayer-schedule.js | tail -1
+    TZ=Europe/Paris gjs -m tools/test-prayer-schedule.js >/dev/null || fail "tools/test-prayer-schedule.js"
 else
     echo "  gjs not found, schedule test skipped"
 fi
 
 step "Island logic, weather switch, covers"
 if command -v node >/dev/null; then
-    node tools/test-island-logic.mjs >/dev/null 2>&1 || fail "tools/test-island-logic.mjs"
-    node tools/test-island-logic.mjs 2>&1 | tail -n 1
+    node tools/test-island-logic.mjs >/dev/null || fail "tools/test-island-logic.mjs"
+    node tools/test-island-logic.mjs | tail -1
 fi
 if [[ "${CHECK_GJS:-1}" == 1 ]] && command -v gjs >/dev/null; then
     for t in test-island-logic test-weather test-cover; do

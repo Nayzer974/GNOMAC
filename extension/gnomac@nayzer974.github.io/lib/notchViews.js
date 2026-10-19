@@ -145,10 +145,7 @@ export class PomodoroTimer {
         const plus = new St.Button({style_class: 'gnomac-notch-step', label: '+', can_focus: true});
         const sync = () => (value.text = `${this._settings.get_int(key)}${unit ? ` ${unit}` : ''}`);
         const bump = delta => {
-            const keyObj = this._settings.settings_schema.get_key(key);
-            if (!keyObj)
-                return;
-            const range = keyObj.get_range().deepUnpack()[1].deepUnpack();
+            const range = this._settings.settings_schema.get_key(key).get_range().deepUnpack()[1].deepUnpack();
             const next = Math.max(range[0], Math.min(range[1], this._settings.get_int(key) + delta));
             this._settings.set_int(key, next);
             sync();
@@ -386,9 +383,7 @@ export class Shelf {
                     this._itemMenu(uri, button);
                     return;
                 }
-                try {
-                    Gio.AppInfo.launch_default_for_uri(uri, global.create_app_launch_context(0, -1));
-                } catch {}
+                Gio.AppInfo.launch_default_for_uri(uri, global.create_app_launch_context(0, -1));
             });
             this.actor.add_child(button);
         }

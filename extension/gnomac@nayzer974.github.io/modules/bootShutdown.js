@@ -655,46 +655,27 @@ export class BootShutdown {
         }
     }
 
-    // Apple-style shutdown: screen fades to black, logo stays centred,
-    // progress bar fills elegantly. No gimmicks, just premium simplicity.
+    // Everything dims, the logo (already drawn) breathes once, a bar fills.
     _playShutdown(signal) {
         return new Promise(resolve => {
             const [en, fr] = MESSAGES[signal];
             const overlay = new Overlay(this._extension, {caption: t(en, fr)});
             this._shutdown = overlay;
             const ms = this._settings.get_int('shutdown-duration');
-
-            // Dark backdrop fades in first.
-            overlay.base.opacity = 0;
-            overlay.base.ease({opacity: 230, duration: 400, mode: Clutter.AnimationMode.EASE_OUT_QUAD});
-
-            // Logo fades in and stays centred — no breathing, no distractions.
             overlay.logo.stroke = 1;
             overlay.logo.fill = 1;
             overlay.repaintLogo();
-            overlay.logoArea.opacity = 0;
-            overlay.logoArea.ease({opacity: 255, duration: 500, mode: Clutter.AnimationMode.EASE_OUT_QUAD});
-
-            // Caption above the bar.
-            overlay.caption.ease({opacity: 255, duration: 400, delay: 200});
-
-            // Progress bar: fills smoothly, slows down near the end (ease-out).
-            overlay.track.ease({opacity: 255, duration: 400, delay: 200});
+            overlay.actor.ease({opacity: 255, duration: 520, mode: Clutter.AnimationMode.EASE_OUT_QUAD});
+            overlay.caption.ease({opacity: 255, duration: 450, delay: 350});
+            overlay.track.ease({opacity: 255, duration: 350, delay: 350});
+            // A last breath: the logo shrinks slightly and a sheen passes.
+            overlay.logoArea.ease({scale_x: 0.94, scale_y: 0.94, duration: ms, delay: 300,
+                mode: Clutter.AnimationMode.EASE_IN_OUT_QUAD});
             this._tween(overlay.actor, ms, p => {
-                // Ease-out: fast at start, slow at the very end for premium feel.
-                const eased = 1 - Math.pow(1 - p, 3);
-                overlay.fill.set_width(Math.round(overlay.barWidth * eased));
-                overlay.logo.sheen = Math.min(1, p * 1.2);
+                overlay.fill.set_width(Math.round(overlay.barWidth * (1 - (1 - p) ** 2)));
+                overlay.logo.sheen = p * 1.1 - 0.05;
                 overlay.repaintLogo();
-            }, () => {
-                // Hold at full for a moment, then fade everything to black.
-                overlay.actor.ease({
-                    opacity: 0,
-                    duration: 500,
-                    mode: Clutter.AnimationMode.EASE_IN_OUT_QUAD,
-                    onStopped: () => resolve(),
-                });
-            });
+            }, () => resolve());
         });
     }
 }

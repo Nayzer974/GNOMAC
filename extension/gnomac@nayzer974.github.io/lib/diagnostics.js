@@ -161,19 +161,7 @@ export async function showDiagnostics(extension) {
     panel = new St.Label({style_class: 'gnomac-glass-debug', text: `${text}\n\n(click to close, saved in ~/.cache/gnomac/diagnostics.txt)`,
         reactive: true});
     Main.layoutManager.uiGroup.add_child(panel);
-    // panel.width is 0 before realization: wait for allocation to center it.
-    const placePanel = () => {
-        panel.set_position(monitor.x + Math.round((monitor.width - panel.width) / 2),
-            monitor.y + Main.panel.height + 20);
-    };
-    if (panel.get_stage()) {
-        placePanel();
-    } else {
-        panel._placeId = panel.connect('notify::width', () => {
-            placePanel();
-            panel.disconnect(panel._placeId);
-        });
-    }
+    panel.set_position(monitor.x + Math.round((monitor.width - panel.width) / 2), monitor.y + Main.panel.height + 20);
     panel.connect('button-press-event', () => {
         closeDiagnostics();
         return Clutter.EVENT_STOP;

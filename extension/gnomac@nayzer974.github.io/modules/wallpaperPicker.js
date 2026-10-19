@@ -153,7 +153,6 @@ export class WallpaperPicker {
     close(animate = true) {
         if (!this._root)
             return;
-        this._tickerRegistered?.delete(this._tick);
         getTicker().remove(this._tick);
         if (this._grab) {
             Main.popModal(this._grab);
@@ -182,13 +181,7 @@ export class WallpaperPicker {
             return;
         this._index = Math.max(0, Math.min(index, this._items.length - 1));
         this._offset.setTarget(this._index);
-        // Only add the ticker once: repeated calls would register it multiple
-        // times and cause redundant layout passes per frame.
-        this._tickerRegistered ??= new Set();
-        if (!this._tickerRegistered.has(this._tick)) {
-            this._tickerRegistered.add(this._tick);
-            getTicker().add(this._tick);
-        }
+        getTicker().add(this._tick);
     }
 
     _onKey(event) {
@@ -245,7 +238,6 @@ export class WallpaperPicker {
         const cx = monitor.width / 2;
         const cy = monitor.height / 2 + CAROUSEL_Y;
         const offset = this._offset.value;
-        let restacked = false;
         this._cards.forEach((card, i) => {
             const d = i - offset;
             const ad = Math.abs(d);
@@ -260,18 +252,11 @@ export class WallpaperPicker {
             card.rotation_angle_y = -side * Math.min(ad, 1) * 38;
             card.opacity = Math.round(255 * Math.max(0, 1 - Math.max(0, ad - 2) * 0.25));
             // Nearer cards on top.
-            const newZ = -ad * 10;
-            if (card.z_position !== newZ) {
-                card.z_position = newZ;
-                restacked = true;
-            }
+            card.z_position = -ad * 10;
         });
-        // Only re-stack when z positions actually changed.
-        if (restacked) {
-            const sorted = [...this._cards].sort((a, b) => a.z_position - b.z_position);
-            for (const card of sorted)
-                this._stage.set_child_above_sibling(card, null);
-        }
+        const sorted = [...this._cards].sort((a, b) => a.z_position - b.z_position);
+        for (const card of sorted)
+            this._stage.set_child_above_sibling(card, null);
 
         const item = this._items[this._index];
         if (item)

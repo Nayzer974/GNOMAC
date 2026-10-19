@@ -4,7 +4,7 @@ import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import Gtk from 'gi://Gtk';
 
-import {ExtensionPreferences} from 'resource:///org/gnome/shell/extensions/js/extensions/prefs.js';
+import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
 import {addPrayerPreferences} from './lib/prayerPrefs.js';
 
@@ -95,8 +95,6 @@ export default class GnomacPreferences extends ExtensionPreferences {
         toggle(modules, 'enable-window-layout', 'Disposition des fenêtres', 'Super + Ctrl + flèches : moitiés ; Super + Ctrl + T : palette (quarts, tiers, centrer)');
         toggle(modules, 'enable-stage-manager', 'Stage Manager au démarrage', 'Ctrl + Super + M l’active ou le coupe à tout moment ; la fenêtre active reste au centre, les autres vont dans une bande à gauche');
         toggle(modules, 'enable-topbar', 'Barre de menus', 'Menu système, nom de l\'app active, horloge à droite');
-        toggle(modules, 'enable-secondary-bars', 'Barres secondaires', 'Barre de menus sur chautre écran (comme sur Mac)');
-        toggle(modules, 'enable-gaps', 'Marges des fenêtres', 'Un espace entre les fenêtres maximisées et les bords de l\'écran');
 
         const dock = group('Dock');
         toggle(dock, 'dock-auto-size', 'Taille automatique', 'Suit la hauteur de l’écran : le dock garde ses proportions si la résolution change');
@@ -322,11 +320,7 @@ export default class GnomacPreferences extends ExtensionPreferences {
         const avatar = new Adw.Avatar({size: 56, text: GLib.get_real_name() || GLib.get_user_name(), show_initials: true});
         const photoRow = new Adw.ActionRow({title: 'Photo de profil', subtitle: 'Choisis une image, de préférence carrée'});
         photoRow.add_prefix(avatar);
-        const toast = text => {
-            try {
-                window.add_toast(new Adw.Toast({title: text, timeout: 4}));
-            } catch {}
-        };
+        const toast = text => window.add_toast(new Adw.Toast({title: text, timeout: 4}));
         const showIcon = file => {
             try {
                 if (file && GLib.file_test(file, GLib.FileTest.EXISTS)) {

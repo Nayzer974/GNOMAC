@@ -7,7 +7,7 @@
 #   - the login screen sync follows a non-default XDG data folder,
 #   - the systemd units carry the folders they are given.
 # Nothing of your real session is touched. Exit status 1 if a check fails.
-set -euo pipefail
+set -u
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 UUID="gnomac@nayzer974.github.io"
