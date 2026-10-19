@@ -374,8 +374,6 @@ export class DynamicIsland {
         this._progress = 0;
         this._shownOpacity = 255;
         this._tick = dt => this._onTick(dt);
-        // Position the island immediately so it never flashes in the top-left corner.
-        this._pendingLayout = true;
         this._signals = [];
         // How present each content group is (0..1). Content is never switched
         // on or off in the middle of a morph: it fades with the geometry, which
@@ -579,8 +577,13 @@ export class DynamicIsland {
             this._routeOsd(Main.osdWindowManager);
 
         this._update();
-        // Position the island at once so it never appears in the top-left corner.
+        // Position the island immediately so it never flashes in the top-left corner.
         this._layout();
+        // Force the island to rest state (not pinned) so it doesn't appear activated.
+        this._pinned = false;
+        this._mode = 'rest';
+        this.island.visible = true;
+        this.island.opacity = this._shownOpacity;
     }
 
     _routeOsd(osd) {

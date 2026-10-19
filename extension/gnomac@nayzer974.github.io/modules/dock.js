@@ -394,6 +394,17 @@ export class Dock {
             DND.removeDragMonitor(this._dragMonitor);
             this._dragMonitor = null;
         }
+        // Close any open dock menus so they don't stay stuck on screen.
+        for (const item of this._items) {
+            if (item.menu) {
+                try {
+                    item.menu.close();
+                } catch {}
+                item.menu = null;
+            }
+        }
+        this._menuManager?.destroy();
+        this._menuManager = null;
         this._trash?.destroy();
         this._trash = null;
         this._downloads?.destroy();
@@ -434,7 +445,6 @@ export class Dock {
             this.actor.destroy();
             this.actor = null;
         }
-        this._menuManager = null;
     }
 
     _connect(object, signal, callback) {
