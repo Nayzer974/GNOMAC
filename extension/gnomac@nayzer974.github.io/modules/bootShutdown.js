@@ -31,6 +31,7 @@ import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import St from 'gi://St';
+import System from 'system';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {EndSessionDialog} from 'resource:///org/gnome/shell/ui/endSessionDialog.js';
@@ -176,27 +177,37 @@ class Overlay {
 
 // Counts the frames drawn while the start-up animation runs and writes one line
 // in the journal when it ends (journalctl --user -b | grep "GNOMAC boot"): how
-// many pictures, and the longest wait between two of them. The returned
-// function stops it; `report = false` stops it without writing.
-function watchFrames() {
+// many pictures, the longest wait between two of them, and where the waits over
+// 50 ms fell (milliseconds from the first picture, and the stage of the
+// animation set by mark()). `stop(false)` stops it without writing.
+function watchFrames(note = '') {
     const times = [];
+    const marks = [['start', 0]];
     const id = global.stage.connect('after-paint', () => times.push(GLib.get_monotonic_time()));
-    return (report = true) => {
-        try {
-            global.stage.disconnect(id);
-        } catch {}
-        if (!report || times.length < 2)
-            return;
-        let worst = 0;
-        let slow = 0;
-        for (let i = 1; i < times.length; i++) {
-            const gap = (times[i] - times[i - 1]) / 1000;
-            worst = Math.max(worst, gap);
-            if (gap > 50)
-                slow++;
-        }
-        console.log(`GNOMAC boot animation: ${times.length} frames in ${Math.round((times[times.length - 1] - times[0]) / 1000)} ms, ` +
-            `longest wait between two ${Math.round(worst)} ms, ${slow} over 50 ms`);
+    const begin = GLib.get_monotonic_time();
+    return {
+        mark: name => marks.push([name, GLib.get_monotonic_time() - begin]),
+        stop: (report = true) => {
+            try {
+                global.stage.disconnect(id);
+            } catch {}
+            if (!report || times.length < 2)
+                return;
+            let worst = 0;
+            const slow = [];
+            for (let i = 1; i < times.length; i++) {
+                const gap = (times[i] - times[i - 1]) / 1000;
+                worst = Math.max(worst, gap);
+                if (gap > 50) {
+                    const at = times[i - 1] - begin;
+                    const stage = marks.filter(([, when]) => when <= at).pop()[0];
+                    slow.push(`${Math.round(gap)} ms at +${Math.round(at / 1000)} (${stage})`);
+                }
+            }
+            console.log(`GNOMAC boot animation: ${times.length} frames in ${Math.round((times[times.length - 1] - times[0]) / 1000)} ms, ` +
+                `longest wait between two ${Math.round(worst)} ms, ${slow.length} over 50 ms` +
+                `${slow.length ? ` [${slow.slice(0, 6).join('; ')}]` : ''}${note ? `; ${note}` : ''}`);
+        },
     };
 }
 
@@ -305,8 +316,9 @@ export class BootShutdown {
     _stopAll() {
         this._cancelWarm?.();
         this._cancelWarm = null;
-        this._stopFrames?.(false);
-        this._stopFrames = null;
+        this._frames?.stop(false);
+        this._frames = null;
+        delete this._extension._startBudget;
         for (const timeline of [...this._timelines])
             timeline.stop();
         this._timelines.clear();
@@ -325,6 +337,21 @@ export class BootShutdown {
             callback();
             return;
         }
+        // Every module is built first, at full speed: under the black cover
+        // nothing moves, so nothing is lost, and nothing is then added to the
+        // shell (actors, shaders) while the animation runs.
+        this._cancelWarm = this._extension.whenBuilt(() => {
+            this._cancelWarm = null;
+            delete this._extension._startBudget;
+            if (this._boot !== overlay || this._skipped) {
+                callback();
+                return;
+            }
+            this._prewarm(overlay, callback);
+        });
+    }
+
+    _prewarm(overlay, callback) {
         try {
             hideDesktop(this._extension);
         } catch (e) {
@@ -336,8 +363,13 @@ export class BootShutdown {
             this._cancelWarm = null;
             if (this._boot === overlay && !this._skipped) {
                 hideElements(this._extension);
-                this._stopFrames?.(false);
-                this._stopFrames = watchFrames();
+                // A garbage collection now, under the cover, rather than in the
+                // middle of the animation.
+                const before = GLib.get_monotonic_time();
+                System.gc();
+                const collected = Math.round((GLib.get_monotonic_time() - before) / 1000);
+                this._frames?.stop(false);
+                this._frames = watchFrames(`collection under the cover ${collected} ms`);
             }
             callback();
         });
@@ -347,6 +379,10 @@ export class BootShutdown {
         const {logo = true, hello = true, classic = false, immediate = false, mist = false, lens = false} = opts;
         this._stopAll();
         this._boot?.destroy();
+        // Style with nothing moving until the modules are built (lens, mist):
+        // they get longer turns while the cover is up.
+        if (lens || mist)
+            this._extension._startBudget = 40000;
         const overlay = new Overlay(this._extension, {withPlate: hello || mist, withLens: lens});
         this._boot = overlay;
         this._skipped = false;
@@ -492,6 +528,7 @@ export class BootShutdown {
         // The lens is ABOVE the black cover (the cover stays around it). It
         // keeps the size of the screen; only its radius changes (lib/lensEffect.js).
         overlay.actor.set_child_above_sibling(lens, overlay.base);
+        this._frames?.mark('lens opens');
         lens.setRadius(start);
         lens.opacity = 255;
         let revealed = false;
@@ -500,10 +537,12 @@ export class BootShutdown {
             // The desktop starts to be revealed while the lens is still opening.
             if (!revealed && p > 0.45 && this._chromeHidden) {
                 revealed = true;
+                this._frames?.mark('reveal');
                 revealDesktop(this._extension, {slow, onDone: () => this._restoreChrome()});
             }
         }, () => {
             // The lens covers the screen: it melts into the desktop.
+            this._frames?.mark('melt');
             this._tween(overlay.actor, 320, p => {
                 lens.opacity = Math.round(255 * (1 - easeOut(p)));
                 overlay.base.opacity = 0;
@@ -677,8 +716,8 @@ export class BootShutdown {
 
     _restoreChrome() {
         // The animation is over: write what it measured.
-        this._stopFrames?.();
-        this._stopFrames = null;
+        this._frames?.stop();
+        this._frames = null;
         removeRevealBlur();
         if (!this._chromeHidden)
             return;

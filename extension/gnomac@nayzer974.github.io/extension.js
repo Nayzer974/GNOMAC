@@ -183,8 +183,9 @@ export default class GnomacExtension extends Extension {
             const begin = GLib.get_monotonic_time();
             while (index < entries.length) {
                 this._enableModule(entries[index++]);
-                // After a few milliseconds of work the frames get their turn.
-                if (index < entries.length && GLib.get_monotonic_time() - begin > 6000)
+                // After a few milliseconds of work the frames get their turn
+                // (longer while the start-up cover is up: nothing moves then).
+                if (index < entries.length && GLib.get_monotonic_time() - begin > (this._startBudget ?? 6000))
                     break;
             }
             token.longest = Math.max(token.longest, GLib.get_monotonic_time() - begin);
@@ -195,10 +196,35 @@ export default class GnomacExtension extends Extension {
             this._startToken = null;
             console.log(`GNOMAC startup: ${entries.length} modules built in ${Math.round((GLib.get_monotonic_time() - started) / 1000)} ms, ` +
                 `longest block ${Math.round(token.longest / 1000)} ms`);
+            this._flushBuilt();
             return GLib.SOURCE_REMOVE;
         };
         // The first ones (the boot cover) are built at once.
         step();
+    }
+
+    // Calls `callback` once the start-up has built every module (at once when it
+    // already has). Returns a function that gives up waiting.
+    whenBuilt(callback) {
+        if (!this._startToken) {
+            callback();
+            return () => {};
+        }
+        const waiting = this._builtWaiters ??= new Set();
+        waiting.add(callback);
+        return () => waiting.delete(callback);
+    }
+
+    _flushBuilt() {
+        const waiting = this._builtWaiters;
+        this._builtWaiters = null;
+        for (const callback of waiting ?? []) {
+            try {
+                callback();
+            } catch (e) {
+                logError(e, 'GNOMAC: start-up waiter');
+            }
+        }
     }
 
     _enableModule(entry) {
@@ -222,11 +248,15 @@ export default class GnomacExtension extends Extension {
 
     // A start-up still building modules stops here (a stop or a reload came first).
     _cancelStart() {
+        const building = !!this._startToken;
         this._startToken = null;
         if (this._startId) {
             GLib.source_remove(this._startId);
             this._startId = 0;
         }
+        // Whoever waited for the build is let go (it will not finish).
+        if (building)
+            this._flushBuilt();
     }
 
     _stop(keep = new Set()) {
