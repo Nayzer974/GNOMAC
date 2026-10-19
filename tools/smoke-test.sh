@@ -128,7 +128,7 @@ fi
 
 errors="$(grep -E "GNOMAC-SMOKE: FAIL|JS ERROR|Gjs-CRITICAL|-CRITICAL|TypeError|ReferenceError|SyntaxError|has been already disposed|is not a function|is not defined|GNOMAC [a-z ]*:|GNOMAC:" "$RUN" \
     | sed -E 's/^\(gnome-shell:[0-9]+\): //; s/[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]+: //' \
-    | grep -vE "KMS thread|search provider|GNOMAC startup:" || true)"
+    | grep -vE "KMS thread|search provider|GNOMAC startup:|GNOMAC boot animation:" || true)"
 if [[ -n "$errors" ]]; then
     status=1
     echo "---- errors (count, message)"

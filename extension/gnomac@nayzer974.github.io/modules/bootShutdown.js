@@ -174,6 +174,32 @@ class Overlay {
     }
 }
 
+// Counts the frames drawn while the start-up animation runs and writes one line
+// in the journal when it ends (journalctl --user -b | grep "GNOMAC boot"): how
+// many pictures, and the longest wait between two of them. The returned
+// function stops it; `report = false` stops it without writing.
+function watchFrames() {
+    const times = [];
+    const id = global.stage.connect('after-paint', () => times.push(GLib.get_monotonic_time()));
+    return (report = true) => {
+        try {
+            global.stage.disconnect(id);
+        } catch {}
+        if (!report || times.length < 2)
+            return;
+        let worst = 0;
+        let slow = 0;
+        for (let i = 1; i < times.length; i++) {
+            const gap = (times[i] - times[i - 1]) / 1000;
+            worst = Math.max(worst, gap);
+            if (gap > 50)
+                slow++;
+        }
+        console.log(`GNOMAC boot animation: ${times.length} frames in ${Math.round((times[times.length - 1] - times[0]) / 1000)} ms, ` +
+            `longest wait between two ${Math.round(worst)} ms, ${slow} over 50 ms`);
+    };
+}
+
 export class BootShutdown {
     constructor(extension) {
         this._extension = extension;
@@ -279,6 +305,8 @@ export class BootShutdown {
     _stopAll() {
         this._cancelWarm?.();
         this._cancelWarm = null;
+        this._stopFrames?.(false);
+        this._stopFrames = null;
         for (const timeline of [...this._timelines])
             timeline.stop();
         this._timelines.clear();
@@ -306,8 +334,11 @@ export class BootShutdown {
         }
         this._cancelWarm = prewarmDesktop(this._extension, () => {
             this._cancelWarm = null;
-            if (this._boot === overlay && !this._skipped)
+            if (this._boot === overlay && !this._skipped) {
                 hideElements(this._extension);
+                this._stopFrames?.(false);
+                this._stopFrames = watchFrames();
+            }
             callback();
         });
     }
@@ -645,6 +676,9 @@ export class BootShutdown {
     }
 
     _restoreChrome() {
+        // The animation is over: write what it measured.
+        this._stopFrames?.();
+        this._stopFrames = null;
         removeRevealBlur();
         if (!this._chromeHidden)
             return;
