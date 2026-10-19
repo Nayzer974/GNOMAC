@@ -584,6 +584,14 @@ export class DynamicIsland {
         this._mode = 'rest';
         this.island.visible = true;
         this.island.opacity = this._shownOpacity;
+        // Ensure the island starts centered on the primary monitor.
+        const monitor = Main.layoutManager.primaryMonitor;
+        if (monitor) {
+            const width = Math.round(Math.max(this._sizes.rest.height, this._width.value));
+            const height = Math.round(Math.max(this._sizes.rest.height, this._height.value));
+            this.island.set_position(Math.round(monitor.x + (monitor.width - width) / 2), monitor.y);
+            this.island.set_size(width, height);
+        }
     }
 
     _routeOsd(osd) {

@@ -1053,6 +1053,11 @@ export class Dock {
                     return;
                 Main.uiGroup.add_child(item.menu.actor);
                 this._menuManager.addMenu(item.menu);
+                // Close menu when clicking outside.
+                item.menu.connect('open-state-changed', (_m, open) => {
+                    if (!open)
+                        item.menu = null;
+                });
             }
             this._tooltip.opacity = 0;
             item.menu.open(BoxPointer.PopupAnimation.FULL);
@@ -1066,6 +1071,11 @@ export class Dock {
             item.menu.setApp(item.app);
             Main.uiGroup.add_child(item.menu.actor);
             this._menuManager.addMenu(item.menu);
+            // Close menu when clicking outside.
+            item.menu.connect('open-state-changed', (_m, open) => {
+                if (!open)
+                    item.menu = null;
+            });
         }
         this._tooltip.opacity = 0;
         item.menu.open(BoxPointer.PopupAnimation.FULL);
