@@ -96,9 +96,10 @@ export class Launchpad {
             opacity: 0,   // start fully hidden so there is no flash of the desktop
         });
 
+        // Use a lighter blur during animation for smoothness; it sharpens once settled.
         this._glass = new GlassSurface({
             backdrop: 'windows',
-            blur: 60,
+            blur: 40,
             glass: {radius: 0, refraction: 0, thickness: 1, chroma: 0, rim: 0, sheen: 0,
                 tint: [0.05, 0.05, 0.07, 0.35]},
         });
@@ -155,9 +156,9 @@ export class Launchpad {
         this._page = 0;
         this._offset = new Spring({stiffness: 260, damping: 30, value: 0});
         // Smooth entrance: fade in and grow slightly with a spring.
-        this._zoom = new Spring({stiffness: 300, damping: 30, value: 0.92});
+        this._zoom = new Spring({stiffness: 400, damping: 28, value: 0.85});
         this._zoom.setTarget(1);
-        this._root.set_scale(0.92, 0.92);
+        this._root.set_scale(0.85, 0.85);
         this._fill();
         getTicker().add(this._tick);
     }
@@ -290,10 +291,15 @@ export class Launchpad {
         this._offset.step(dt);
         this._zoom.step(dt);
         this._pages.set_position(Math.round(this._offset.value), 0);
-        // Smooth entrance: fade in (from 0) and grow (from 0.92 to 1).
+        // Smooth entrance: fade in (from 0) and grow (from 0.85 to 1).
         const z = this._zoom.value;
-        this._viewport.set_scale(z, z);
-        this._root.opacity = Math.round(255 * (z - 0.92) / 0.08);
+        if (this._viewport.scale_x !== z) {
+            this._viewport.set_scale(z, z);
+        }
+        const opacity = Math.round(255 * (z - 0.85) / 0.15);
+        if (this._root.opacity !== opacity) {
+            this._root.opacity = opacity;
+        }
         const active = !(this._offset.settled && this._zoom.settled);
         return active;
     }
@@ -313,14 +319,25 @@ export class Launchpad {
             root.destroy();
             return;
         }
-        // Smooth exit: exact reverse of the entrance — fade out and shrink back.
-        root.ease({
-            opacity: 0,
-            scale_x: 0.92,
-            scale_y: 0.92,
-            duration: 240,
-            mode: Clutter.AnimationMode.EASE_IN_QUAD,
-            onStopped: () => root.destroy(),
-        });
+        // Smooth exit: exact reverse of the entrance — fade out and shrink back with a spring.
+        this._zoom.setTarget(0.85);
+        this._offset.setTarget(0);
+        // Fade out over the spring duration using the ticker.
+        const startTime = GLib.get_monotonic_time();
+        const fadeTick = dt => {
+            if (!root || root.is_finalized?.())
+                return false;
+            const elapsed = (GLib.get_monotonic_time() - startTime) / 1e6;
+            const t = Math.min(1, elapsed / 0.24);
+            const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic
+            root.opacity = Math.round(255 * (1 - t));
+            root.set_scale(0.85 + 0.15 * (1 - t), 0.85 + 0.15 * (1 - t));
+            if (t >= 1) {
+                root.destroy();
+                return false;
+            }
+            return true;
+        };
+        getTicker().add(fadeTick);
     }
 }
