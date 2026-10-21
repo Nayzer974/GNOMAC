@@ -318,6 +318,7 @@ export class BootShutdown {
         this._cancelWarm = null;
         this._frames?.stop(false);
         this._frames = null;
+        this._dropCoverWatch();
         delete this._extension._startBudget;
         for (const timeline of [...this._timelines])
             timeline.stop();
@@ -332,8 +333,36 @@ export class BootShutdown {
     // opts: {logo, hello, classic}. Waits for GNOME to finish starting unless
     // a test passes `immediate`.
     // Draws the hidden desktop once under the cover, then calls `callback`.
+    // Modules built after the cover go on top of it (the dock, the widgets, the
+    // desktop icons): until the animation starts the cover is kept above
+    // everything, and then it goes back under what was added after it, which
+    // is where the reveal expects it.
+    _watchCover(overlay) {
+        const group = Main.layoutManager.uiGroup;
+        this._late = [];
+        this._coverGroup = group;
+        this._coverId = group.connect('child-added', (_group, actor) => {
+            if (actor === overlay.actor)
+                return;
+            this._late.push(actor);
+            group.set_child_above_sibling(overlay.actor, null);
+        });
+    }
+
+    _dropCoverWatch(overlay = null) {
+        if (this._coverId) {
+            this._coverGroup.disconnect(this._coverId);
+            this._coverId = 0;
+        }
+        const first = (this._late ?? []).find(actor => actor.get_parent() === this._coverGroup);
+        if (overlay && first && overlay.actor.get_parent() === this._coverGroup)
+            this._coverGroup.set_child_below_sibling(overlay.actor, first);
+        this._late = null;
+    }
+
     _warm(overlay, callback) {
         if (this._boot !== overlay || this._skipped || !this._chromeHidden) {
+            this._dropCoverWatch(overlay);
             callback();
             return;
         }
@@ -347,6 +376,7 @@ export class BootShutdown {
                 callback();
                 return;
             }
+            this._dropCoverWatch(overlay);
             this._prewarm(overlay, callback);
         });
     }
@@ -395,6 +425,7 @@ export class BootShutdown {
 
         // Chrome stays hidden under the cover so it can come in at the end.
         this._hideChrome();
+        this._watchCover(overlay);
 
         const duration = this._settings.get_int('boot-duration');
         let started = !Main.layoutManager._startingUp || immediate;
@@ -718,6 +749,7 @@ export class BootShutdown {
         // The animation is over: write what it measured.
         this._frames?.stop();
         this._frames = null;
+        this._dropCoverWatch();
         removeRevealBlur();
         if (!this._chromeHidden)
             return;
