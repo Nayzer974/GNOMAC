@@ -23,6 +23,8 @@ import {evaluate, format, looksLikeMath} from '../lib/calculator.js';
 import * as Session from '../lib/session.js';
 import {showGuide} from '../lib/guide.js';
 import {cancelBenchmarks} from '../lib/benchControl.js';
+import {displayInfo} from '../lib/display.js';
+import {availableActions} from '../lib/displayLayout.js';
 import {t} from '../lib/i18n.js';
 
 const WIDTH = 680;
@@ -35,9 +37,27 @@ const WM_KEYBINDINGS = 'org.gnome.desktop.wm.keybindings';
 
 const decimalComma = (GLib.get_language_names()[0] ?? '').startsWith('fr');
 
+// Several displays: make one the main display, mirror, extend, turn one off or
+// on. Nothing is offered with a single display.
+const DISPLAY_WORDS = ['display', 'displays', 'ecran', 'écran', 'ecrans', 'écrans', 'screen', 'monitor', 'moniteur',
+    'principal', 'main', 'mirror', 'miroir', 'dupliquer', 'extend', 'etendre', 'étendre', 'off', 'on', 'eteindre',
+    'éteindre', 'allumer'];
+
+function displayEntries() {
+    const say = (en, fr, name) => t(en, fr).replace('%s', name);
+    return availableActions(displayInfo.state?.displays ?? [], say).map(action => ({
+        name: action.label,
+        keywords: DISPLAY_WORDS,
+        icon: 'video-display-symbolic',
+        run: () => displayInfo.apply(action.action, action.connector).catch(e =>
+            Main.notify('GNOMAC', `${t('Cannot change the displays: ', 'Impossible de modifier les écrans : ')}${e.message}`)),
+    }));
+}
+
 function systemActionEntries(extension) {
     const entry = (name, keywords, icon, run) => ({name, keywords, icon, run});
     return [
+        ...displayEntries(),
         entry(t('Check for GNOMAC Updates', 'Rechercher des mises à jour GNOMAC'), ['update', 'mise', 'jour', 'maj', 'upgrade'],
             'software-update-available-symbolic', () => extension?.updater?.check({manual: true})),
         entry(t('Liquid Glass Debug', 'Débogage Liquid Glass'), ['glass', 'verre', 'debug', 'liquid', 'fps'],
@@ -311,7 +331,10 @@ export class Spotlight {
     }
 
     open(source = null) {
-        const monitor = Main.layoutManager.primaryMonitor;
+        // On the display the pointer is on (the main one if it cannot be told).
+        const monitor = Main.layoutManager.monitors[global.display.get_current_monitor()] ??
+            Main.layoutManager.primaryMonitor;
+        displayInfo.refresh();
         this._root.set_position(monitor.x, monitor.y);
         this._root.set_size(monitor.width, monitor.height);
         this._cardX = Math.round((monitor.width - WIDTH) / 2);

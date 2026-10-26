@@ -13,6 +13,8 @@ import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
 import St from 'gi://St';
 
+import * as Background from 'resource:///org/gnome/shell/ui/background.js';
+import * as Layout from 'resource:///org/gnome/shell/ui/layout.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {ScreenShield} from 'resource:///org/gnome/shell/ui/screenShield.js';
 import {UnlockDialog} from 'resource:///org/gnome/shell/ui/unlockDialog.js';
@@ -115,6 +117,10 @@ function unlockTransition(shield, dialog, extension, done, slow = 1, rebuild = (
 
 const TOP = 0.075; // clock distance from the top, fraction of the height
 const BOTTOM = 0.07; // prompt distance from the bottom
+// The frost behind the prompt. It is a CONSTANT effect: changing a blur effect
+// after its first frame (radius, brightness, on/off) turned the main display
+// black as soon as there were two displays. The crisp wallpaper at rest is a
+// second, unblurred copy laid over it that fades out as the prompt comes in.
 const BLUR_RADIUS = 48;
 const BLUR_DIM = 0.22;
 
@@ -183,6 +189,69 @@ class MacUnlockLayout extends Clutter.LayoutManager {
     }
 });
 
+// The unblurred wallpaper, one copy per display, over the frosted one.
+function addCrispLayer(dialog) {
+    const layer = {group: new Clutter.Actor(), managers: []};
+    dialog._gnomacCrisp = layer;
+    dialog.insert_child_above(layer.group, dialog._backgroundGroup);
+    dialog._gnomacBuildCrisp = () => {
+        for (const manager of layer.managers)
+            manager.destroy();
+        layer.managers = [];
+        layer.group.destroy_all_children();
+        Main.layoutManager.monitors.forEach((monitor, index) => {
+            const widget = new St.Widget({x: monitor.x, y: monitor.y, width: monitor.width, height: monitor.height});
+            layer.managers.push(new Background.BackgroundManager({container: widget, monitorIndex: index, controlPosition: false}));
+            layer.group.add_child(widget);
+        });
+    };
+    dialog.connect('destroy', () => {
+        for (const manager of layer.managers)
+            manager.destroy();
+        layer.managers = [];
+    });
+    dialog._gnomacBuildCrisp();
+}
+
+// With several displays GNOME puts the clock and the password field on the main
+// one only, the others show the wallpaper. When the main display is the
+// laptop's panel (closed, or turned away) nothing to type in is in sight. The
+// lock screen here goes to the display the pointer is on, as soon as the
+// pointer is there, except while a password is being typed.
+function followPointer(dialog, mainBox) {
+    const constraint = mainBox.get_constraints().find(c => c instanceof Layout.MonitorConstraint);
+    if (!constraint)
+        return;
+    const settle = () => {
+        if (!dialog.get_stage())
+            return;
+        const count = Main.layoutManager.monitors.length;
+        if (count < 2) {
+            if (!constraint.primary)
+                constraint.primary = true;
+            return;
+        }
+        const typing = (dialog._authPrompt?._entry?.text?.length ?? 0) > 0;
+        const index = global.display.get_current_monitor();
+        if (typing || index < 0 || index >= count)
+            return;
+        if (constraint.primary || constraint.index !== index)
+            constraint.index = index;
+    };
+    // Asked a few times a second, only while the lock screen exists: the
+    // pointer's events do not reach the stage while the shell is locked.
+    const timer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 250, () => {
+        settle();
+        return GLib.SOURCE_CONTINUE;
+    });
+    const monitorsId = Main.layoutManager.connect('monitors-changed', settle);
+    dialog.connect('destroy', () => {
+        GLib.source_remove(timer);
+        Main.layoutManager.disconnect(monitorsId);
+    });
+    settle();
+}
+
 function decorate(dialog) {
     dialog.add_style_class_name('gnomac-lock');
     dialog._gnomacProgress = 0;
@@ -224,7 +293,9 @@ function decorate(dialog) {
     mainBox.add_child(rest);
     dialog._gnomacRest = rest;
 
+    addCrispLayer(dialog);
     mainBox.layout_manager = new MacUnlockLayout(dialog);
+    followPointer(dialog, mainBox);
     dialog._setTransitionProgress(dialog._adjustment.value);
 }
 
@@ -327,6 +398,7 @@ export class LockScreen {
             _init: proto._init,
             _setTransitionProgress: proto._setTransitionProgress,
             _updateBackgroundEffects: proto._updateBackgroundEffects,
+            _updateBackgrounds: proto._updateBackgrounds,
         };
         const saved = this._saved;
 
@@ -366,7 +438,14 @@ export class LockScreen {
             return undefined;
         };
 
-        // Crisp wallpaper at rest, frosted glass behind the prompt.
+        // The wallpapers are rebuilt when the displays change: so is the crisp copy.
+        proto._updateBackgrounds = function () {
+            saved._updateBackgrounds.call(this);
+            this._gnomacBuildCrisp?.();
+        };
+
+        // Crisp wallpaper at rest, frosted glass behind the prompt: the frost is
+        // always there, set once, and the crisp copy over it fades with the prompt.
         proto._updateBackgroundEffects = function () {
             if (!this._gnomacRest)
                 return saved._updateBackgroundEffects.call(this);
@@ -375,10 +454,15 @@ export class LockScreen {
             for (const widget of this._backgroundGroup) {
                 const effect = widget.get_effect('blur');
                 effect?.set({
-                    enabled: progress > 0.01,
-                    brightness: 1 - BLUR_DIM * progress,
-                    radius: Math.max(1, BLUR_RADIUS * progress * scaleFactor),
+                    enabled: true,
+                    brightness: 1 - BLUR_DIM,
+                    radius: BLUR_RADIUS * scaleFactor,
                 });
+            }
+            const crisp = this._gnomacCrisp?.group;
+            if (crisp) {
+                crisp.opacity = Math.round(255 * (1 - progress));
+                crisp.visible = progress < 1;
             }
             return undefined;
         };

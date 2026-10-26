@@ -771,6 +771,43 @@ export async function run(extension) {
             log(`${key} off/on ok (${names().length} modules running)`);
         }
 
+        // 3a. Displays: Spotlight offers the multi-display actions only when there
+        //     are several displays, and they change the layout for real.
+        try {
+            const {displayInfo} = await import('./lib/display.js');
+            await new Promise(resolve => displayInfo.refresh(resolve));
+            const spotlight = extension._modules.find(m => m.constructor.name === 'Spotlight');
+            const displayRows = () => spotlight._actionResults('', true).map(r => r.title)
+                .filter(title => /Main Display|Mirror Displays|Extend Displays|Turn (Off|On) “|principal|Dupliquer|Étendre|Éteindre «|Allumer «/.test(title));
+            const several = (displayInfo.state?.displays.length ?? 0) > 1;
+            const rows = displayRows();
+            if (!several) {
+                log(rows.length === 0 ? 'displays: one display, Spotlight offers no display action ok' : `FAIL displays: one display but ${rows.join(', ')}`);
+            } else {
+                log(rows.length >= 3 ? `displays: ${rows.length} actions offered (${rows.join(' | ')}) ok` : `FAIL displays: only ${rows.join(', ')}`);
+                const other = displayInfo.state.displays.find(d => d.enabled && !d.primary);
+                const main = displayInfo.state.displays.find(d => d.primary);
+                await displayInfo.apply('primary', other.connector);
+                await wait(1500);
+                await new Promise(resolve => displayInfo.refresh(resolve));
+                const swapped = displayInfo.state.displays.find(d => d.connector === other.connector)?.primary;
+                await displayInfo.apply('primary', main.connector);
+                await wait(1500);
+                await new Promise(resolve => displayInfo.refresh(resolve));
+                const back = displayInfo.state.displays.find(d => d.connector === main.connector)?.primary;
+                log(swapped && back ? 'displays: the main display can be changed and changed back ok' : `FAIL displays: swapped ${swapped}, back ${back}`);
+                let refused = null;
+                try {
+                    await displayInfo.apply('off', 'no-such-display');
+                } catch (e) {
+                    refused = e.message;
+                }
+                log(refused ? 'displays: an unknown display is refused ok' : 'FAIL displays: an unknown display was accepted');
+            }
+        } catch (e) {
+            log(`FAIL displays: ${e}\n${e.stack ?? ''}`);
+        }
+
         // 3b. Opaque glass: the GNOMAC switch and GNOME's high contrast.
         try {
             const {glassParamsFromSettings, clearGlassParams, glassIsOpaque} = await import('./lib/glass.js');

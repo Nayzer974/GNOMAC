@@ -12,9 +12,12 @@ import GLib from 'gi://GLib';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
+import {applyArguments, parseState, planLayout} from './displayLayout.js';
+
 class DisplayInfo {
     constructor() {
         this.monitors = [];           // [{connector, width, height, refreshHz, primary}]
+        this.state = null;            // {serial, displays}: what lib/displayLayout.js plans from
         this._id = 0;
         this._timeout = 0;
     }
@@ -53,12 +56,45 @@ class DisplayInfo {
             'org.gnome.Mutter.DisplayConfig', 'GetCurrentState', null, null,
             Gio.DBusCallFlags.NONE, 2000, null, (conn, res) => {
                 try {
-                    this.monitors = this._parse(conn.call_finish(res).recursiveUnpack());
+                    const raw = conn.call_finish(res).recursiveUnpack();
+                    this.monitors = this._parse(raw);
+                    this.state = parseState(raw);
                 } catch (e) {
                     this.monitors = [];
+                    this.state = null;
                 }
                 done?.(this.monitors);
             });
+    }
+
+    // Changes the layout: action 'primary' | 'off' | 'on' | 'mirror' | 'extend'
+    // (see lib/displayLayout.js). The state is read again first: Mutter refuses
+    // a request made from an out-of-date serial. Rejects with the reason.
+    apply(action, connector = null) {
+        return new Promise((resolve, reject) => {
+            this.refresh(() => {
+                if (!this.state) {
+                    reject(new Error('the displays cannot be read'));
+                    return;
+                }
+                const plan = planLayout(this.state.displays, action, connector);
+                if (plan.error) {
+                    reject(new Error(plan.error));
+                    return;
+                }
+                const params = new GLib.Variant('(uua(iiduba(ssa{sv}))a{sv})', applyArguments(this.state.serial, plan.logical));
+                Gio.DBus.session.call('org.gnome.Mutter.DisplayConfig', '/org/gnome/Mutter/DisplayConfig',
+                    'org.gnome.Mutter.DisplayConfig', 'ApplyMonitorsConfig', params, null,
+                    Gio.DBusCallFlags.NONE, 5000, null, (conn, res) => {
+                        try {
+                            conn.call_finish(res);
+                            resolve();
+                        } catch (e) {
+                            reject(e);
+                        }
+                    });
+            });
+        });
     }
 
     // GetCurrentState: (serial, monitors, logical_monitors, properties).

@@ -1,5 +1,32 @@
 [
   {
+    "id": 5,
+    "title": [
+      "GNOMAC · several displays, made easier",
+      "GNOMAC · plusieurs écrans, plus simple"
+    ],
+    "features": [
+      [
+        "Lock screen: with several displays the clock and the password field now follow the pointer from one display to another (they stay put while you type), instead of staying on the main display only",
+        "Écran de verrouillage : avec plusieurs écrans, l’horloge et le champ du mot de passe suivent le pointeur d’un écran à l’autre (ils restent en place pendant la frappe), au lieu de rester sur l’écran principal"
+      ],
+      [
+        "Spotlight: display actions when you have several displays — make one the main display, mirror, extend, turn one off or on (type “display” or “écran”). Spotlight also opens on the display the pointer is on",
+        "Spotlight : des actions d’écrans quand tu en as plusieurs — définir l’écran principal, dupliquer, étendre, éteindre ou allumer un écran (tape « écran » ou « display »). Spotlight s’ouvre aussi sur l’écran où se trouve le pointeur"
+      ]
+    ],
+    "fixes": [
+      [
+        "Lock screen: the main display was black behind the password field when two displays were connected",
+        "Écran de verrouillage : l’écran principal était noir derrière le champ du mot de passe quand deux écrans étaient branchés"
+      ],
+      [
+        "Start-up: the desktop no longer shows for a moment before the animation, and the animation no longer stutters while modules load",
+        "Démarrage : le bureau n’apparaît plus un instant avant l’animation, et l’animation ne saccade plus pendant le chargement des modules"
+      ]
+    ]
+  },
+  {
     "id": 4,
     "title": [
       "GNOMAC · a livelier island, prayer times, one menu bar per screen",
