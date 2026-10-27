@@ -259,6 +259,7 @@ Dans la palette, on choisit avec la souris, avec les flèches puis Entrée, ou a
 | Dock | Clic droit pour les options ; glisser un fichier sur une icône pour l'ouvrir avec cette app |
 | Encoche | Survol : tableau de bord (accueil, système, actions, presse-papiers, minuteur, étagère) |
 | Fonds d'écran | `Super + W` : carrousel et transition en cercle |
+| Écrans | `Super + Ctrl + D` : écran principal, placement (gauche, droite, haut, bas), miroir, un seul écran ; s'ouvre sur tous les écrans à la fois |
 | Capture | `Impr. écran` : barre de capture façon macOS |
 | Aperçu rapide | `Espace` sur un fichier dans Fichiers (installer `sushi` : `sudo pacman -S sushi`) |
 

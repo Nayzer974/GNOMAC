@@ -2527,3 +2527,87 @@
     color: white; font-weight: 700;
 }
 .gnomac-wn-button:hover { background-color: rgba(255, 255, 255, 0.32); }
+
+/* ------------------------------------------------------------ Displays panel */
+
+.gnomac-displays-backdrop {
+    background-color: rgba(0, 0, 0, 0.38);
+}
+
+.gnomac-displays-card {
+    background-color: rgba(30, 30, 34, 0.94);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 22px;
+    padding: 22px;
+    spacing: 12px;
+    color: #f5f5f7;
+    box-shadow: 0 18px 60px rgba(0, 0, 0, 0.5);
+}
+
+.gnomac-displays-title {
+    font-size: 15pt;
+    font-weight: 700;
+}
+
+.gnomac-displays-subtitle {
+    font-size: 11pt;
+    font-weight: 600;
+}
+
+.gnomac-displays-hint {
+    font-size: 10pt;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.gnomac-displays-map {
+    background-color: rgba(255, 255, 255, 0.05);
+    border-radius: 14px;
+}
+
+.gnomac-displays-tile {
+    background-color: rgba(255, 255, 255, 0.12);
+    border: 2px solid rgba(255, 255, 255, 0.28);
+    border-radius: 8px;
+    color: #f5f5f7;
+    font-size: 9pt;
+    text-align: center;
+}
+
+.gnomac-displays-tile:hover,
+.gnomac-displays-tile:focus {
+    background-color: rgba(255, 255, 255, 0.22);
+}
+
+.gnomac-displays-tile.primary {
+    border-color: rgba(255, 255, 255, 0.6);
+}
+
+.gnomac-displays-tile:selected {
+    background-color: rgba(49, 91, 220, 0.88);
+    border-color: rgba(255, 255, 255, 0.85);
+}
+
+.gnomac-displays-row {
+    spacing: 8px;
+}
+
+.gnomac-displays-button {
+    background-color: rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    padding: 7px 14px;
+    color: #f5f5f7;
+    font-size: 10pt;
+}
+
+.gnomac-displays-button:hover,
+.gnomac-displays-button:focus {
+    background-color: rgba(255, 255, 255, 0.22);
+}
+
+.gnomac-displays-button:selected {
+    background-color: rgba(49, 91, 220, 0.88);
+}
+
+.gnomac-displays-button:insensitive {
+    color: rgba(255, 255, 255, 0.35);
+}

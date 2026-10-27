@@ -79,6 +79,7 @@ export default class GnomacPreferences extends ExtensionPreferences {
         const modules = group('Modules');
         toggle(modules, 'enable-dock', 'Dock');
         toggle(modules, 'enable-spotlight', 'Spotlight', 'Super + Espace : apps, calculs, actions système, recherche web');
+        toggle(modules, 'enable-displays', 'Écrans', 'Super + Ctrl + D : écran principal, placement (gauche, droite, haut, bas), miroir, un seul écran');
         toggle(modules, 'enable-glass-menus', 'Menus en verre', 'Tous les menus et le Centre de contrôle en Liquid Glass');
         toggle(modules, 'enable-window-animations', 'Animations des fenêtres', 'Ouverture, fermeture et effet Génie vers le dock');
         toggle(modules, 'enable-dynamic-island', 'Dynamic Island', 'Encoche : musique, minuteur, système, actions rapides, presse-papiers');

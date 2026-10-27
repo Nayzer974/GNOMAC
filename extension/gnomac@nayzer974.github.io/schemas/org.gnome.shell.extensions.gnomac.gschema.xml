@@ -17,6 +17,14 @@
       <default><![CDATA[['<Super>space']]]></default>
       <summary>Keyboard shortcut that toggles Spotlight</summary>
     </key>
+    <key name="enable-displays" type="b">
+      <default>true</default>
+      <summary>Displays panel (main display, placement, mirror)</summary>
+    </key>
+    <key name="displays-shortcut" type="as">
+      <default><![CDATA[['<Super><Control>d']]]></default>
+      <summary>Keyboard shortcut that opens the displays panel</summary>
+    </key>
     <key name="enable-glass-menus" type="b">
       <default>true</default>
       <summary>Liquid Glass menus and macOS-style Control Center</summary>

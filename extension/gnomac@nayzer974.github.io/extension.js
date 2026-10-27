@@ -11,6 +11,7 @@ import {AppMenus} from './modules/appMenus.js';
 import {Appearance} from './modules/appearance.js';
 import {BootShutdown} from './modules/bootShutdown.js';
 import {DesktopIcons} from './modules/desktopIcons.js';
+import {Displays} from './modules/displays.js';
 import {Dock} from './modules/dock.js';
 import {DynamicIsland} from './modules/dynamicIsland.js';
 import {Gaps} from './modules/gaps.js';
@@ -63,6 +64,7 @@ const MODULES = [
     {key: 'enable-dock', Module: Dock, keepAlive: true},
     {key: 'enable-dock', Module: Gaps, keepAlive: true},
     {key: 'enable-spotlight', Module: Spotlight, keepAlive: true},
+    {key: 'enable-displays', Module: Displays, keepAlive: true},
     {key: 'enable-glass-menus', Module: GlassMenus, keepAlive: true},
     {key: 'enable-window-animations', Module: WindowAnimations, keepAlive: true},
     {key: 'enable-dynamic-island', Module: DynamicIsland, keepAlive: true},

@@ -81,10 +81,56 @@ function packRow(list, primaryConnector) {
 
 const byPosition = (a, b) => (a.x - b.x) || (a.y - b.y);
 
-// What to ask Mutter for. `action`: 'primary' | 'off' | 'on' | 'mirror' |
-// 'extend'; `connector` names the display it concerns (not needed for
-// mirror and extend). Returns {logical} or {error}.
-export function planLayout(displays, action, connector = null) {
+// The laptop's own panel, if the machine has one.
+export const builtinDisplay = displays => displays.find(d => /^(eDP|LVDS|DSI)/i.test(d.connector)) ?? null;
+
+const rectOf = display => ({x: display.x, y: display.y, ...logicalSize(display)});
+const overlaps = (a, b) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+// Two rectangles that share part of an edge.
+const touches = (a, b) => {
+    const sideBySide = (a.x + a.width === b.x || b.x + b.width === a.x) && a.y < b.y + b.height && b.y < a.y + a.height;
+    const stacked = (a.y + a.height === b.y || b.y + b.height === a.y) && a.x < b.x + b.width && b.x < a.x + a.width;
+    return sideBySide || stacked;
+};
+// Mutter refuses a layout in which the displays do not all touch.
+const connected = rects => {
+    if (rects.length < 2)
+        return true;
+    const seen = new Set([0]);
+    const queue = [0];
+    while (queue.length) {
+        const i = queue.shift();
+        rects.forEach((other, j) => {
+            if (!seen.has(j) && touches(rects[i], other)) {
+                seen.add(j);
+                queue.push(j);
+            }
+        });
+    }
+    return seen.size === rects.length;
+};
+
+// Where `a` sits compared with `b`: 'left' | 'right' | 'above' | 'below' | null.
+export function relation(a, b) {
+    const ra = rectOf(a);
+    const rb = rectOf(b);
+    if (!touches(ra, rb))
+        return null;
+    if (ra.x + ra.width === rb.x)
+        return 'left';
+    if (rb.x + rb.width === ra.x)
+        return 'right';
+    return ra.y + ra.height === rb.y ? 'above' : 'below';
+}
+
+export const SIDES = ['left', 'right', 'above', 'below'];
+
+// What to ask Mutter for. `action`: 'primary' | 'off' | 'on' | 'only' | 'place'
+// | 'mirror' | 'extend'; `connector` names the display it concerns (not needed
+// for mirror and extend). 'place' also takes options {side: 'left' | 'right' |
+// 'above' | 'below', of: connector of the display it is placed next to (the
+// main one by default)}. Returns {logical} or {error}.
+export function planLayout(displays, action, connector = null, options = {}) {
     const enabled = displays.filter(d => d.enabled).sort(byPosition);
     const target = displays.find(d => d.connector === connector) ?? null;
     const primary = enabled.find(d => d.primary)?.connector ?? enabled[0]?.connector ?? null;
@@ -114,6 +160,47 @@ export function planLayout(displays, action, connector = null) {
             width: target.preferredWidth || target.width, height: target.preferredHeight || target.height,
             scale: 1, transform: 0};
         return {logical: packRow([...enabled, shown], primary)};
+    }
+    case 'only': {
+        if (!target)
+            return {error: 'unknown display'};
+        const alone = target.enabled ? target : {...target, mode: target.preferredMode || target.mode,
+            width: target.preferredWidth || target.width, height: target.preferredHeight || target.height,
+            scale: 1, transform: 0};
+        return {logical: [entry(alone, 0, 0, true)]};
+    }
+    case 'place': {
+        const side = options.side;
+        if (!SIDES.includes(side))
+            return {error: 'unknown side'};
+        if (!target?.enabled)
+            return {error: 'that display is off'};
+        const ref = enabled.find(d => d.connector === (options.of ?? primary));
+        if (!ref || ref.connector === target.connector)
+            return {error: 'choose another display to place it next to'};
+        if (target.mirrored)
+            return {error: 'displays are mirrored'};
+        const r = rectOf(ref);
+        const t = rectOf(target);
+        // Centred along the shared edge.
+        const mid = (outer, inner) => Math.round((outer - inner) / 2);
+        const at = {
+            left: {x: r.x - t.width, y: r.y + mid(r.height, t.height)},
+            right: {x: r.x + r.width, y: r.y + mid(r.height, t.height)},
+            above: {x: r.x + mid(r.width, t.width), y: r.y - t.height},
+            below: {x: r.x + mid(r.width, t.width), y: r.y + r.height},
+        }[side];
+        const moved = enabled.map(d => (d.connector === target.connector ? {...d, ...at} : d));
+        const rects = moved.map(rectOf);
+        const index = moved.findIndex(d => d.connector === target.connector);
+        if (rects.some((other, i) => i !== index && overlaps(rects[index], other)))
+            return {error: 'another display is in the way'};
+        if (!connected(rects))
+            return {error: 'the other displays would no longer touch it'};
+        // The layout starts at the origin.
+        const left = Math.min(...moved.map(d => d.x));
+        const top = Math.min(...moved.map(d => d.y));
+        return {logical: moved.map(d => entry(d, d.x - left, d.y - top, d.connector === primary))};
     }
     case 'extend': {
         if (enabled.length < 2 && displays.length < 2)
@@ -158,13 +245,15 @@ export function applyArguments(serial, logical) {
         l.monitors.map(m => [m.connector, m.mode, {}])]), {}];
 }
 
-// What can be done now, for a menu or a search: [{action, connector, label}].
-// `say(english, french, name)` is the translation function of the caller.
+// What can be done now, for a menu or a search:
+// [{action, connector, options, label}]. `say(english, french, ...names)` is the
+// translation function of the caller: each %s is replaced by a name in turn.
 export function availableActions(displays, say) {
     // Two displays of one model have the same name: the connector tells them apart.
     const shown = new Map(displays.map(d => [d.connector,
         displays.filter(x => x.name === d.name).length > 1 ? `${d.name} (${d.connector})` : d.name]));
     const enabled = displays.filter(d => d.enabled);
+    const main = enabled.find(d => d.primary) ?? enabled[0];
     const out = [];
     if (displays.length < 2)
         return out;
@@ -173,6 +262,25 @@ export function availableActions(displays, say) {
         for (const d of enabled) {
             if (!d.primary && enabled.length > 1)
                 out.push({action: 'primary', connector: d.connector, label: say('Make “%s” the Main Display', 'Définir « %s » comme écran principal', shown.get(d.connector))});
+        }
+        // Next to the main display, on each side it is not on already.
+        const sayings = {
+            left: ['Move “%s” to the Left of “%s”', 'Placer « %s » à gauche de « %s »'],
+            right: ['Move “%s” to the Right of “%s”', 'Placer « %s » à droite de « %s »'],
+            above: ['Move “%s” Above “%s”', 'Placer « %s » au-dessus de « %s »'],
+            below: ['Move “%s” Below “%s”', 'Placer « %s » en dessous de « %s »'],
+        };
+        for (const d of enabled) {
+            if (d === main || !main)
+                continue;
+            for (const side of SIDES) {
+                if (relation(d, main) === side)
+                    continue;
+                if (planLayout(displays, 'place', d.connector, {side, of: main.connector}).error)
+                    continue;
+                out.push({action: 'place', connector: d.connector, options: {side, of: main.connector},
+                    label: say(sayings[side][0], sayings[side][1], shown.get(d.connector), shown.get(main.connector))});
+            }
         }
     }
     if (enabled.length > 1 && !mirroredNow)
@@ -185,5 +293,11 @@ export function availableActions(displays, say) {
     }
     for (const d of displays.filter(x => !x.enabled))
         out.push({action: 'on', connector: d.connector, label: say('Turn On “%s”', 'Allumer « %s »', shown.get(d.connector))});
+    // The way out when a display that is gone still counts: only the one left.
+    for (const d of displays) {
+        if (enabled.length === 1 && d.enabled)
+            continue;
+        out.push({action: 'only', connector: d.connector, label: say('Use “%s” Only', 'Utiliser seulement « %s »', shown.get(d.connector))});
+    }
     return out;
 }

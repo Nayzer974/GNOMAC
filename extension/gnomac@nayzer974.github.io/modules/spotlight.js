@@ -41,15 +41,15 @@ const decimalComma = (GLib.get_language_names()[0] ?? '').startsWith('fr');
 // on. Nothing is offered with a single display.
 const DISPLAY_WORDS = ['display', 'displays', 'ecran', 'écran', 'ecrans', 'écrans', 'screen', 'monitor', 'moniteur',
     'principal', 'main', 'mirror', 'miroir', 'dupliquer', 'extend', 'etendre', 'étendre', 'off', 'on', 'eteindre',
-    'éteindre', 'allumer'];
+    'éteindre', 'allumer', 'placer', 'gauche', 'droite', 'left', 'right', 'above', 'below', 'move', 'seulement', 'only'];
 
 function displayEntries() {
-    const say = (en, fr, name) => t(en, fr).replace('%s', name);
+    const say = (en, fr, ...names) => names.reduce((text, name) => text.replace('%s', name), t(en, fr));
     return availableActions(displayInfo.state?.displays ?? [], say).map(action => ({
         name: action.label,
         keywords: DISPLAY_WORDS,
         icon: 'video-display-symbolic',
-        run: () => displayInfo.apply(action.action, action.connector).catch(e =>
+        run: () => displayInfo.apply(action.action, action.connector, action.options).catch(e =>
             Main.notify('GNOMAC', `${t('Cannot change the displays: ', 'Impossible de modifier les écrans : ')}${e.message}`)),
     }));
 }
@@ -57,6 +57,7 @@ function displayEntries() {
 function systemActionEntries(extension) {
     const entry = (name, keywords, icon, run) => ({name, keywords, icon, run});
     return [
+        entry(t('Displays…', 'Écrans…'), DISPLAY_WORDS, 'video-display-symbolic', () => extension?.displays?.open()),
         ...displayEntries(),
         entry(t('Check for GNOMAC Updates', 'Rechercher des mises à jour GNOMAC'), ['update', 'mise', 'jour', 'maj', 'upgrade'],
             'software-update-available-symbolic', () => extension?.updater?.check({manual: true})),

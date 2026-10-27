@@ -67,17 +67,17 @@ class DisplayInfo {
             });
     }
 
-    // Changes the layout: action 'primary' | 'off' | 'on' | 'mirror' | 'extend'
-    // (see lib/displayLayout.js). The state is read again first: Mutter refuses
+    // Changes the layout: action 'primary' | 'off' | 'on' | 'only' | 'place' |
+    // 'mirror' | 'extend' (see lib/displayLayout.js; `options` is for 'place'). The state is read again first: Mutter refuses
     // a request made from an out-of-date serial. Rejects with the reason.
-    apply(action, connector = null) {
+    apply(action, connector = null, options = {}) {
         return new Promise((resolve, reject) => {
             this.refresh(() => {
                 if (!this.state) {
                     reject(new Error('the displays cannot be read'));
                     return;
                 }
-                const plan = planLayout(this.state.displays, action, connector);
+                const plan = planLayout(this.state.displays, action, connector, options);
                 if (plan.error) {
                     reject(new Error(plan.error));
                     return;

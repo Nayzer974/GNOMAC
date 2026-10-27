@@ -1,5 +1,28 @@
 [
   {
+    "id": 6,
+    "title": [
+      "GNOMAC · a displays panel",
+      "GNOMAC · un panneau Écrans"
+    ],
+    "features": [
+      [
+        "Displays panel (Super + Ctrl + D, or “Displays…” in Spotlight): a map of your screens, make one the main display, place it on the left, right, above or below, turn one off or on, mirror, extend, or keep a single one. It opens on every display at once",
+        "Panneau Écrans (Super + Ctrl + D, ou « Écrans… » dans Spotlight) : une carte de tes écrans, définir l’écran principal, placer un écran à gauche, à droite, au-dessus ou en dessous, éteindre ou allumer, dupliquer, étendre, ou n’en garder qu’un. Il s’ouvre sur tous les écrans à la fois"
+      ],
+      [
+        "Spotlight: the same actions as commands (type “écran” or “display”), including “Use … only”",
+        "Spotlight : les mêmes actions en commandes (tape « écran » ou « display »), dont « Utiliser seulement … »"
+      ]
+    ],
+    "fixes": [
+      [
+        "When a display is unplugged but the system still counts it, the real screen looks like the “second” one and the menu bar and the dock are out of sight: the panel (Super + Ctrl + D, then “Built-in display only”) brings everything back",
+        "Quand un écran est débranché mais que le système le compte encore, le vrai écran passe pour le « deuxième » et la barre de menus et le dock restent hors de vue : le panneau (Super + Ctrl + D, puis « Écran intégré seul ») remet tout en place"
+      ]
+    ]
+  },
+  {
     "id": 5,
     "title": [
       "GNOMAC · several displays, made easier",
