@@ -92,7 +92,7 @@ export class WindowAnimations {
         // Mission Control from the keyboard (it used to be reachable from
         // Spotlight only).
         Main.wm.addKeybinding('mission-control-shortcut', this._settings, Meta.KeyBindingFlags.IGNORE_AUTOREPEAT,
-            Shell.ActionMode.NORMAL, () => (missionControl.active ? exitMissionControl(null) : enterMissionControl()));
+            Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW, () => (missionControl.active ? exitMissionControl(null) : enterMissionControl()));
 
         this._mapId = global.window_manager.connect('map', (_wm, actor) => this._afterMap(actor));
         this._unminimizeId = global.window_manager.connect('unminimize', (_wm, actor) => this._afterRestore(actor));

@@ -275,7 +275,7 @@ export class Spotlight {
 
         Main.wm.addKeybinding(SHORTCUT_KEY, this._settings,
             Meta.KeyBindingFlags.IGNORE_AUTOREPEAT,
-            Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW,
+            Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW | Shell.ActionMode.POPUP,
             () => this.toggle());
 
         this._overviewId = Main.overview.connect('showing', () => this.close());
@@ -325,13 +325,21 @@ export class Spotlight {
     // `source`: the actor that opened it (the menu bar magnifier); the glass
     // then forms from that point instead of from its centre.
     toggle(source = null) {
-        if (this._root.visible)
+        // A bar that is still closing (the animation takes a third of a second)
+        // counts as closed: the shortcut pressed again opens it again, instead
+        // of closing what is already closing.
+        if (this._root.visible && !this._closing)
             this.close();
         else
             this.open(source);
     }
 
     open(source = null) {
+        if (this._root.visible && !this._closing)
+            return;
+        // Whatever was closing is cancelled: its end must not hide the bar again.
+        this._closing = false;
+        this._closeToken = null;
         // On the display the pointer is on (the main one if it cannot be told).
         const monitor = Main.layoutManager.monitors[global.display.get_current_monitor()] ??
             Main.layoutManager.primaryMonitor;
@@ -381,18 +389,36 @@ export class Spotlight {
     close(animate = true) {
         if (!this._root?.visible)
             return;
+        // Closing twice in a row (Escape then the shortcut) changes nothing; closing
+        // at once (the module is stopped, the overview opens) always goes through.
+        if (this._closing && animate)
+            return;
         if (this._grab) {
             Main.popModal(this._grab);
             this._grab = null;
         }
         if (!animate) {
+            this._closing = false;
+            this._closeToken = null;
             this._root.hide();
             return;
         }
+        const token = this._closeToken = {};
+        this._closing = true;
+        const finish = () => {
+            // Opened again in the meantime: nothing to finish.
+            if (this._closeToken !== token)
+                return false;
+            this._closing = false;
+            this._closeToken = null;
+            return true;
+        };
         if (this._srcRect && St.Settings.get().enable_animations) {
             // The bar compresses back into the magnifier.
             this._morph = {start: GLib.get_monotonic_time(), duration: MORPH_MS * 0.8, dir: -1,
                 onDone: () => {
+                    if (!finish())
+                        return;
                     this._root?.hide();
                     this._morph = null;
                     this._card?.set_clip_to_allocation(false);
@@ -409,6 +435,8 @@ export class Spotlight {
             duration: 120,
             mode: Clutter.AnimationMode.EASE_IN_QUAD,
             onStopped: () => {
+                if (!finish())
+                    return;
                 this._root?.hide();
                 this._card?.set_scale(1, 1);
             },

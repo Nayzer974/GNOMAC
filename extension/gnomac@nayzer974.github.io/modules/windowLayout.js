@@ -58,7 +58,7 @@ export class WindowLayout {
     enable() {
         const flags = Meta.KeyBindingFlags.IGNORE_AUTOREPEAT;
         const mode = Shell.ActionMode.NORMAL;
-        Main.wm.addKeybinding('layout-shortcut', this._settings, flags, mode, () => this.togglePalette());
+        Main.wm.addKeybinding('layout-shortcut', this._settings, flags, mode | Shell.ActionMode.POPUP, () => this.togglePalette());
         this._bound.push('layout-shortcut');
         // Cmd+Q: quit the whole application, not just the window.
         Main.wm.addKeybinding('quit-shortcut', this._settings, flags, mode, () => this._quitApp());

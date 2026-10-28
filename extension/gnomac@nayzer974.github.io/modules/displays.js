@@ -44,7 +44,7 @@ export class Displays {
         this._extension.displays = this;
         Main.wm.addKeybinding(SHORTCUT_KEY, this._settings,
             Meta.KeyBindingFlags.IGNORE_AUTOREPEAT,
-            Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW,
+            Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW | Shell.ActionMode.POPUP,
             () => this.toggle());
         this._monitorsId = Main.layoutManager.connect('monitors-changed', () => {
             if (this._root)

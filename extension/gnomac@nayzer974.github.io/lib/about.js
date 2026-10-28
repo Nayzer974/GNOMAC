@@ -330,7 +330,7 @@ export function showAbout() {
 
     Main.layoutManager.uiGroup.add_child(root);
     glass.setStageOrigin(x, y);
-    const grab = Main.pushModal(root, {actionMode: Shell.ActionMode.POPUP});
+    const grab = Main.pushModal(root, {actionMode: Shell.ActionMode.NORMAL | Shell.ActionMode.POPUP});
 
     graphics(name => {
         if (current && graphicsLabel && !graphicsLabel.is_finalized?.())

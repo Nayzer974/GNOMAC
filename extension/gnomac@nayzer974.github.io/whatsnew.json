@@ -19,6 +19,10 @@
       [
         "When a display is unplugged but the system still counts it, the real screen looks like the “second” one and the menu bar and the dock are out of sight: the panel (Super + Ctrl + D, then “Built-in display only”) brings everything back",
         "Quand un écran est débranché mais que le système le compte encore, le vrai écran passe pour le « deuxième » et la barre de menus et le dock restent hors de vue : le panneau (Super + Ctrl + D, puis « Écran intégré seul ») remet tout en place"
+      ],
+      [
+        "Keyboard shortcuts: Super + Space and the other GNOMAC shortcuts were ignored while a GNOMAC window was open (this very window, Spotlight, the displays panel…). They now work, and the shortcut that opened a window also closes it, even while it is still closing",
+        "Raccourcis clavier : Super + Espace et les autres raccourcis GNOMAC étaient ignorés quand une fenêtre GNOMAC était ouverte (cette fenêtre, Spotlight, le panneau Écrans…). Ils fonctionnent maintenant, et le raccourci qui ouvre une fenêtre la ferme aussi, même pendant sa fermeture"
       ]
     ]
   },

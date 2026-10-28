@@ -88,6 +88,9 @@ enabled-extensions=['$UUID']
 disable-user-extensions=false
 welcome-dialog-last-shown-version='999'
 favorite-apps=[${favorites%, }]
+
+[org/gnome/shell/extensions/gnomac]
+whatsnew-seen=999
 EOF
 {
     echo "XDG_DESKTOP_DIR=\"$WORK/Desktop\""

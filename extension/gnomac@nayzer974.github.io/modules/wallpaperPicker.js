@@ -75,7 +75,7 @@ export class WallpaperPicker {
     enable() {
         this._extension.wallpaperPicker = this;
         Main.wm.addKeybinding(SHORTCUT_KEY, this._settings, Meta.KeyBindingFlags.IGNORE_AUTOREPEAT,
-            Shell.ActionMode.NORMAL, () => this.toggle());
+            Shell.ActionMode.NORMAL | Shell.ActionMode.POPUP, () => this.toggle());
     }
 
     disable() {

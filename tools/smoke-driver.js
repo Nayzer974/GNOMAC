@@ -4,6 +4,7 @@
 // and then reloads everything a few times in a row. Failures are printed with
 // the prefix "GNOMAC-SMOKE: FAIL"; the shell log is checked by smoke-test.sh.
 
+import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import Meta from 'gi://Meta';
@@ -79,7 +80,12 @@ export async function run(extension) {
                     await wait(900);
                     module[close]();
                     await wait(600);
-                    log(`${module.constructor.name}.${open}/${close} ok`);
+                    // A panel that keeps the keyboard grab after it is closed would
+                    // make every keyboard shortcut of the shell dead.
+                    if (Main.modalCount !== 0)
+                        log(`FAIL ${module.constructor.name}.${open}/${close} left a modal grab behind (modalCount ${Main.modalCount})`);
+                    else
+                        log(`${module.constructor.name}.${open}/${close} ok`);
                 } catch (e) {
                     log(`FAIL ${module.constructor.name}.${open}: ${e}\n${e.stack ?? ''}`);
                 }
@@ -769,6 +775,76 @@ export async function run(extension) {
             settings.set_boolean(key, before);
             await wait(700);
             log(`${key} off/on ok (${names().length} modules running)`);
+        }
+
+        // 3. Keyboard shortcuts: they must work while one of GNOMAC's own windows
+        //    is open (in "popup" mode the shell ignores them), and the shortcut that
+        //    opened a window must close it, even while it is still closing.
+        try {
+            const seat = global.stage.context.get_backend().get_default_seat();
+            const keyboard = seat.create_virtual_device(Clutter.InputDeviceType.KEYBOARD_DEVICE);
+            const press = async (mods, key) => {
+                for (const m of mods) {
+                    keyboard.notify_keyval(GLib.get_monotonic_time(), m, Clutter.KeyState.PRESSED);
+                    await wait(20);
+                }
+                keyboard.notify_keyval(GLib.get_monotonic_time(), key, Clutter.KeyState.PRESSED);
+                await wait(50);
+                keyboard.notify_keyval(GLib.get_monotonic_time(), key, Clutter.KeyState.RELEASED);
+                await wait(20);
+                for (const m of [...mods].reverse()) {
+                    keyboard.notify_keyval(GLib.get_monotonic_time(), m, Clutter.KeyState.RELEASED);
+                    await wait(20);
+                }
+            };
+            const check = (label, ok, detail = '') => log(ok ? `shortcuts: ${label} ok` : `FAIL shortcuts: ${label} ${detail}`);
+            const spotlight = extension._modules.find(m => m.constructor.name === 'Spotlight');
+            const displays = extension._modules.find(m => m.constructor.name === 'Displays');
+            const spotlightOpen = () => !!spotlight?._root?.visible && !spotlight._closing;
+            const SUPER = Clutter.KEY_Super_L;
+            const CTRL = Clutter.KEY_Control_L;
+
+            const whatsNew = await import('./lib/whatsNew.js');
+            extension.updater?.showWhatsNew(true);
+            await wait(1200);
+            check('the What\'s New window holds a modal grab', Main.modalCount === 1, `modalCount ${Main.modalCount}`);
+            await press([SUPER], Clutter.KEY_space);
+            await wait(1000);
+            check('Super+Space opens Spotlight while the What\'s New window is open', spotlightOpen(), `modalCount ${Main.modalCount}`);
+            await press([SUPER], Clutter.KEY_space);
+            await wait(1000);
+            check('the same shortcut closes Spotlight', !spotlightOpen(), `visible ${spotlight?._root?.visible}`);
+            await press([SUPER, CTRL], Clutter.KEY_d);
+            await wait(1000);
+            check('Super+Ctrl+D opens the displays panel', !!displays?._root);
+            await press([SUPER, CTRL], Clutter.KEY_d);
+            await wait(800);
+            check('the same shortcut closes it', !displays?._root);
+            whatsNew.closeWhatsNew();
+            await wait(600);
+            check('closing the What\'s New window releases the grab', Main.modalCount === 0, `modalCount ${Main.modalCount}`);
+
+            // Pressed again while Spotlight is still closing: it opens again.
+            await press([SUPER], Clutter.KEY_space);
+            await wait(900);
+            await press([], Clutter.KEY_Escape);
+            await wait(100);
+            await press([SUPER], Clutter.KEY_space);
+            await wait(900);
+            check('Super+Space pressed while Spotlight is closing opens it again', spotlightOpen() && Main.modalCount === 1,
+                `open ${spotlightOpen()}, modalCount ${Main.modalCount}`);
+            // A burst of six presses ends closed, and nothing is left behind.
+            await press([], Clutter.KEY_Escape);
+            await wait(900);
+            for (let i = 0; i < 6; i++) {
+                await press([SUPER], Clutter.KEY_space);
+                await wait(150);
+            }
+            await wait(1000);
+            check('six quick presses leave Spotlight closed, no grab left', !spotlight?._root?.visible && Main.modalCount === 0,
+                `visible ${spotlight?._root?.visible}, modalCount ${Main.modalCount}`);
+        } catch (e) {
+            log(`FAIL shortcuts: ${e}\n${e.stack ?? ''}`);
         }
 
         // 3a. Displays: Spotlight offers the multi-display actions only when there

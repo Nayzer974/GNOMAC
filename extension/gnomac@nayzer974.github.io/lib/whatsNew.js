@@ -95,7 +95,7 @@ export function showWhatsNew(extension, releases, {markSeen = true} = {}) {
         x_align: Clutter.ActorAlign.END});
     column.add_child(ok);
 
-    const grab = Main.pushModal(root, {actionMode: Shell.ActionMode.POPUP});
+    const grab = Main.pushModal(root, {actionMode: Shell.ActionMode.NORMAL | Shell.ActionMode.POPUP});
     let closed = false;
     let run = null;
     const state = {

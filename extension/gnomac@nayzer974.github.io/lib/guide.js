@@ -129,7 +129,7 @@ export function showGuide() {
 
     Main.layoutManager.uiGroup.add_child(root);
     Main.layoutManager.uiGroup.set_child_above_sibling(root, null);
-    const grab = Main.pushModal(root, {actionMode: Shell.ActionMode.POPUP});
+    const grab = Main.pushModal(root, {actionMode: Shell.ActionMode.NORMAL | Shell.ActionMode.POPUP});
     if (!grab) {
         root.destroy();
         return;
