@@ -372,6 +372,15 @@ L'écran de connexion a ses fichiers : `/etc/gnomac/login.conf` (horloge, bouton
 
 ## Développement
 
+**Comprendre et modifier le code** (pour les humains comme pour les IA) :
+
+| Document | Pour |
+|---|---|
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | comprendre comment ça marche : modules, cycle de vie, démarrage et déverrouillage, moteur de verre et d'animation, réglages, tests |
+| [`docs/MAP.md`](docs/MAP.md) | la carte complète, **générée depuis le code** : chaque module, bibliothèque, réglage, outil (version lisible par un programme : [`docs/map.json`](docs/map.json)) |
+| [`docs/MODIFY.md`](docs/MODIFY.md) | modifier : « je veux changer… » avec les fichiers à toucher, et comment essayer dans un shell de test |
+| [`AGENTS.md`](AGENTS.md) | le point d'entrée des agents IA : règles, commandes, pièges de GNOME Shell 51 |
+
 ```bash
 make install        # ./install.sh
 make uninstall      # ./uninstall.sh
@@ -379,6 +388,7 @@ make schemas        # recompile le schéma GSettings
 make zip            # paquet pour extensions.gnome.org
 make check          # vérifications statiques (tools/check.sh), celles de la CI
 make smoke          # shell GNOME sans écran piloté par un script (tools/smoke-test.sh)
+make map            # régénère la carte du code (docs/MAP.md et docs/map.json)
 node tools/test-prayer.mjs                              # heures de prière contre les horaires de référence
 TZ=Europe/Paris gjs -m tools/test-prayer-schedule.js     # prière en cours, suivante, alertes, changement d'heure
 ```
@@ -408,8 +418,12 @@ plymouth/gnomac/                         thème de démarrage
 gdm/install-gdm.sh                       installation de l'écran de connexion
 scripts/state.py                         sauvegarde / restauration des réglages GNOME
 install.sh  uninstall.sh  get.sh         installeur, désinstalleur, installation en une ligne
+ARCHITECTURE.md  AGENTS.md               comment ça marche ; le point d'entrée des agents IA
+docs/MAP.md  docs/map.json               la carte du code (générée par tools/gen-map.py)
+docs/MODIFY.md                           recettes : où toucher pour changer quoi
 docs/ANALYSIS.md                         analyse de RevoShell et de Gnomintosh
 docs/dynamic-island.md                   l'encoche face à la Dynamic Island, et les heures de prière
+tools/                                   tests, shell de test (smoke-test.sh, probe-kit.js), générateur de la carte
 ```
 
 L'extension est découpée en modules indépendants (`modules/dock.js`, `dynamicIsland.js`, `spotlight.js`, `widgets.js`, `windowLayout.js`, `stageManager.js`, `loginScreen.js`…), chacun avec son interrupteur dans `extension.js`.

@@ -10,6 +10,7 @@
 #   GNOMAC_SMOKE_SHOT=DIR tools/smoke-test.sh   also save screenshots in DIR
 #   SMOKE_APPS=150 tools/smoke-test.sh      add launchers, to see how the Launchpad copes
 #   SMOKE_CACHE_DIR=DIR tools/smoke-test.sh keep the cache between runs (second login of a session)
+#   SMOKE_DRIVER=tools/probes/shortcuts.js tools/smoke-test.sh   run your own scenario (tools/probe-kit.js)
 #
 # Exit status: 0 = loaded, driven to the end, no error; 1 = errors or the
 # driver did not finish; 2 = the test could not run.
@@ -27,7 +28,9 @@ trap 'rm -rf "$WORK"' EXIT
 EXT="$WORK/data/gnome-shell/extensions/$UUID"
 mkdir -p "$WORK/data/gnome-shell/extensions" "$WORK/config/glib-2.0/settings" "$WORK/cache" "$WORK/Desktop"
 cp -r "$ROOT/extension/$UUID" "$EXT"
-cp "$ROOT/tools/smoke-driver.js" "$EXT/smoke-driver.js"
+# SMOKE_DRIVER=path runs your own scenario instead (see tools/probe-kit.js).
+cp "${SMOKE_DRIVER:-$ROOT/tools/smoke-driver.js}" "$EXT/smoke-driver.js"
+cp "$ROOT/tools/probe-kit.js" "$EXT/probe-kit.js"
 cp "$ROOT/tools/prefs-smoke.js" "$EXT/prefs-smoke.js"
 glib-compile-schemas "$EXT/schemas"
 

@@ -1,7 +1,7 @@
 UUID := gnomac@nayzer974.github.io
 SRC := extension/$(UUID)
 
-.PHONY: install ez uninstall schemas zip nested logs check smoke
+.PHONY: install ez uninstall schemas zip nested logs check smoke map
 
 install:
 	./install.sh
@@ -33,3 +33,7 @@ check:
 # Headless GNOME Shell with this checkout's extension, driven by a script.
 smoke:
 	tools/smoke-test.sh
+
+# Regenerate docs/MAP.md and docs/map.json from the code (check.sh fails when they are stale).
+map:
+	python3 tools/gen-map.py

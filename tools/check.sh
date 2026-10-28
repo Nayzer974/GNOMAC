@@ -68,6 +68,9 @@ for file in "$EXT/metadata.json" "$EXT/whatsnew.json"; do
     python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$file" || fail "${file#"$ROOT"/}"
 done
 
+step "Code map (docs/MAP.md, docs/map.json)"
+python3 "$ROOT/tools/gen-map.py" --check || fail "the code map is out of date: run make map and commit it"
+
 step "Prayer times"
 if command -v node >/dev/null; then
     node tools/test-prayer.mjs | tail -1 || fail "tools/test-prayer.mjs"
